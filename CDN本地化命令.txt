@@ -1,0 +1,83 @@
+# CDN资源本地化下载命令（PowerShell）
+
+## 1. 创建目录结构
+New-Item -ItemType Directory -Path assets\css -Force
+New-Item -ItemType Directory -Path assets\js -Force
+New-Item -ItemType Directory -Path assets\img -Force
+
+## 2. 下载CSS文件
+# TailwindCSS v2.2.19
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" -OutFile "assets\css\tailwind.min.css"
+
+# Font Awesome 6.4.0
+Invoke-WebRequest -Uri "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" -OutFile "assets\css\fontawesome.min.css"
+
+## 3. 下载JS文件
+# Vue.js 2.7.16
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js" -OutFile "assets\js\vue.js"
+
+# Axios 1.6.7
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js" -OutFile "assets\js\axios.min.js"
+
+# ECharts 5.4.3
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js" -OutFile "assets\js\echarts.min.js"
+
+## 4. 下载图片（替换Unsplash外链）
+# 登录页背景图
+Invoke-WebRequest -Uri "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=1000&fit=crop" -OutFile "assets\img\login-bg.jpg"
+
+# 注册页背景图
+Invoke-WebRequest -Uri "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=1000&fit=crop" -OutFile "assets\img\register-bg.jpg"
+
+# 落地页Benefits区域图
+Invoke-WebRequest -Uri "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&h=500&fit=crop" -OutFile "assets\img\benefits.jpg"
+
+---
+
+## 5. 修改index.html中的引用路径
+
+### 替换<head>中的CDN链接：
+<!-- CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+↓ 改为 ↓
+<link rel="stylesheet" href="assets/css/tailwind.min.css">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+↓ 改为 ↓
+<link rel="stylesheet" href="assets/css/fontawesome.min.css">
+
+<!-- JS -->
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js"></script>
+↓ 改为 ↓
+<script src="assets/js/vue.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+↓ 改为 ↓
+<script src="assets/js/axios.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+↓ 改为 ↓
+<script src="assets/js/echarts.min.js"></script>
+
+### 替换图片外链：
+<!-- 登录页 L1249 -->
+<img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=1000&fit=crop">
+↓ 改为 ↓
+<img src="assets/img/login-bg.jpg">
+
+<!-- 注册页 L1340 -->
+<img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=1000&fit=crop">
+↓ 改为 ↓
+<img src="assets/img/register-bg.jpg">
+
+<!-- Benefits区域 L1077 -->
+<img src="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&h=500&fit=crop">
+↓ 改为 ↓
+<img src="assets/img/benefits.jpg">
+
+---
+
+## 验收标准
+1. 断网测试：关闭WiFi后刷新页面，所有样式和脚本正常加载
+2. 打包交付：将整个项目文件夹（包含assets/）压缩为zip，在另一台电脑解压后可直接运行
+3. 答辩演示：无需联网，双击index.html即可展示完整UI

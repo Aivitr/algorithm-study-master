@@ -1,0 +1,24 @@
+# ===== 密钥与本地配置 =====
+.env
+
+# ===== Python =====
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# ===== 敏感运行时数据（真实用户数据，切勿提交） =====
+voiceprints.json
+storage/
+uploads/
+*.log
+*.pdf
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== 工具/构建产物 =====
+.claude/
+.qoder/
+_tmp_agora_token_builder/

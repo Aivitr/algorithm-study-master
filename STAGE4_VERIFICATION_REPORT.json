@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-04-12T18:30:35.313384",
+  "file": "D:\\study system\\change\\algorithm-study-master\\index.html",
+  "getUserMedia_calls": [],
+  "getDisplayMedia_calls": [],
+  "audio_constraint_found": true,
+  "toast_notification_found": true,
+  "expected_constraints": {
+    "echoCancellation": true,
+    "noiseSuppression": true,
+    "autoGainControl": true,
+    "channelCount": 1,
+    "sampleRate": 16000
+  },
+  "constraint_verification": {
+    "echoCancellation": true,
+    "noiseSuppression": true,
+    "autoGainControl": true,
+    "channelCount": true,
+    "sampleRate": true
+  },
+  "summary": {
+    "total_getUserMedia_calls": 0,
+    "updated_getUserMedia_calls": 0,
+    "total_getDisplayMedia_calls": 0,
+    "updated_getDisplayMedia_calls": 0,
+    "all_constraints_found": true,
+    "all_calls_updated": true,
+    "toast_notification_found": true,
+    "implementation_status": "✅ 完全实现"
+  }
+}

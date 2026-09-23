@@ -1,0 +1,37 @@
+[Unit]
+Description=Smart Collaborative Learning System - smartclass1.top
+Documentation=https://smartclass1.top
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/smartclass1
+Environment="PATH=/opt/smartclass1/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/etc/smartclass1/smartclass1.env
+
+# 启动命令
+ExecStart=/opt/smartclass1/venv/bin/python server.py
+
+# 重启策略
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# 日志输出
+StandardOutput=append:/var/log/smartclass1/app.log
+StandardError=append:/var/log/smartclass1/error.log
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
