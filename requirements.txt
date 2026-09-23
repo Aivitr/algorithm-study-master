@@ -37,3 +37,5 @@ oss2
 pymssql
 alibabacloud-tea-openapi
 alibabacloud-facebody20191230
+# Agora RTC Token 生成（当前 appid 模式未启用；启用 token 鉴权模式时服务端需要）
+agora-token-builder==1.0.0
