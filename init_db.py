@@ -1,126 +1,52 @@
 # -*- coding: utf-8 -*-
-"""初始化数据库表结构"""
-import os
-import config  # 先加载 .env，确保 os.getenv 能读到数据库配置
-import pymssql
+"""初始化数据库表结构。
 
-DB_CONFIG = {
-    'server': os.getenv("DB_HOST", ""),
-    'port': int(os.getenv("DB_PORT", "3433")),
-    'user': os.getenv("DB_USER", ""),
-    'password': os.getenv("DB_PASSWORD", ""),
-    'database': os.getenv("DB_NAME", ""),
-    'charset': 'utf8'
-}
+建表语句的唯一来源是 database.py 里的 ORM 模型：本脚本只调用
+Base.metadata.create_all()，所以建出来的表名/列名/类型/索引与程序实际
+使用的 ORM 定义必然一致，不会再出现"脚本建的表程序认不出来"。
 
-# SQL Server 建表语句
-TABLES = [
-    """
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
-    CREATE TABLE users (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        student_id VARCHAR(50) UNIQUE NOT NULL,
-        username VARCHAR(50) NOT NULL,
-        password VARCHAR(256) NOT NULL,
-        role VARCHAR(20) NOT NULL DEFAULT 'student',
-        face_encoding NVARCHAR(MAX),
-        created_at DATETIME DEFAULT GETDATE()
-    )
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_student_id' AND object_id = OBJECT_ID('users'))
-    CREATE INDEX idx_student_id ON users(student_id)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='meetings' AND xtype='U')
-    CREATE TABLE meetings (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        class_code VARCHAR(50) UNIQUE NOT NULL,
-        topic VARCHAR(200),
-        lesson_plan NVARCHAR(MAX),
-        goals NVARCHAR(MAX),
-        status VARCHAR(20) DEFAULT 'active',
-        created_at DATETIME DEFAULT GETDATE()
-    )
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_class_code' AND object_id = OBJECT_ID('meetings'))
-    CREATE INDEX idx_class_code ON meetings(class_code)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='transcripts' AND xtype='U')
-    CREATE TABLE transcripts (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        meeting_id INT NOT NULL,
-        user_id INT NOT NULL,
-        text NVARCHAR(MAX),
-        relevance_score FLOAT DEFAULT 0,
-        quality_score FLOAT DEFAULT 50,
-        timestamp DATETIME DEFAULT GETDATE()
-    )
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_meeting' AND object_id = OBJECT_ID('transcripts'))
-    CREATE INDEX idx_meeting ON transcripts(meeting_id)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_user' AND object_id = OBJECT_ID('transcripts'))
-    CREATE INDEX idx_user ON transcripts(user_id)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='emotion_logs' AND xtype='U')
-    CREATE TABLE emotion_logs (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        meeting_id INT NOT NULL,
-        user_id INT NOT NULL,
-        emotion VARCHAR(50),
-        confidence FLOAT,
-        snapshot_path VARCHAR(500),
-        video_url VARCHAR(500),
-        video_start_time FLOAT DEFAULT 0,
-        timestamp DATETIME DEFAULT GETDATE()
-    )
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_meeting_emotion' AND object_id = OBJECT_ID('emotion_logs'))
-    CREATE INDEX idx_meeting_emotion ON emotion_logs(meeting_id)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_user_emotion' AND object_id = OBJECT_ID('emotion_logs'))
-    CREATE INDEX idx_user_emotion ON emotion_logs(user_id)
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_insights' AND xtype='U')
-    CREATE TABLE ai_insights (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        meeting_id INT NOT NULL,
-        user_id INT NOT NULL,
-        insight_type VARCHAR(50),
-        content NVARCHAR(MAX),
-        timestamp DATETIME DEFAULT GETDATE()
-    )
-    """,
-    """
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_meeting_insights' AND object_id = OBJECT_ID('ai_insights'))
-    CREATE INDEX idx_meeting_insights ON ai_insights(meeting_id)
-    """
-]
+（旧版这里是手写的 4 条 T-SQL CREATE TABLE，已经和模型严重脱节：
+ meetings.topic 写成 VARCHAR(200) 而模型是 UnicodeText、transcripts.text
+ 而模型是 content、emotion_logs.emotion 而模型是 emotion_type、
+ ai_insights.user_id 而模型是 target_user …… 用旧脚本建出来的库，
+ server.py 一跑就是"列名无效"。而且它只建 4 张表，模型里有 15 张。
+ 另外那些手写 DDL 里的 VARCHAR 中文列也踩了 FreeTDS 代码页问题，
+ 详见 database.py 顶部的说明。）
 
-print("正在初始化数据库...")
-try:
-    conn = pymssql.connect(**DB_CONFIG)
-    cursor = conn.cursor()
+连接信息只读 DATABASE_URL，与 server.py 完全一致：
+    mssql+pymssql://<user>:<password>@<host>:3433/<db>?charset=utf8
+留空则建到本地 SQLite（storage/app.db）。
 
-    for i, sql in enumerate(TABLES, 1):
-        print(f"执行第 {i}/{len(TABLES)} 个表...")
-        cursor.execute(sql)
+create_all 是幂等的：已存在的表不会被修改，可以反复执行。
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+用法:
+    python init_db.py
+"""
+import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
+from database import Base, engine, SQLALCHEMY_DATABASE_URL
 
-    print("\n数据库初始化完成!")
+
+def _mask_password(url: str) -> str:
+    """打印连接串时抹掉密码。"""
+    if "://" not in url or "@" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    cred, host = rest.rsplit("@", 1)
+    user = cred.split(":", 1)[0]
+    return f"{scheme}://{user}:***@{host}"
+
+
+if __name__ == "__main__":
+    print("正在初始化数据库...")
+    print(f"  目标: {_mask_password(SQLALCHEMY_DATABASE_URL)}  (方言: {engine.dialect.name})")
+
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        raise SystemExit(f"错误：{e}")
+
+    tables = sorted(Base.metadata.tables.keys())
+    print(f"\n数据库初始化完成，共 {len(tables)} 张表：")
+    for name in tables:
+        print(f"  - {name}")
     print("\n提示：运行 python server.py 启动服务")
-
-except Exception as e:
-    print(f"错误：{e}")

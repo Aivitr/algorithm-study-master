@@ -36,6 +36,7 @@ from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func as sa_func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 # 🚫 ThreadPoolExecutor🚫 yield
@@ -1921,7 +1922,8 @@ async def register(
     student_id: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
-    role: str = Form("student")
+    role: str = Form("student"),
+    db: Session = Depends(get_db)
 ):
     """User registration"""
     try:
@@ -1929,36 +1931,26 @@ async def register(
     except:
         print(f"[NOTE] Register request received")
 
-    import pymssql
+    # 走 ORM 而不是裸 pymssql 直连：
+    #   1) 只认 DATABASE_URL 一套配置，不再依赖 DB_HOST/DB_PORT/... 那 5 个变量
+    #      （部署模板里只有 DATABASE_URL，所以裸连写法会让注册登录全部失败）；
+    #   2) created_at 由 Column(default=datetime.now) 填充，不再需要 T-SQL 的 GETDATE()，
+    #      于是 SQLite 回退也真的可用。
     try:
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset='utf8',
-            timeout=10,
-            login_timeout=10
-        )
-        cursor = conn.cursor()
-
-        # Insert user
         print("[SAVE] Executing INSERT...")
-        cursor.execute(
-            "INSERT INTO users (student_id, username, password, role, created_at) VALUES (%s, %s, %s, %s, GETDATE())",
-            (student_id, username, password, role)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
+        user = User(student_id=student_id, username=username, password=password, role=role)
+        db.add(user)
+        db.commit()
 
         print(f"[OK] Registration successful")
         return {"status": "success", "message": "注册成功"}
-    except pymssql.IntegrityError as e:
+    except IntegrityError:
+        # student_id 唯一索引冲突（SQL Server 2627 / 2601，SQLite UNIQUE）
+        db.rollback()
         print(f"[ERROR] Student ID already exists: {student_id}")
         return {"status": "error", "message": "学号/用户名已存在"}
     except Exception as e:
+        db.rollback()
         error_msg = str(e)
         if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
             print(f"[ERROR] Database connection timeout")
@@ -1970,60 +1962,37 @@ async def register(
 @app.post("/api/login")
 async def api_login(
     student_id: str = Form(...),
-    password: str = Form(...)
+    password: str = Form(...),
+    db: Session = Depends(get_db)
 ):
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
 
-    import pymssql
     import time
     try:
         start_time = time.time()
-        print(f"[DB] Connecting...")
-
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset='utf8',
-            timeout=10,
-            login_timeout=10
-        )
-        print(f"[OK] Connected: {time.time() - start_time:.2f}s")
-
-        cursor = conn.cursor(as_dict=True)
-
-        print("[QUERY] Querying user...")
+        print(f"[DB] Querying user...")
         query_start = time.time()
-        cursor.execute(
-            "SELECT TOP 1 id, student_id, username, password, role FROM users WHERE student_id = %s",
-            (student_id,)
-        )
-        user = cursor.fetchone()
+        user = db.query(User).filter(User.student_id == student_id).first()
         print(f"[OK] Query done: {time.time() - query_start:.2f}s")
-
-        cursor.close()
-        conn.close()
 
         if not user:
             print(f"[ERROR] User not found: {student_id}")
             return {"status": "error", "message": "学号/密码错误"}
 
-        if user['password'] != password:
+        if user.password != password:
             print(f"[ERROR] Wrong password: {student_id}")
             return {"status": "error", "message": "密码错误"}
 
         total_time = time.time() - start_time
-        print(f"[OK] Login success: {user['username']} ({user['role']}) - Time: {total_time:.2f}s")
+        print(f"[OK] Login success: {user.username} ({user.role}) - Time: {total_time:.2f}s")
         return {
             "status": "success",
             "user": {
-                "id": user['id'],
-                "student_id": user['student_id'],
-                "username": user['username'],
-                "role": user['role']
+                "id": user.id,
+                "student_id": user.student_id,
+                "username": user.username,
+                "role": user.role
             }
         }
     except Exception as e:

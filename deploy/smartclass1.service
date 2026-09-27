@@ -1,10 +1,13 @@
 [Unit]
 Description=Smart Collaborative Learning System - smartclass1.top
 Documentation=https://smartclass1.top
-After=network.target mysql.service
+# 数据库是远程 MSSQL（阿里云 RDS SQL Server），本机没有 mysql.service，
+# 原先写 After=mysql.service 是无效引用（且暗示了错误的数据库类型）。
+After=network.target
 
 [Service]
 Type=simple
+# User/Group 由 deploy.sh 按发行版注入（Debian 系 www-data，RHEL 系 nginx）
 User=www-data
 Group=www-data
 WorkingDirectory=/opt/smartclass1

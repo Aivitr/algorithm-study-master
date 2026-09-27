@@ -47,6 +47,15 @@ sudo ./deploy/deploy.sh
 
 如果你想手动控制每一步,可以按照以下步骤操作。
 
+> ⚠️ **顺序修正**：下面的 **7. 配置 Nginx → 8. 配置 SSL 证书** 这个顺序会失败 ——
+> `deploy/nginx-smartclass1.conf` 引用了 `/etc/letsencrypt/live/<域名>/` 下的证书，
+> 首次部署时证书还不存在，`nginx -t` 必然报 `cannot load certificate`，于是永远走不到申请证书那一步。
+> 正确顺序是：先放一份**只监听 80、只提供 `/.well-known/acme-challenge/`** 的临时配置并 reload，
+> 用 `certbot certonly --webroot -w /var/www/certbot -d <域名>` 拿到证书，**最后**才装载正式配置。
+> `deploy.sh` 已按此顺序实现（`bootstrap_http_nginx → configure_ssl → configure_nginx`），
+> 手动部署时请照此调整。另外要求 Python >= 3.11（SQLAlchemy 2.1 的下限）。
+
+
 ### 1. 准备服务器环境
 
 **服务器要求:**
@@ -114,7 +123,10 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # 如果没有 requirements.txt,手动安装
-pip install fastapi uvicorn[standard] sqlalchemy pymysql opencv-python numpy openai aiohttp websockets python-multipart
+# 注意必须是 pymssql（MSSQL 驱动），不是 pymysql（MySQL 驱动）
+pip install fastapi uvicorn[standard] sqlalchemy pymssql opencv-python numpy openai aiohttp websockets python-multipart
+# webrtcvad 需要 pkg_resources，setuptools>=81 已删除该模块，因此必须锁定
+pip install "setuptools<81"
 ```
 
 ### 5. 配置环境变量
@@ -131,21 +143,29 @@ sudo nano /etc/smartclass1/smartclass1.env
 
 ```bash
 # 数据库连接 (修改为你的实际数据库信息)
-DATABASE_URL=mysql+pymysql://username:password@host:port/database?charset=utf8mb4
+# 本项目用 SQL Server (MSSQL)，不是 MySQL —— 驱动是 pymssql，默认端口 3433。
+# charset 必须保持 utf8：改成 cp936 会让中文在写入时被二次编码、不可逆损坏。
+DATABASE_URL=mssql+pymssql://username:password@host:3433/database?charset=utf8
 
 # DeepSeek API 密钥
 LLM_API_KEY=sk-your-deepseek-api-key
 
-# 阿里云语音识别
+# 阿里云语音识别（不配则课堂内没有实时字幕）
 ALIYUN_ACCESS_KEY_ID=your-access-key-id
 ALIYUN_ACCESS_KEY_SECRET=your-access-key-secret
 ALIYUN_APP_KEY=your-app-key
 
 # 阿里云 OSS (可选)
+# 只有下面两行会被读取；bucket / endpoint / domain 在 oss_config.py 里是硬编码的，
+# 写在这里不生效，要换必须改 oss_config.py。
 OSS_ACCESS_KEY_ID=your-oss-key-id
 OSS_ACCESS_KEY_SECRET=your-oss-key-secret
-OSS_BUCKET_NAME=your-bucket-name
-OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+```
+
+**建库时排序规则**（否则 `varchar` 列存不了中文）:
+
+```sql
+CREATE DATABASE <db> COLLATE Chinese_PRC_CI_AS;
 ```
 
 **保护配置文件:**
@@ -352,12 +372,19 @@ curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" http://localhost:800
 ### 问题 3: 数据库连接失败
 
 ```bash
-# 检查数据库连接
-mysql -h host -P port -u username -p
-
-# 检查环境变量
+# 检查环境变量（应用只读 DATABASE_URL 这一个变量）
 sudo cat /etc/smartclass1/smartclass1.env | grep DATABASE_URL
+
+# 从服务器测通连接（本项目是 SQL Server，不是 MySQL）
+# 注意 charset 必须是 utf8
+python3 -c "import pymssql; c=pymssql.connect(server='host', port=3433, user='u', password='p', database='db', charset='utf8'); print('OK')"
+
+# 如果登录/注册能连上却报错，检查建表是否已完成
+cd /opt/smartclass1 && venv/bin/python init_db.py
 ```
+
+**中文乱码 / 写入后变 `?`**：确认连接串是 `charset=utf8`（不是 `cp936`），
+并且中文列是 `NVARCHAR` 而不是 `varchar`（见项目 `docs/README.md` §4.3）。
 
 ### 问题 4: SSL 证书问题
 
@@ -454,8 +481,12 @@ sudo nano /opt/backup/backup_db.sh
 
 #!/bin/bash
 DATE=$(date +%Y%m%d_%H%M%S)
-mysqldump -h host -P port -u username -ppassword database > /opt/backup/db_$DATE.sql
-find /opt/backup -name "db_*.sql" -mtime +7 -delete
+# 本项目数据库是 SQL Server (MSSQL)，不是 MySQL —— mysqldump 用不了。
+# 线上为阿里云 RDS SQL Server：用控制台的备份/快照功能（支持自动备份与备份文件下载）。
+# 需要自己导出时用 sqlcmd / bcp，例如:
+#   sqlcmd -S <host>,3433 -U <user> -P '<password>' -d <db> \
+#          -Q "BACKUP DATABASE [<db>] TO DISK = N'/opt/backup/db_$DATE.bak' WITH INIT"
+find /opt/backup -name "db_*.bak" -mtime +7 -delete
 
 # 添加执行权限
 sudo chmod +x /opt/backup/backup_db.sh
