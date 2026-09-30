@@ -77,7 +77,7 @@
   },
   "GET /api/class-history/2": {
     "content_type": "application/json",
-    "digest": "8b3710d7d2617a14",
+    "digest": "9d6107aecb8e2cda",
     "length": 592,
     "shape": {
       "history": [
@@ -753,7 +753,7 @@
   },
   "GET /api/teacher-classes/1": {
     "content_type": "application/json",
-    "digest": "fa97007bb9649209",
+    "digest": "e518e436c72853d3",
     "length": 523,
     "shape": {
       "classes": [

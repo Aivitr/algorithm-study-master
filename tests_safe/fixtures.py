@@ -60,10 +60,16 @@ def seed_all(db) -> dict:
     # 第二节：**进行中**的课堂。
     # `/api/active-groups/{teacher_id}` 只返回 `status == "active"` 的课，
     # 只有 ended 的会议会让它恒返回空列表——那样基线就锁不住它的聚合逻辑。
+    #
+    # `created_at` 必须与第一节**不同**：`/api/class-history/{user_id}` 用它倒序
+    # 排序，而它前面的候选集来自 `list(set(...))`（server.py:4854），迭代顺序随
+    # 进程变化。两者相同即平局，返回顺序随之变成未定义值。详见
+    # test_fixture_determinism.py::test_meeting_timestamps_are_distinct。
+    # 取"晚一天"是顺带贴合语义的：进行中的课晚于已结束的课。
     db.add(Meeting(
         id=2, class_code="CLS2026002", teacher_id=1,
         topic="测试课堂：细胞呼吸", status="active",
-        knowledge_points=[], created_at=BASE_TIME,
+        knowledge_points=[], created_at=BASE_TIME + timedelta(days=1),
     ))
 
     for i, (uid, text) in enumerate([
