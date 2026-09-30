@@ -23,3 +23,7 @@ uploads/
 .codegraph/
 .qoder/
 _tmp_agora_token_builder/
+
+# 提交信息草稿（本地临时文件，见 CLAUDE.md 记法：shell 会破坏反引号/括号）
+_msg.txt
+_msg*.txt
