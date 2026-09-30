@@ -295,6 +295,42 @@ _ensure_transcripts_columns()   # ← 模块导入时无条件执行
 
 **本轮已完成的关联修复**：`database.py` 的 `connect_args` 原为无条件传入 `login_timeout`（pymssql 专有），导致 sqlite 下抛 `TypeError`。改为按方言选择后，生产侧传入的实参与此前**完全一致**，本地 sqlite 可用（见 §6 阶段 1）。
 
+### 3.12 绕过 ORM 的直连数据库路径（已实测 · 隔离的关键漏洞）
+
+`server.py:1935`（`/api/register`）与 `server.py:1985`（`/api/login`）**不使用 ORM**：
+
+```python
+import pymssql
+conn = pymssql.connect(
+    server=os.getenv("DB_HOST", ""),
+    port=int(os.getenv("DB_PORT", "3433")),
+    user=os.getenv("DB_USER", ""),
+    password=os.getenv("DB_PASSWORD", ""),
+    database=os.getenv("DB_NAME", ""),
+    charset='utf8', timeout=10, login_timeout=10,
+)
+```
+
+**这两条路由完全不读 `DATABASE_URL`**，数据源是另一组 `DB_*` 变量。
+
+| 后果 | 说明 |
+|---|---|
+| 隔离失效 | 把 `DATABASE_URL` 指向本地库**对这两条路由毫无作用**，调用即连生产 |
+| 无法本地化 | `pymssql` 只讲 MSSQL，本地 sqlite 无法承接——**这两条路由无法在本地库上测试** |
+| 配置双轨 | `.env` 同时维护 `DATABASE_URL` 与 `DB_*` 两套指向同一库的配置；只改一处会造成行为分叉 |
+
+> **一个极易踩的坑（已规避）**：`config._load_dotenv()` 使用 `os.environ.setdefault`，因此测试中**删除** `DB_HOST` 并不能隔离——下一次 `import config` 会立刻从 `.env` 把生产值填回来。**必须显式赋成无害值。**
+
+**同一模式的非运行时脚本**：`init_db.py`、`check_all_tables.py`、`check_users.py`、`check_users_quick.py`（以及 `test/` 下的同名副本）同样以 `pymssql.connect(**DB_CONFIG)` 直连生产。**这些脚本一旦被运行，即在生产库上执行操作**，其中 `init_db.py` 含建表语句。
+
+**对重构的约束**：
+
+- 这两条路由**不纳入冒烟基线**，须在覆盖报告中显式标注为盲区
+- 长远应统一到 ORM 单一访问路径，但此属**改变业务代码**，须单独提请（见 `docs/待验收事项.md` A7）
+- 归档时这几支脚本应置于显眼位置并加注说明，降低误跑概率
+
+**已落地的防护**：`tests_safe/conftest.py` 同时切断 ORM 与直连两条路径，并加 socket 层兜底——阻断一切非回环连接，与具体实现无关。
+
 ---
 
 ## 4. 目标结构

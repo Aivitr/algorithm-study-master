@@ -1,0 +1,138 @@
+"""合成数据必须完全确定——两次播种的结果逐字节相同。
+
+背景（实测发现）：
+    `database.py` 里多数模型的时间列写作 `Column(DateTime, default=datetime.now)`
+    （如 `Transcript.created_at` :71、`User.created_at` :35）。若 fixtures 不显式
+    赋值，SQLAlchemy 会在 INSERT 时填入**当下的墙钟时间**。
+
+    后果是：基线里的 digest 每次运行都不同。这不是被测路由的缺陷——路由行为
+    本来就该随数据变化；缺陷在 fixtures 一侧，是它没有把数据钉死。
+
+因此这里不再依赖"人工核对列清单"，而是用两条断言从结构上封死：
+    1. 播种结果中不得出现任何贴近当前时刻的时间值
+       （今后新增模型/新增时间列时，若忘记赋值，测试会直接失败）
+    2. 两次独立播种的结果必须逐行一致
+"""
+
+from datetime import datetime, timedelta
+
+import pytest
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import Session
+
+# 合成数据的时间基准远早于运行时刻，用一个宽松阈值即可可靠区分
+WALL_CLOCK_PROXIMITY = timedelta(days=1)
+
+
+@pytest.fixture
+def fresh_session(tmp_path):
+    """在一个全新的空库上建表并返回会话（与全局测试库相互独立）。"""
+    import database
+
+    engine = create_engine(f"sqlite:///{(tmp_path / 'probe.db').as_posix()}")
+    database.Base.metadata.create_all(engine)
+    session = Session(bind=engine)
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture
+def second_session(tmp_path):
+    """第二个独立空库，用于对比两次播种。"""
+    import database
+
+    engine = create_engine(f"sqlite:///{(tmp_path / 'probe2.db').as_posix()}")
+    database.Base.metadata.create_all(engine)
+    session = Session(bind=engine)
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def _mapped_classes() -> dict:
+    """{表名: ORM 类}——经 mapper 解析，不依赖类名与表名是否相同。"""
+    import database
+
+    return {mapper.class_.__table__.name: mapper.class_ for mapper in database.Base.registry.mappers}
+
+
+def _iter_scalar_cells(session):
+    """遍历库中所有 (表名.列名, 单元格取值)。"""
+    for table, cls in sorted(_mapped_classes().items()):
+        for row in session.query(cls).all():
+            for col in inspect(cls).mapper.columns:
+                yield f"{table}.{col.key}", getattr(row, col.key)
+
+
+def _dump_all_rows(session) -> dict:
+    """把整个库倒成 {表名: [行字典, ...]}，行按主键排序。"""
+    dump = {}
+    for table, cls in sorted(_mapped_classes().items()):
+        pk = list(inspect(cls).mapper.primary_key)[0].key
+        columns = [c.key for c in inspect(cls).mapper.columns]
+        rows = [
+            {key: repr(getattr(row, key)) for key in columns}
+            for row in session.query(cls).all()
+        ]
+        rows.sort(key=lambda r: r[pk])
+        dump[table] = rows
+    return dump
+
+
+def test_no_wall_clock_values_in_seed(fresh_session):
+    """播种结果里不得有任何"刚刚生成"的时间值。
+
+    漏设某个 `default=datetime.now` 的列时，该列会在 INSERT 时被填成当下，
+    无论那列是否被路由读取——这条断言在**播种阶段**就把它拦下。
+    """
+    from fixtures import seed_all
+
+    seed_all(fresh_session)
+    fresh_session.flush()
+
+    now = datetime.now()
+    offenders = [
+        f"{where}: {value.isoformat()}"
+        for where, value in _iter_scalar_cells(fresh_session)
+        if isinstance(value, datetime) and abs(now - value) < WALL_CLOCK_PROXIMITY
+    ]
+
+    assert not offenders, (
+        "以下时间值来自 INSERT 时的墙钟时间（datetime.now），"
+        "会导致基线 digest 每次运行都变化。请在 fixtures.py 中显式赋值：\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_two_seeds_are_byte_identical(fresh_session, second_session):
+    """两次独立播种的结果必须逐行一致。
+
+    比上一条更强：上一条只盯时间，这一条覆盖**任何**不确定性来源
+    （随机 ID、自增顺序、随机化的默认值等）。
+    """
+    from fixtures import seed_all
+
+    seed_all(fresh_session)
+    fresh_session.flush()
+    first = _dump_all_rows(fresh_session)
+
+    seed_all(second_session)
+    second_session.flush()
+    second = _dump_all_rows(second_session)
+
+    assert set(first) == set(second), "两次播种涉及的表集合不同"
+
+    diffs = {
+        table: {
+            "仅在第一次": [r for r in first[table] if r not in second[table]][:3],
+            "仅在第二次": [r for r in second[table] if r not in first[table]][:3],
+        }
+        for table in first
+        if first[table] != second[table]
+    }
+    assert not diffs, "两次播种结果不一致：\n" + repr(diffs)
