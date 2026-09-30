@@ -18,12 +18,42 @@ logger = logging.getLogger(__name__)
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(BASE_DIR, '1'))
-sys.path.append(os.path.join(BASE_DIR, '2'))
-LOCAL_AGORA_TOKEN_BUILDER_DIR = os.path.join(BASE_DIR, '_tmp_agora_token_builder')
-if os.path.isdir(LOCAL_AGORA_TOKEN_BUILDER_DIR):
-    sys.path.append(LOCAL_AGORA_TOKEN_BUILDER_DIR)
+# ------------------------------------------------ 导入引导（唯一允许依赖自身位置处）
+# 要导入 `app` 包，总得先有一个已知的起点。本文件住在仓库根，因此它所在的
+# 目录就是仓库根，可用来把包挂上 sys.path。这是**唯一**一处允许依赖
+# server.py 自身位置的地方——除此之外所有路径解析一律走 app.core.paths。
+_BOOTSTRAP_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BOOTSTRAP_DIR not in sys.path:
+    sys.path.insert(0, _BOOTSTRAP_DIR)
+
+from app.core.paths import PROJECT_ROOT, STORAGE_SUBDIRS, project_path
+
+# 引导目录必须与 paths.py 解析出的仓库根一致。若哪天 server.py 被移进 app/，
+# 这里会立刻报错——而不是让 BASE_DIR 静默指向 app/。§3.1 的失效模式正是静默。
+if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
+    raise RuntimeError(
+        f"server.py 的所在目录（{_BOOTSTRAP_DIR}）与 paths.py 解析出的仓库根"
+        f"（{PROJECT_ROOT}）不一致。\n"
+        f"若确实要移动 server.py，请同步修改本文件的导入引导段——"
+        f"此处失败是有意的：静默错位会让 storage/ 等数据目录指到别处。"
+    )
+
+BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 20 余处 os.path.join(BASE_DIR, ...) 调用点
+
+# 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
+#
+# `1/`、`2/` 两条已于阶段 3 移除：
+#   - `1/` 实测不含任何被导入的模块（`1/README1.md` 亦确认「未被 server.py 接线」），
+#     现已归档到 archive/prototypes/legacy-1/
+#   - `2/` **从未存在**，原代码无条件追加它，一直是空操作
+# 保留指向已归档目录的 append，只会留下一条指向虚空的路径——静默无效，
+# 正是本仓库反复出现的那类故障。移除它们不改变任何行为。
+_SERVER_SYSPATH_ADDITIONS = [
+    os.path.join(BASE_DIR, '_tmp_agora_token_builder'),
+]
+for _extra_dir in _SERVER_SYSPATH_ADDITIONS:
+    if os.path.isdir(_extra_dir):
+        sys.path.append(_extra_dir)
 
 import shutil
 import asyncio
@@ -40,20 +70,38 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 # 🚫 ThreadPoolExecutor🚫 yield
 
-from database import get_db, User, Meeting, Transcript, EmotionLog, AIInsight, KnowledgeGraph, LearningReport, Exercise, StudentAnswer, SessionLocal, ViewpointVote, MemberConnection
-from llm_service import llm
-from knowledge_graph_service import kg_service
-from config import (
+from app.core.database import SessionLocal, get_db
+from app.models import (
+    AIInsight,
+    EmotionLog,
+    Exercise,
+    KnowledgeGraph,
+    LearningReport,
+    Meeting,
+    MemberConnection,
+    StudentAnswer,
+    Transcript,
+    User,
+    ViewpointVote,
+)
+from app.services.llm_service import llm
+from app.services.knowledge_graph_service import kg_service
+from app.core.config import (
     apply_research_runtime_config,
     ensure_research_directories,
     get_research_runtime_settings_snapshot,
     persist_research_runtime_config,
 )
-from research_runtime import research_runtime
+from app.services.research_runtime import research_runtime
+
+# 实时链路管理器（阶段 3 自本文件迁出，见设计文档 §4.1）。
+# 两者均为纯内存结构，不碰数据库与网络，因此不牵动任何初始化顺序。
+from app.realtime.connection import ConnectionManager
+from app.realtime.signaling import SignalConnectionManager
 
 # 📦 OSS📦
 try:
-    from oss_utils import get_oss_manager
+    from app.services.oss_utils import get_oss_manager
     USE_OSS = True
     print("OSS module imported")
 except Exception as e:
@@ -61,16 +109,18 @@ except Exception as e:
     print(f"OSS not configured: {e}")
 
 try:
-    from ai_core import engine
+    from app.services.ai_core import engine
 except ImportError:
     sys.exit(1)
 
 # 导入声纹管理器
-from voiceprint_manager import voiceprint_manager
+from app.services.voiceprint_manager import voiceprint_manager
 
-# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录
+# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录。
+# 现已由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py 里的
+# 别名，值不再随本文件的位置变化。
 ROOT_DIR = BASE_DIR
-for d in ["storage", "storage/video_chunks", "storage/audio_chunks", "storage/snapshots"]:
+for d in ("storage", *STORAGE_SUBDIRS):
     os.makedirs(os.path.join(ROOT_DIR, d), exist_ok=True)
 
 app = FastAPI()
@@ -99,7 +149,7 @@ def get_analyzer():
     """🔊 analyzer🔊"""
     global analyzer
     if analyzer is None:
-        from video_processor import VideoEmotionAnalyzer
+        from app.services.video_processor import VideoEmotionAnalyzer
         analyzer = VideoEmotionAnalyzer()
     return analyzer
 
@@ -2663,152 +2713,17 @@ async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
         return {"status": "error", "message": str(e)}
 
 
-# === WebSocket 连接管理器 (房间隔离) ===
-class ConnectionManager:
-    def __init__(self):
-        self.active = []  # 所有连接
-        self.meeting_connections = {}  # {meeting_id: {username: websocket}}
-        self.last_speech_time = {}  # {meeting_id: timestamp} 最后发言时间
-        self.speech_counts = {}  # {meeting_id: {username: count}} 发言计数
-        self.silence_notified = {}  # {meeting_id: bool} 是否已通知沉默
-        self.vote_confirmations = {}  # {vote_id: set(username)} 投票确认追踪
-
-    async def connect(self, ws, meeting_id, username):
-        await ws.accept()
-        self.active.append(ws)
-        if meeting_id not in self.meeting_connections:
-            self.meeting_connections[meeting_id] = {}
-        self.meeting_connections[meeting_id][username] = ws
-
-    def disconnect(self, ws, meeting_id, username):
-        if ws in self.active:
-            self.active.remove(ws)
-        if meeting_id in self.meeting_connections:
-            if username in self.meeting_connections[meeting_id]:
-                del self.meeting_connections[meeting_id][username]
-
-    async def broadcast(self, msg):
-        for cx in self.active:
-            try:
-                await cx.send_json(msg)
-            except:
-                pass
-
-    async def broadcast_to_meeting(self, meeting_id, msg):
-        """向指定课堂的所有成员广播消息"""
-        if meeting_id not in self.meeting_connections:
-            print(f"[WARN] 课堂{meeting_id}无连接")
-            return
-
-        print(f"[SEND] 广播到课堂{meeting_id}: {msg.get('type', 'unknown')}")
-        success_count = 0
-        fail_count = 0
-
-        for username, ws in self.meeting_connections[meeting_id].items():
-            try:
-                await ws.send_json(msg)
-                success_count += 1
-                print(f"  [OK] 发送成功: {username}")
-            except Exception as e:
-                fail_count += 1
-                print(f"  [ERROR] 发送失败: {username} - {type(e).__name__}: {e}")
-
-        print(f"[STATS] 广播完成: 成功{success_count}, 失败{fail_count}")
-
-    def get_online_members(self, meeting_id):
-        """获取课堂在线成员列表"""
-        if meeting_id in self.meeting_connections:
-            return list(self.meeting_connections[meeting_id].keys())
-        return []
-
-    async def send_to_user(self, meeting_id, username, msg):
-        """向指定课堂的指定用户发送消息"""
-        if meeting_id in self.meeting_connections:
-            ws = self.meeting_connections[meeting_id].get(username)
-            if ws:
-                try:
-                    await ws.send_json(msg)
-                except Exception as e:
-                    print(f"[ERROR] 发送给{username}失败: {e}")
-
-    def record_speech(self, meeting_id, username):
-        """记录发言，更新计数和时间"""
-        import time as _time
-        self.last_speech_time[meeting_id] = _time.time()
-        self.silence_notified[meeting_id] = False
-        if meeting_id not in self.speech_counts:
-            self.speech_counts[meeting_id] = {}
-        self.speech_counts[meeting_id][username] = self.speech_counts[meeting_id].get(username, 0) + 1
-
-    def get_quiet_members(self, meeting_id, threshold=2):
-        """获取发言明显偏少的在线成员（相对比较）
-        触发条件：
-        1. 所有其他成员都已发言，该成员却0发言
-        2. 该成员发言次数 < 其他成员平均发言次数的 30%
-        3. 兜底：发言次数 < threshold（绝对阈值）且其他人都已超过
-        """
-        online = self.get_online_members(meeting_id)
-        if len(online) < 2:
-            return []
-        counts = self.speech_counts.get(meeting_id, {})
-        quiet = []
-        all_counts = [counts.get(m, 0) for m in online]
-        total_speeches = sum(all_counts)
-        if total_speeches == 0:
-            return []  # 没人发言过，不触发
-
-        for m in online:
-            my_count = counts.get(m, 0)
-            others = [counts.get(o, 0) for o in online if o != m]
-            others_avg = sum(others) / len(others) if others else 0
-            all_others_spoken = all(c > 0 for c in others)
-
-            # 条件1：其他人都发言了，自己0发言
-            if my_count == 0 and all_others_spoken:
-                quiet.append(m)
-            # 条件2：自己发言次数 < 其他人平均的30%（且其他人平均>=3）
-            elif others_avg >= 3 and my_count < others_avg * 0.3:
-                quiet.append(m)
-        return quiet
-
-    def is_group_silent(self, meeting_id, silence_seconds=120):
-        """检查课堂是否沉默超过指定秒数"""
-        import time as _time
-        last = self.last_speech_time.get(meeting_id)
-        if last is None:
-            return False
-        return (_time.time() - last) >= silence_seconds
-
-
+# === WebSocket 连接管理器 / WebRTC 信令 ===
+#
+# 两个类已迁至 app/realtime/（阶段 3，设计文档 §4.1）：
+#   ConnectionManager       -> app/realtime/connection.py
+#   SignalConnectionManager -> app/realtime/signaling.py
+#
+# 导入放在文件顶部（见 import 区），此处只保留**单例的创建位置**不变。
+# 位置不动是有意的：`from server import manager` 是既有调用点（WebSocket 路由、
+# tests_safe/test_websocket_and_manager.py 的隔离夹具），单例身份必须由 server
+# 模块持有，否则不同调用点会拿到不同对象，而那种故障完全静默。
 manager = ConnectionManager()
-
-
-# === WebRTC 信令（仅转发 JSON，不处理 SDP）===
-class SignalConnectionManager:
-    """按课堂隔离，将 offer/answer/ICE 点对点转发给目标用户。"""
-
-    def __init__(self):
-        self.meeting_connections = {}  # {meeting_id: {username: WebSocket}}
-
-    async def register(self, websocket: WebSocket, meeting_id: int, username: str):
-        await websocket.accept()
-        if meeting_id not in self.meeting_connections:
-            self.meeting_connections[meeting_id] = {}
-        self.meeting_connections[meeting_id][username] = websocket
-
-    def unregister(self, meeting_id: int, username: str):
-        if meeting_id in self.meeting_connections and username in self.meeting_connections[meeting_id]:
-            del self.meeting_connections[meeting_id][username]
-
-    async def forward_to(self, meeting_id: int, target_username: str, msg: dict) -> bool:
-        ws = self.meeting_connections.get(meeting_id, {}).get(target_username)
-        if not ws:
-            return False
-        try:
-            await ws.send_json(msg)
-            return True
-        except Exception:
-            return False
 
 
 signal_manager = SignalConnectionManager()
@@ -3492,7 +3407,7 @@ class ASRSessionManager:
         def on_error(msg):
             print(f"[ASR ERROR] {username}@meeting{meeting_id}: {msg}")
 
-        from ai_core import RealtimeTranscriber
+        from app.services.ai_core import RealtimeTranscriber
 
         # 实时语音识别官方接口不支持说话人分离。
         # 这里仅使用阿里云做实时转写，真实用户归属由本地声纹按句子音频片段确认。
@@ -5899,7 +5814,7 @@ async def upload_report_template(
 ):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         template_dir = os.path.join(BASE_DIR, "storage", "templates")
         os.makedirs(template_dir, exist_ok=True)
@@ -5945,7 +5860,7 @@ async def upload_report_template(
 async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         templates = db.query(ReportTemplate).filter(
             ReportTemplate.teacher_id == teacher_id
@@ -5971,7 +5886,7 @@ async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
 async def delete_template(template_id: int, db: Session = Depends(get_db)):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         template = db.query(ReportTemplate).filter(ReportTemplate.id == template_id).first()
         if template:

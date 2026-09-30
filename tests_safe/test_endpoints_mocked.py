@@ -45,7 +45,7 @@ def _fake_completion(content: str):
 
 @pytest.fixture
 def llm():
-    from llm_service import llm as _llm
+    from app.services.llm_service import llm as _llm
 
     return _llm
 

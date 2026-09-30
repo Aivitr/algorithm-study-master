@@ -30,7 +30,7 @@ def test_can_import_server(monkeypatch):
 
 def test_server_uses_local_database():
     """期望：server 导入后，其 ORM engine 仍指向本地库。"""
-    import database
+    from app.core import database
     import server  # noqa: F401
 
     url = database.SQLALCHEMY_DATABASE_URL
@@ -56,7 +56,7 @@ def test_importing_server_does_not_open_network(monkeypatch, module_surgery):
 
     monkeypatch.setattr(socket.socket, "connect", spy_connect)
 
-    for mod in ("server", "database", "config"):
+    for mod in ("server", "app.core.database", "app.core.config"):
         sys.modules.pop(mod, None)
 
     try:
