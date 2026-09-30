@@ -274,112 +274,6 @@ from app.realtime.asr_manager import (
 
 
 
-async def select_viewpoint(
-    meeting_id: int = Form(...),
-    viewpoint_id: int = Form(...),
-    viewpoint_title: str = Form(...),
-    viewpoint_desc: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    """老师直接选择观点（不投票）"""
-    try:
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
-            return {"status": "error", "message": "课堂不存在"}
-
-        selected_viewpoint = {
-            "id": viewpoint_id,
-            "title": viewpoint_title,
-            "description": viewpoint_desc
-        }
-
-        # 生成子目标
-        result = llm.generate_sub_goals(
-            selected_viewpoint,
-            meeting.topic,
-            meeting.knowledge_points
-        )
-
-        # 更新教学目标
-        if result.get("sub_goals"):
-            new_goals = meeting.knowledge_points or []
-            for sg in result["sub_goals"]:
-                new_goals.append({
-                    "id": len(new_goals) + 1,
-                    "desc": f"[深入探讨] {sg['desc']}",
-                    "status": "pending",
-                    "parent_viewpoint": viewpoint_title
-                })
-            meeting.knowledge_points = new_goals
-            db.commit()
-
-        return {
-            "status": "success",
-            "sub_goals": result.get("sub_goals", []),
-            "guidance": result.get("guidance", ""),
-            "updated_goals": meeting.knowledge_points
-        }
-    except Exception as e:
-        print(f"[ERROR] 选择观点失败: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-
-
-
-
-# 新增接口: 获取快照
-
-
-
-
-async def upload_report_template(
-    template_file: UploadFile = File(...),
-    teacher_id: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    """??"""
-    try:
-        from app.models import ReportTemplate
-        
-        template_dir = os.path.join(BASE_DIR, "storage", "templates")
-        os.makedirs(template_dir, exist_ok=True)
-        
-        original_filename = template_file.filename
-        filename = f"template_{teacher_id}_{int(time.time())}_{original_filename}"
-        filepath = os.path.join(template_dir, filename)
-        
-        with open(filepath, "wb") as f:
-            content = await template_file.read()
-            f.write(content)
-        
-        # ??
-        template = ReportTemplate(
-            teacher_id=teacher_id,
-            filename=original_filename,
-            filepath=filepath,
-            is_default=1  # ??
-        )
-        
-        # ??
-        db.query(ReportTemplate).filter(
-            ReportTemplate.teacher_id == teacher_id,
-            ReportTemplate.is_default == 1
-        ).update({"is_default": 0})
-        
-        db.add(template)
-        db.commit()
-        db.refresh(template)
-        
-        return {
-            "status": "success",
-            "template_id": template.id,
-            "template_path": filepath,
-            "filename": original_filename
-        }
-    except Exception as e:
-        print(f"[ERROR] ??: {e}")
-        return {"status": "error", "message": str(e)}
 
 
 
@@ -467,6 +361,15 @@ app.include_router(teacher_router)
 from app.routers.realtime import router as realtime_router
 
 app.include_router(realtime_router)
+
+
+# 空 router：这个模块里的两个处理器**没有**装饰器，所以不贡献任何路由。
+# 仍然要 include——app/routers/ 下有文件却没被装配，test_routers_layout 会报红
+# （那守卫防的是"拆到一半、忘了装配"，是好事，不该为特例放宽）。
+# 详情与两个函数的现状见 app/routers/unrouted.py 的文件头。
+from app.routers.unrouted import router as unrouted_router
+
+app.include_router(unrouted_router)
 
 
 if __name__ == "__main__":
