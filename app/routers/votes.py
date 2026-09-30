@@ -10,7 +10,16 @@
 在 `python server.py` 启动时那会让 server.py 二次执行（见 app/routers/__init__.py）。
 registry 里的那个实例与 `server.manager` 是同一个对象，因此
 `manager.vote_confirmations` 与 WebSocket 路由看到的是同一份状态。
+
+`datetime` 必须在**模块级**导入：`confirm_vote` 用的是 `datetime.now()`，而在
+server.py 里它靠的是那边的模块级 `from datetime import datetime, timedelta`。
+`close_vote` 函数体内另有一处局部 `from datetime import datetime`——那只对
+它自己可见，**不能**覆盖 `confirm_vote`。少这个模块级导入的后果不是导入失败，
+而是运行到 `/api/confirm-vote` 才 NameError，再被该处理器的 try/except 吞成
+`{"status":"error"}` 的 200 响应（见 `tests_safe/test_module_free_names.py`）。
 """
+
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form
 from sqlalchemy.orm import Session
