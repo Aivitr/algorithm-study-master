@@ -3,8 +3,16 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# 根目录由 app.core.paths 统一解析，不再由本文件的位置推断。
+#
+# 这一行是阶段 3 的关键：设计文档 §4.1 要把本文件迁到 app/core/config.py。
+# 若此处仍用 `Path(__file__).resolve().parent`，迁移后它立刻变成 `<root>/app/core`，
+# `.env` 随之找不到——而下方 `_load_dotenv()` 是**静默 return**（§3.10），
+# 配置会无声退化为默认值，应用照常启动、照常跑，只在连库时才暴露。
+# 改走 paths 后，本文件搬到任何位置解析结果都不变。
+from app.core.paths import PROJECT_ROOT
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = PROJECT_ROOT
 
 
 def _load_dotenv() -> None:

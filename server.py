@@ -18,12 +18,40 @@ logger = logging.getLogger(__name__)
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(BASE_DIR, '1'))
-sys.path.append(os.path.join(BASE_DIR, '2'))
-LOCAL_AGORA_TOKEN_BUILDER_DIR = os.path.join(BASE_DIR, '_tmp_agora_token_builder')
-if os.path.isdir(LOCAL_AGORA_TOKEN_BUILDER_DIR):
-    sys.path.append(LOCAL_AGORA_TOKEN_BUILDER_DIR)
+# ------------------------------------------------ 导入引导（唯一允许依赖自身位置处）
+# 要导入 `app` 包，总得先有一个已知的起点。本文件住在仓库根，因此它所在的
+# 目录就是仓库根，可用来把包挂上 sys.path。这是**唯一**一处允许依赖
+# server.py 自身位置的地方——除此之外所有路径解析一律走 app.core.paths。
+_BOOTSTRAP_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BOOTSTRAP_DIR not in sys.path:
+    sys.path.insert(0, _BOOTSTRAP_DIR)
+
+from app.core.paths import PROJECT_ROOT, STORAGE_SUBDIRS, project_path
+
+# 引导目录必须与 paths.py 解析出的仓库根一致。若哪天 server.py 被移进 app/，
+# 这里会立刻报错——而不是让 BASE_DIR 静默指向 app/。§3.1 的失效模式正是静默。
+if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
+    raise RuntimeError(
+        f"server.py 的所在目录（{_BOOTSTRAP_DIR}）与 paths.py 解析出的仓库根"
+        f"（{PROJECT_ROOT}）不一致。\n"
+        f"若确实要移动 server.py，请同步修改本文件的导入引导段——"
+        f"此处失败是有意的：静默错位会让 storage/ 等数据目录指到别处。"
+    )
+
+BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 20 余处 os.path.join(BASE_DIR, ...) 调用点
+
+# 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
+# `1/`、`2/` 是历史遗留：实测没有任何模块从 `1/` 导入（`2/` 甚至不存在），
+# 今天它们是惰性的。§4.3 归档 `1/` 时，这里必须同步处理，否则会留下指向
+# 虚空的路径——静默无效。
+_SERVER_SYSPATH_ADDITIONS = [
+    os.path.join(BASE_DIR, '1'),
+    os.path.join(BASE_DIR, '2'),
+    os.path.join(BASE_DIR, '_tmp_agora_token_builder'),
+]
+for _extra_dir in _SERVER_SYSPATH_ADDITIONS:
+    if os.path.isdir(_extra_dir):
+        sys.path.append(_extra_dir)
 
 import shutil
 import asyncio
@@ -68,9 +96,11 @@ except ImportError:
 # 导入声纹管理器
 from voiceprint_manager import voiceprint_manager
 
-# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录
+# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录。
+# 现已由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py 里的
+# 别名，值不再随本文件的位置变化。
 ROOT_DIR = BASE_DIR
-for d in ["storage", "storage/video_chunks", "storage/audio_chunks", "storage/snapshots"]:
+for d in ("storage", *STORAGE_SUBDIRS):
     os.makedirs(os.path.join(ROOT_DIR, d), exist_ok=True)
 
 app = FastAPI()
