@@ -37,7 +37,7 @@ def test_server_uses_local_database():
     assert not url.startswith("mssql"), f"server 连到了生产库：{url}"
 
 
-def test_importing_server_does_not_open_network(monkeypatch):
+def test_importing_server_does_not_open_network(monkeypatch, module_surgery):
     """期望：导入 server 不应建立任何对外网络连接。
 
     实现方式是把 socket.connect 换成会记账的桩，记录导入期间尝试连接的地址，

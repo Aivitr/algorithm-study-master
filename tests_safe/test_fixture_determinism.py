@@ -109,6 +109,53 @@ def test_no_wall_clock_values_in_seed(fresh_session):
     )
 
 
+def test_meeting_timestamps_are_distinct(fresh_session):
+    """几场课堂的 `created_at` 必须互不相同。
+
+    为什么单拎这一列
+    ----------------
+    `/api/class-history/{user_id}`（`server.py:4838`）结尾用
+
+        history.sort(key=lambda x: x["created_at"], reverse=True)   # :4902
+
+    排序。若两场课堂的 `created_at` 相同，这个 key 就分不出先后，稳定排序于是
+    **保留列表原序**；而原序来自 `server.py:4854`：
+
+        all_meetings = list(set(user_meetings + created_meetings))
+
+    `set` 对 ORM 实例按 `id()` 散列，迭代顺序取决于对象的内存地址——**每次进程
+    启动都可能不同**。两者叠加，响应里两条记录的先后就变成一个未定义值。
+
+    实测：两个进程各跑一次，约各占一半
+        [[2, ...], [1, ...]]  与  [[1, ...], [2, ...]]
+    在整套测试中约每 5 次复现 1 次，表现为 `/api/class-history/2` 的 digest 变化
+    而 length 与 shape 完全一致——只看断言信息极易误判为"内容变了"。
+
+    真实数据里两场课堂不会同时同分同秒创建，这个平局是**合成数据自己造的**。
+    所以修在 fixtures 一侧，不动 `server.py`。
+    """
+    from fixtures import seed_all
+
+    seed_all(fresh_session)
+    fresh_session.flush()
+
+    from database import Meeting
+
+    stamps = [(m.id, m.created_at) for m in fresh_session.query(Meeting).all()]
+    assert len(stamps) > 1, "只有一场课堂时这条守卫没有意义"
+
+    seen = {}
+    for meeting_id, created_at in stamps:
+        seen.setdefault(created_at, []).append(meeting_id)
+
+    ties = {k: v for k, v in seen.items() if len(v) > 1}
+    assert not ties, (
+        "以下课堂的 created_at 相同，会让 /api/class-history 的返回顺序"
+        "变成未定义值（server.py:4854 的 set 迭代序 × :4902 的稳定排序）：\n  "
+        + "\n  ".join(f"{k.isoformat()} → meeting_id {sorted(v)}" for k, v in ties.items())
+    )
+
+
 def test_two_seeds_are_byte_identical(fresh_session, second_session):
     """两次独立播种的结果必须逐行一致。
 

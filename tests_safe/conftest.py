@@ -126,6 +126,35 @@ def session_tmp_dir() -> Path:
 # ------------------------------------------------------------------ 应用与数据
 
 
+@pytest.fixture
+def module_surgery():
+    """允许测试临时摘换 `sys.modules` 中的模块，结束后**自动复原**。
+
+    为什么必须有这个夹具
+    --------------------
+    `database.py:11` 与 `config.py:177` 都在**导入期**读取环境变量并据此建立
+    engine。要验证「换个 `DATABASE_URL` 会怎样」，只能把模块从 `sys.modules`
+    摘掉再重新导入——没有别的办法。
+
+    但**摘掉之后不还回去，就会污染后续每一个测试**：之后的 `import database`
+    拿到的是本测试临时造的那个模块，engine 指向本测试的临时库。
+
+    实测症状：`test_local_db.py` 摘换 `database` 后未还原，导致
+    `test_route_baseline` 出现「应用连的库」与「播种写入的库」是两个不同文件
+    （`smartclass-tests-*.app.db` vs `pytest-*/test_local_sqlite_schema_*/app.db`），
+    基线比对报出无意义的差异。这类故障不会报错，只会静默比对错东西。
+    """
+    saved = dict(sys.modules)
+    try:
+        yield
+    finally:
+        for name in list(sys.modules):
+            if name not in saved:
+                del sys.modules[name]
+            elif sys.modules[name] is not saved[name]:
+                sys.modules[name] = saved[name]
+
+
 @pytest.fixture(scope="session")
 def local_app():
     """在本地库上建表并返回 FastAPI app。"""
