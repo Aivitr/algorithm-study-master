@@ -65,6 +65,17 @@ def main() -> None:
     if not (1 <= args.start <= args.end <= len(lines)):
         die(f"行号越界：{args.start}-{args.end}（文件 {len(lines)} 行）")
 
+    # AST 的 `lineno` 指向 `def` 行，**不含装饰器**——而路由的地址字符串
+    # 就在 `@app.post("...")` 那一行里。若从 def 行开始切，装饰器会被留在
+    # server.py 里成为孤立的一行（语法上仍合法，因为紧跟后面的 def 会"接住"它，
+    # 于是那条路由**地址变了却不报错**）。这里自动把装饰器一起带上。
+    adjusted = args.start
+    while adjusted > 1 and lines[adjusted - 2].lstrip().startswith("@"):
+        adjusted -= 1
+    if adjusted != args.start:
+        print(f"（起始行由 {args.start} 前移到 {adjusted}，以带上装饰器）")
+    args.start = adjusted
+
     block_text = "".join(lines[args.start - 1:args.end])
 
     # ---- 安全阀 -----------------------------------------------------------
@@ -110,6 +121,30 @@ def main() -> None:
         f"\napp.include_router({args.module}_router)\n\n\n"
     )
     rest = rest.replace(marker, assembly + marker)
+
+    # ---- 落地前自检：两边都必须仍是合法 Python --------------------------
+    # 这一条是补的：本脚本初版从 AST 的 def 行（不含装饰器）开始切，把
+    # `@app.post("/api/cast-vote")` 留在了 server.py 里当孤儿——语法上仍然
+    # 合法（它会"接住"紧随其后的 def），因此**不报错**，只是那条路由的地址
+    # 变了。静态解析立即能发现这类残骸，所以落地前必须过一遍。
+    try:
+        ast.parse(rest)
+    except SyntaxError as exc:
+        die(f"抽走后 server.py 无法解析（第 {exc.lineno} 行）：{exc.msg}")
+    module_text = header + body
+    try:
+        ast.parse(module_text)
+    except SyntaxError as exc:
+        die(f"新模块 app/routers/{args.module}.py 无法解析（第 {exc.lineno} 行）：{exc.msg}")
+
+    # 装饰器一条都不能少：切走的 `@app.*` 条数必须等于搬来的 `@router.*` 条数。
+    # 少了就说明有装饰器被留在了 server.py 里（孤儿行，见上方注释）。
+    n_before = block_text.count("@app.")
+    n_after = body.count("@router.")
+    if n_before != n_after or n_after == 0:
+        die(f"装饰器数量对不上：切走 {n_before} 个 @app.*，搬来 {n_after} 个 @router.*。"
+            f"多半是装饰器没被一起带走。")
+
     SERVER.write_text(rest, encoding="utf-8")
 
     print(f"已抽出 {args.start}-{args.end}（{args.end - args.start + 1} 行）"

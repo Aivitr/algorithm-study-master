@@ -24,17 +24,19 @@ def main(patterns: list[str]) -> None:
                     and d.func.attr in ("get", "post", "put", "delete", "patch", "websocket")):
                 path = d.args[0].value if d.args and isinstance(d.args[0], ast.Constant) else "?"
                 if any(p in path for p in patterns):
-                    routes.append((path, d.func.attr, node))
+                    # AST 的 lineno 是 def 行，不含装饰器；路由地址在装饰器上,
+                    # 因此报出的起点要用装饰器的行号，否则会少切一行。
+                    routes.append((path, d.func.attr, node, d.lineno))
 
     if not routes:
         print("没匹配到路由"); return
 
-    routes.sort(key=lambda r: r[2].lineno)
-    print(f"匹配 {len(routes)} 条路由：")
-    for path, m, n in routes:
-        print(f"  {m.upper():9} {path:45} {n.name:35} 行 {n.lineno}-{n.end_lineno} ({n.end_lineno-n.lineno+1})")
+    routes.sort(key=lambda r: r[3])
+    print(f"匹配 {len(routes)} 条路由（行号含装饰器）：")
+    for path, m, n, deco in routes:
+        print(f"  {m.upper():9} {path:45} {n.name:35} 行 {deco}-{n.end_lineno} ({n.end_lineno-deco+1})")
 
-    lo, hi = routes[0][2].lineno, routes[-1][2].end_lineno
+    lo, hi = routes[0][3], routes[-1][2].end_lineno
     print(f"\n跨度：{lo}-{hi}（{hi-lo+1} 行）")
     print(f"跨度内是否连续无夹杂：", all(
         isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) or isinstance(n, (ast.Import, ast.ImportFrom, ast.Assign, ast.Expr))
@@ -44,7 +46,7 @@ def main(patterns: list[str]) -> None:
     import builtins
     lib = set(dir(builtins))
     used, local = set(), set()
-    for _, _, n in routes:
+    for _, _, n, _ in routes:
         for a in ast.walk(n):
             if isinstance(a, ast.Name):
                 (used if isinstance(a.ctx, ast.Load) else local).add(a.id)

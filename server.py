@@ -2633,18 +2633,19 @@ async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
 
 # === WebSocket 连接管理器 / WebRTC 信令 ===
 #
-# 两个类已迁至 app/realtime/（阶段 3，设计文档 §4.1）：
-#   ConnectionManager       -> app/realtime/connection.py
-#   SignalConnectionManager -> app/realtime/signaling.py
+# 两个类已于阶段 3 迁至 app/realtime/（设计文档 §4.1）；
+# 单例本身于阶段 5 迁至 app/realtime/registry.py，此处**再导出**。
 #
-# 导入放在文件顶部（见 import 区），此处只保留**单例的创建位置**不变。
-# 位置不动是有意的：`from server import manager` 是既有调用点（WebSocket 路由、
-# tests_safe/test_websocket_and_manager.py 的隔离夹具），单例身份必须由 server
-# 模块持有，否则不同调用点会拿到不同对象，而那种故障完全静默。
-manager = ConnectionManager()
-
-
-signal_manager = SignalConnectionManager()
+# 为什么不把单例留在原地：拆出去的路由模块不能 `from server import manager`
+# ——在 `python server.py` 启动时 server.py 的模块名是 `__main__`，`server`
+# 不在 sys.modules 里，那样写会让本文件**再执行一遍**（重复建 app、重复注册
+# 全部 59 条路由），且不报错。详见 app/routers/__init__.py。
+#
+# 单例仍然全局唯一：这里用 `from ... import` 再导出而非重新赋值，
+# 因此 `server.manager` 与 `app.realtime.registry.manager` 是**同一个对象**，
+# 既有的 `from server import manager`（WebSocket 路由、
+# tests_safe/test_websocket_and_manager.py 的隔离夹具）拿到的身份不变。
+from app.realtime.registry import manager, signal_manager
 
 
 # === 实时语音识别 ASR 会话管理 ===
