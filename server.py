@@ -172,8 +172,8 @@ from app.realtime.emotion_helpers import (
 )
 
 # 这两个原本紧跟在上面那一块里（作为"再导出点"），随搬迁一起进了
-# app/realtime/emotion_helpers.py。server.py 里仍有大量调用点，所以在这里从
-# **它们的真实出处**再导入一次——不是从 emotion_helpers 转手，避免依赖链绕路。
+# app/realtime/emotion_helpers.py。这里从**它们的真实出处**再导入一次，
+# 不是从 emotion_helpers 转手——避免让依赖链绕远路。
 from app.core.emotions import normalize_emotion_label
 from app.services.user_lookup import resolve_user_by_identifier
 
