@@ -140,8 +140,26 @@ app.add_middleware(
 
 app.mount("/storage", StaticFiles(directory=os.path.join(BASE_DIR, "storage")), name="storage")
 
+
+# ==================== 再导出（迁移兼容面） ====================
+# 下面这一整段是阶段 5 拆分实时链路时留下的**再导出**。每搬走一块，就在原位置
+# 留一行 `from <新模块> import ...`，这样每一步都能单独跑测试、单独回滚——搬迁
+# 当时 server.py 里确有大量调用点，这句话因此是**真的**。
+#
+# 现在实时链路已经全部搬完，server.py 自己**一个调用点都不剩**了（这里只剩
+# 引导、app 组装与路由装配）。这些别名之所以仍然保留，是为了不改变
+# `import server; server.X` 的对外可见性：仓库内的 tests_safe/ 与
+# archive/ops-scripts/ 里有这样用的地方，仓库外可能也有。
+#
+# 也就是说，**下面这一段的注释说的"调用点保持不变"要按历史读**：它记录的是
+# 那一组搬迁当时的判断，不是现在的调用图。哪天真要瘦身，可以整段删掉——
+# 已实测需要保留的只有 4 个：manager、signal_manager、ConnectionManager、
+# SignalConnectionManager（tests_safe/test_websocket_and_manager.py 用），
+# 另有 BASE_DIR、ROOT_DIR、_SERVER_SYSPATH_ADDITIONS、app 是 server.py 自己
+# 定义或本来就有的。删之前请自行确认仓库外没有使用者。
+
 # 🔊 analyzer🔊
-# 阶段 5 迁至 app/realtime/emotion_helpers.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/emotion_helpers.py，此处**再导出**。
 from app.realtime.emotion_helpers import (
     get_analyzer,
     map_silent_emotion,
@@ -161,7 +179,7 @@ from app.services.user_lookup import resolve_user_by_identifier
 
 
 # 🧠 (🧠10🧠)
-# 阶段 5 迁至 app/realtime/state.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/state.py，此处**再导出**。
 from app.realtime.state import (
     kg_counter,
     recent_speech_cache,
@@ -201,7 +219,7 @@ from app.realtime.state import (
 )
 
 
-# 阶段 5 迁至 app/realtime/speech.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/speech.py，此处**再导出**。
 from app.realtime.speech import (
     _persist_speech_emotion_artifacts,
     _create_realtime_transcript_entry,
@@ -210,36 +228,25 @@ from app.realtime.speech import (
 )
 
 
-
-
-# 阶段 5 迁至 app/services/meeting_metrics.py，此处**再导出**（server.py 内的
-# 既有调用点保持不变）。这两个辅助同时被学生统计域与教师域使用，不能只跟着
-# 其中一组走，因此给它们一个中立的家。
+# 阶段 5 迁至 app/services/meeting_metrics.py，此处**再导出**。
+# 这两个辅助同时被学生统计域与教师域使用，不能只跟着其中一组走，
+# 因此给它们一个中立的家。
 from app.services.meeting_metrics import (
     _build_meeting_activity_map,
     _build_meeting_window_map,
 )
 
 
-
-# 阶段 5 迁至 app/realtime/knowledge_graph.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/knowledge_graph.py，此处**再导出**。
 from app.realtime.knowledge_graph import update_knowledge_graph
 
 
 # === 🎥 📹:👥📊 (yield) ===
-# 阶段 5 迁至 app/realtime/stream.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/stream.py，此处**再导出**。
 from app.realtime.stream import process_user_stream_generator
 
 
 # ... (?? get/post login ??) ...
-
-
-
-
-
-
-
-
 
 
 # === WebSocket 连接管理器 / WebRTC 信令 ===
@@ -254,30 +261,17 @@ from app.realtime.stream import process_user_stream_generator
 #
 # 单例仍然全局唯一：这里用 `from ... import` 再导出而非重新赋值，
 # 因此 `server.manager` 与 `app.realtime.registry.manager` 是**同一个对象**，
-# 既有的 `from server import manager`（WebSocket 路由、
-# tests_safe/test_websocket_and_manager.py 的隔离夹具）拿到的身份不变。
+# `from server import manager`（tests_safe/test_websocket_and_manager.py 的
+# 隔离夹具）拿到的身份不变。
 from app.realtime.registry import manager, signal_manager
 
 
 # === 实时语音识别 ASR 会话管理 ===
-# 阶段 5 迁至 app/realtime/asr_manager.py，此处**再导出**（调用点保持不变）。
+# 阶段 5 迁至 app/realtime/asr_manager.py，此处**再导出**。
 from app.realtime.asr_manager import (
     ASRSessionManager,
     asr_manager,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ==================== 路由装配 ====================
