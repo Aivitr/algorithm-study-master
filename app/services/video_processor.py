@@ -196,7 +196,7 @@ class VideoEmotionAnalyzer:
                 return
 
             try:
-                from gemma_emotion_client import get_gemma_client
+                from app.services.gemma_emotion_client import get_gemma_client
                 self._gemma_client = get_gemma_client()
                 if self._gemma_client is not None:
                     self._gemma_enabled = True

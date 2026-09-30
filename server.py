@@ -114,7 +114,7 @@ except ImportError:
     sys.exit(1)
 
 # 导入声纹管理器
-from voiceprint_manager import voiceprint_manager
+from app.services.voiceprint_manager import voiceprint_manager
 
 # 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录。
 # 现已由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py 里的
@@ -149,7 +149,7 @@ def get_analyzer():
     """🔊 analyzer🔊"""
     global analyzer
     if analyzer is None:
-        from video_processor import VideoEmotionAnalyzer
+        from app.services.video_processor import VideoEmotionAnalyzer
         analyzer = VideoEmotionAnalyzer()
     return analyzer
 
