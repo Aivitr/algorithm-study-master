@@ -18,10 +18,63 @@
 **7001 以上的假 meeting_id**，不碰冒烟基线用的 1/2 号课堂。
 """
 
+import subprocess
+import sys
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+# ------------------------------------------------- 搬迁契约（阶段 3）
+
+def test_manager_classes_live_in_app_realtime():
+    """两个管理器的类定义必须住在 app/realtime/ 下。
+
+    防的是**搬迁被悄悄撤销**：若有人把类定义重新贴回 server.py，它会遮蔽
+    顶部导入进来的同名类，而 `from server import ConnectionManager` 照样能用、
+    全部 19 条行为测试照样通过——表面毫无异常，结构却退回了原样。
+    只有身份断言能发现这件事。
+    """
+    import server
+    from app.realtime.connection import ConnectionManager as Moved
+    from app.realtime.signaling import SignalConnectionManager as MovedSignal
+
+    assert server.ConnectionManager is Moved, "server.ConnectionManager 不是 app/realtime 里那个"
+    assert server.SignalConnectionManager is MovedSignal
+    assert type(server.manager) is Moved, "manager 单例的类不是迁出后的那个"
+    assert type(server.signal_manager) is MovedSignal
+
+
+@pytest.mark.parametrize("module", ["app.realtime.connection", "app.realtime.signaling"])
+def test_realtime_module_is_self_contained(module):
+    """app/realtime/ 下的模块必须能**单独导入**，不得依赖 server。
+
+    这是搬迁是否真实完成的另一个侧面：若模块里还留着对 server 的引用
+    （哪怕只是 `import server` 拿个常量），就说明它并没有真正独立，
+    而 `server` 反过来导入它会形成循环——循环导入失败时信息往往很难读。
+
+    在子进程里导入，避免污染本进程的 sys.modules。
+    """
+    code = (
+        "import sys;"
+        f"sys.path.insert(0, {str(REPO_ROOT)!r});"
+        f"import {module};"
+        "print('server' in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, f"单独导入 {module} 失败：{result.stderr}"
+    assert result.stdout.strip() == "False", (
+        f"单独导入 {module} 时把 `server` 也拉了起来——该模块并非自足。"
+    )
 
 
 @pytest.fixture
