@@ -100,13 +100,11 @@ from app.realtime.connection import ConnectionManager
 from app.realtime.signaling import SignalConnectionManager
 
 # 📦 OSS📦
-try:
-    from app.services.oss_utils import get_oss_manager
-    USE_OSS = True
-    print("OSS module imported")
-except Exception as e:
-    USE_OSS = False
-    print(f"OSS not configured: {e}")
+# 阶段 5 迁至 app/core/oss.py：拆分后 app/realtime/speech.py 与将来的 stream /
+# asr_manager 都要用它，而它们不能从 server.py 取（`python server.py` 下会让
+# server.py 二次执行）。定义只保留一份，避免"各模块各自探测 OSS"的分叉——
+# 那种分叉不报错，只表现为某个模块在 OSS 可用时却走了不可用的分支。
+from app.core.oss import USE_OSS, get_oss_manager
 
 try:
     from app.services.ai_core import engine
