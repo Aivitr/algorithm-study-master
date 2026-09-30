@@ -84,15 +84,15 @@ from app.models import (
     User,
     ViewpointVote,
 )
-from llm_service import llm
-from knowledge_graph_service import kg_service
+from app.services.llm_service import llm
+from app.services.knowledge_graph_service import kg_service
 from app.core.config import (
     apply_research_runtime_config,
     ensure_research_directories,
     get_research_runtime_settings_snapshot,
     persist_research_runtime_config,
 )
-from research_runtime import research_runtime
+from app.services.research_runtime import research_runtime
 
 # 实时链路管理器（阶段 3 自本文件迁出，见设计文档 §4.1）。
 # 两者均为纯内存结构，不碰数据库与网络，因此不牵动任何初始化顺序。
@@ -101,7 +101,7 @@ from app.realtime.signaling import SignalConnectionManager
 
 # 📦 OSS📦
 try:
-    from oss_utils import get_oss_manager
+    from app.services.oss_utils import get_oss_manager
     USE_OSS = True
     print("OSS module imported")
 except Exception as e:
@@ -109,12 +109,12 @@ except Exception as e:
     print(f"OSS not configured: {e}")
 
 try:
-    from ai_core import engine
+    from app.services.ai_core import engine
 except ImportError:
     sys.exit(1)
 
 # 导入声纹管理器
-from voiceprint_manager import voiceprint_manager
+from app.services.voiceprint_manager import voiceprint_manager
 
 # 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录。
 # 现已由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py 里的
@@ -149,7 +149,7 @@ def get_analyzer():
     """🔊 analyzer🔊"""
     global analyzer
     if analyzer is None:
-        from video_processor import VideoEmotionAnalyzer
+        from app.services.video_processor import VideoEmotionAnalyzer
         analyzer = VideoEmotionAnalyzer()
     return analyzer
 
@@ -3407,7 +3407,7 @@ class ASRSessionManager:
         def on_error(msg):
             print(f"[ASR ERROR] {username}@meeting{meeting_id}: {msg}")
 
-        from ai_core import RealtimeTranscriber
+        from app.services.ai_core import RealtimeTranscriber
 
         # 实时语音识别官方接口不支持说话人分离。
         # 这里仅使用阿里云做实时转写，真实用户归属由本地声纹按句子音频片段确认。

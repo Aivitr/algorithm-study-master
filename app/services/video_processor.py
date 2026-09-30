@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from pathlib import Path
+
+from app.core.paths import PROJECT_ROOT
 import threading
 
 
@@ -134,10 +136,13 @@ class VideoEmotionAnalyzer:
         cascade_path = None
 
         candidates = []
-        # 1) 项目内同目录兜底（仓库已内置 xml 时优先可用）
+        # 1) 项目内兜底（仓库已内置 xml 时优先可用）
+        #    锚点取自 app/core/paths.py，**不再用 `Path(__file__)`**：阶段 3.3 把
+        #    本文件搬进 app/services/ 之后，`__file__` 的父目录会变成 app/services，
+        #    而 xml 仍在仓库根——这里会找不到，且因为下面有 `except Exception`
+        #    而**不报错**，悄悄退到 OpenCV 自带模型。
         try:
-            here = Path(__file__).resolve().parent
-            candidates.append(here / "haarcascade_frontalface_default.xml")
+            candidates.append(PROJECT_ROOT / "haarcascade_frontalface_default.xml")
         except Exception:
             pass
 
@@ -191,7 +196,7 @@ class VideoEmotionAnalyzer:
                 return
 
             try:
-                from gemma_emotion_client import get_gemma_client
+                from app.services.gemma_emotion_client import get_gemma_client
                 self._gemma_client = get_gemma_client()
                 if self._gemma_client is not None:
                     self._gemma_enabled = True

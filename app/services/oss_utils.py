@@ -5,7 +5,7 @@
 import oss2
 import os
 from datetime import datetime
-from oss_config import (
+from app.services.oss_config import (
     OSS_ACCESS_KEY_ID,
     OSS_ACCESS_KEY_SECRET,
     OSS_BUCKET_NAME,
