@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.paths import PROJECT_ROOT
 from app.models import Transcript
 from research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
 from research_registry import (
@@ -938,7 +939,10 @@ class ResearchRuntime:
         return _clamp(score, 0.35, 0.98)
 
     def _setup_scripts_summary(self) -> Dict:
-        repo_root = Path(__file__).resolve().parent
+        # 锚点取自 app/core/paths.py，**不再用 `Path(__file__)` 推导**：
+        # 阶段 3.3 把本文件搬进 app/services/ 之后，`__file__` 的父目录会变成
+        # app/services，这里报出的脚本路径就会静默指错（脚本实际都在仓库根）。
+        repo_root = PROJECT_ROOT
         return {
             "prepare_layout": str(repo_root / "prepare_enhanced_model_layout.ps1"),
             "setup_enhanced_runtime": str(repo_root / "setup_enhanced_runtime.ps1"),

@@ -150,6 +150,154 @@ def test_runtime_modules_do_not_derive_root_from_own_location(module_path):
     )
 
 
+# ---- 「用 `__file__` 推导项目内路径」的模块 -----------------------------------
+#
+# 上面那条 `test_runtime_modules_do_not_derive_root_from_own_location` 只盯
+# `BASE_DIR` / `ROOT_DIR` 这两个赋值。但同样的错误还有别的写法——实测在
+# `research_runtime.py` 与 `video_processor.py` 里各有一处：
+#
+#     repo_root = Path(__file__).resolve().parent      # 用来拼脚本路径
+#     here      = Path(__file__).resolve().parent      # 用来找内置的 haarcascade
+#
+# 它们**今天是对的**，只因为这两个文件恰好住在仓库根。阶段 3.3 要么把它们搬进
+# `app/services/`，那一刻两处都会静默指错：`research_runtime` 报出的脚本路径会
+# 指向 `app/services/`，`video_processor` 更糟——它的候选列表包在
+# `except Exception: pass` 里，找不到就**悄悄退到 OpenCV 自带的模型**，
+# 人脸识别照常"能用"，只是用的不是仓库内置的那一份。**没有任何一步会报错。**
+#
+# 所以这里把「不许用 `Path(__file__)` 推导项目内路径」也变成断言。
+# 只匹配 `Path(__file__)` 这一串字面 token——`Path(cv2.__file__)` 是另一串，
+# 不会误伤：那种用法指向的是第三方包自己的数据目录，本来就该跟着包走。
+FILE_PATH_ANCHORED_MODULES = ("research_runtime.py", "video_processor.py")
+
+# 项目内的路径必须由这里推导（阶段 0 建立的唯一锚点）
+def _path_file_uses(source: str) -> list[tuple[int, str]]:
+    """返回源码里**实际代码中**出现 `Path(__file__)` 的位置 [(行号, 该行原文)]。
+
+    为什么必须是 token 级判断，而不是 `re.search` 文本匹配
+    ------------------------------------------------------
+    文本匹配会把**注释里的讲解**当成违规。实测就是这样：锚点修好之后这条断言
+    仍然失败，因为源文件的注释与本测试自己的说明文字里都写着"不要用
+    `Path(__file__)`"这几个字。**讲解不等于违规。**
+
+    这个区别很实际：一个会对正确代码报错的守卫，很快就会被 `# noqa` 或直接
+    删掉；那比没有守卫更糟，因为它看起来还在保护什么。
+
+    token 级判断不受影响：注释是 COMMENT token，说明文字是 STRING token，
+    而这里要匹配的是 `Path` `(` `__file__` `)` 四个**代码 token** 的连续序列。
+    `Path(cv2.__file__)` 因多了一个 `cv2` `.` 而不匹配——那是第三方包自己的
+    数据目录，本来就该跟着包走。
+    """
+    import io
+    import tokenize
+
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        # 语法有问题的文件不在这里报错（另有测试负责整体可导入性），
+        # 让本函数的失败原因保持单一。
+        return []
+
+    skip = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
+            tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING}
+    code = [t for t in tokens if t.type not in skip]
+
+    hits = []
+    for i in range(len(code) - 3):
+        a, b, c, d = code[i:i + 4]
+        if (a.type == tokenize.NAME and a.string == "Path"
+                and b.string == "("
+                and c.type == tokenize.NAME and c.string == "__file__"
+                and d.string == ")"):
+            lineno = a.start[0]
+            hits.append((lineno, source.splitlines()[lineno - 1].strip()))
+    return hits
+
+
+def _import_runtime_module(bare: str):
+    """按两种布局导入运行期模块：搬迁后（`app.services.X`）优先，退回根级 `X`。
+
+    本文件里的行为断言要在**搬迁前后都能跑**——那正是它们的价值：
+    搬迁前通过证明"改锚点是等值替换"，搬迁后通过证明"文件挪了值没变"。
+    写死任一种布局都会让另一边失败，而"失败"很容易被误读成"搬迁出问题了"。
+    """
+    import importlib
+
+    for module_name, rel in (
+        (f"app.services.{bare}", f"app/services/{bare}.py"),
+        (bare, f"{bare}.py"),
+    ):
+        if (REPO_ROOT / rel).is_file():
+            return importlib.import_module(module_name)
+    raise AssertionError(f"两种布局下都找不到 {bare}（仓库根 {REPO_ROOT}）")
+
+
+@pytest.mark.parametrize("module_path", FILE_PATH_ANCHORED_MODULES)
+def test_no_project_paths_derived_from_own_file(module_path):
+    """不得用 `Path(__file__)` 推导项目内路径——文件一挪就静默指错。"""
+    source = (REPO_ROOT / module_path).read_text(encoding="utf-8", errors="replace")
+    offenders = [f"{module_path}:{lineno}: {line}" for lineno, line in _path_file_uses(source)]
+
+    assert not offenders, (
+        "以下行用模块自身位置推导项目内路径——文件一旦搬进 app/ 就会静默指错：\n  "
+        + "\n  ".join(offenders)
+        + "\n改为 `from app.core.paths import PROJECT_ROOT`。"
+    )
+
+
+def test_research_runtime_anchors_scripts_to_project_root():
+    """`research_runtime` 报出的脚本路径必须落在仓库根下。
+
+    这是上面那条静态检查的**行为证据**：静态只证明"没写 `Path(__file__)`"，
+    这条证明"算出来的值确实指向仓库根"。
+    """
+    from app.core.paths import PROJECT_ROOT
+
+    module = _import_runtime_module("research_runtime")
+    summary = module.research_runtime._setup_scripts_summary()
+
+    assert summary, "脚本摘要不应为空"
+    for key, value in summary.items():
+        assert Path(value).parent == PROJECT_ROOT, (
+            f"{key} 指向 {value}，其父目录是 {Path(value).parent}，"
+            f"并非仓库根 {PROJECT_ROOT}——脚本路径的锚点漂了。"
+        )
+
+
+def test_video_processor_looks_for_cascade_in_project_root(monkeypatch):
+    """`video_processor` 必须仍在**仓库根**找它内置的 haarcascade。
+
+    为什么这条值得单独立一个测试：这段查找包在 `except Exception: pass` 里，
+    锚点错了不会抛错，只会**安静地换用 OpenCV 自带的模型**——功能表面正常，
+    用的却是另一份文件。所以这里不检查"有没有加载成功"（那会误判为通过），
+    而是拦住 `cv2.CascadeClassifier` 的构造调用，看它**实际尝试了哪个路径**。
+    """
+    import cv2
+
+    from app.core.paths import PROJECT_ROOT
+
+    module = _import_runtime_module("video_processor")
+
+    attempted = []
+    real_cascade = cv2.CascadeClassifier
+
+    def recording_cascade(*args, **kwargs):
+        # cv2.CascadeClassifier() 无参构造也是合法用法，只记录带路径的那些
+        if args:
+            attempted.append(str(args[0]))
+        return real_cascade(*args, **kwargs)
+
+    monkeypatch.setattr(module.cv2, "CascadeClassifier", recording_cascade)
+    module.VideoEmotionAnalyzer()
+
+    expected = str(PROJECT_ROOT / "haarcascade_frontalface_default.xml")
+    assert expected in attempted, (
+        f"未尝试加载仓库内置的 haarcascade。\n"
+        f"  期望其中有：{expected}\n  实际尝试了：{attempted}\n"
+        f"锚点若漂到 app/services/，这里会退到 OpenCV 自带模型而不报任何错。"
+    )
+
+
 # server.py 追加进 sys.path 的目录名（相对仓库根）。
 #
 # 原有三条：`1/`、`2/`、`_tmp_agora_token_builder`。前两条已在阶段 3 移除——
