@@ -68,7 +68,8 @@ except ImportError:
 # 导入声纹管理器
 from voiceprint_manager import voiceprint_manager
 
-ROOT_DIR = os.getcwd()
+# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录
+ROOT_DIR = BASE_DIR
 for d in ["storage", "storage/video_chunks", "storage/audio_chunks", "storage/snapshots"]:
     os.makedirs(os.path.join(ROOT_DIR, d), exist_ok=True)
 
@@ -89,7 +90,7 @@ app.add_middleware(
     allow_headers=["*"],  # 🌍
 )
 
-app.mount("/storage", StaticFiles(directory="storage"), name="storage")
+app.mount("/storage", StaticFiles(directory=os.path.join(BASE_DIR, "storage")), name="storage")
 
 # 🔊 analyzer🔊
 analyzer = None
@@ -1908,12 +1909,12 @@ def process_user_stream_generator(username, video_data, meeting_id):
 # ... (?? get/post login ??) ...
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("index.html", "r", encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "index.html"), "r", encoding="utf-8") as f:
         return HTMLResponse(f.read(), headers=NO_CACHE_HEADERS)
 
 @app.get("/pcm-processor.js")
 async def get_pcm_processor():
-    return FileResponse("pcm-processor.js", media_type="application/javascript")
+    return FileResponse(os.path.join(BASE_DIR, "pcm-processor.js"), media_type="application/javascript")
 
 
 @app.post("/api/register")
@@ -5595,7 +5596,7 @@ async def generate_pdf_report(
         user = db.query(User).filter(User.id == user_id).first()
 
         # 创建PDF文件
-        pdf_dir = "storage/reports"
+        pdf_dir = os.path.join(BASE_DIR, "storage", "reports")
         os.makedirs(pdf_dir, exist_ok=True)
         pdf_filename = f"report_{meeting_id}_{user_id}_{int(time.time())}.pdf"
         pdf_path = os.path.join(pdf_dir, pdf_filename)
@@ -5687,7 +5688,7 @@ async def download_exercises(report_id: int, db: Session = Depends(get_db)):
         meeting = db.query(Meeting).filter(Meeting.id == report.meeting_id).first()
 
         # 生成JSON格式
-        exercise_dir = "storage/exercises"
+        exercise_dir = os.path.join(BASE_DIR, "storage", "exercises")
         os.makedirs(exercise_dir, exist_ok=True)
         filename = f"exercises_{report_id}_{int(time.time())}.txt"
         filepath = os.path.join(exercise_dir, filename)
@@ -5900,7 +5901,7 @@ async def upload_report_template(
     try:
         from database import ReportTemplate
         
-        template_dir = "storage/templates"
+        template_dir = os.path.join(BASE_DIR, "storage", "templates")
         os.makedirs(template_dir, exist_ok=True)
         
         original_filename = template_file.filename
@@ -6302,7 +6303,7 @@ def _prepare_voiceprint_audio(input_path: str) -> str:
 @app.get("/voiceprint_register")
 async def voiceprint_register_page():
     """声纹注册页面"""
-    return FileResponse("voiceprint_register.html")
+    return FileResponse(os.path.join(BASE_DIR, "voiceprint_register.html"))
 
 
 @app.post("/api/voiceprint/register")
@@ -6510,8 +6511,8 @@ async def identify_speaker(audio: UploadFile = File(...)):
     """
     try:
         # 保存临时文件
-        temp_audio_path = f"storage/temp_identify_{audio.filename}"
-        os.makedirs("storage", exist_ok=True)
+        temp_audio_path = os.path.join(BASE_DIR, "storage", f"temp_identify_{audio.filename}")
+        os.makedirs(os.path.join(BASE_DIR, "storage"), exist_ok=True)
 
         with open(temp_audio_path, "wb") as f:
             content = await audio.read()
