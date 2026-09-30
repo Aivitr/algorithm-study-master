@@ -12,6 +12,12 @@
         --header _header_research_runtime.py \
         --expect-defs _as_bool _reset_research_runtime_state
 
+若某个私有辅助只被这组路由使用、却写在 server.py 的别处，用 `--also` 一并搬：
+    python tools/extract_route_group.py --module reports --start 1895 --end 2191 \
+        --header _header_reports.py --expect-defs ... \
+        --also "1167-1178:_select_latest_reports" \
+        --also "1229-1271:_build_report_metric_maps"
+
 安全阀：
   * 区间内只允许出现给定名字的顶层定义（多一个就报错退出，不会静默搬错东西）；
   * 区间内不得出现 `Path(__file__)`（锚点会随文件位置漂移）；
@@ -149,6 +155,10 @@ def main() -> None:
     ap.add_argument("--doc", default="（阶段 5 从 server.py 拆出）", help="自动头的文档字符串")
     ap.add_argument("--expect-defs", nargs="*", default=[],
                     help="区间内允许带走的顶层定义名（路由函数与私有辅助）")
+    ap.add_argument("--also", action="append", default=[], metavar="起-止:名字,名字",
+                    help="额外一并搬走的**不连续**区间，可重复。格式 `起-止:期望的顶层定义名`"
+                         "（名字用逗号分隔）。用于「某个私有辅助只被本组路由使用」的情形——"
+                         "它常写在 server.py 的别处，只能单独切。")
     args = ap.parse_args()
     if not args.header and not args.auto_header:
         die("需要 --header 或 --auto-header")
@@ -173,21 +183,25 @@ def main() -> None:
 
     block_text = "".join(lines[args.start - 1:args.end])
 
-    # ---- 安全阀 -----------------------------------------------------------
-    inner = top_level_nodes(tree, args.start, args.end)
-    got = {node_name(n) for n in inner}
-    unexpected = got - set(args.expect_defs) - {"import"}
-    if unexpected:
-        die(f"区间内有未预期的顶层定义：{sorted(unexpected)}。"
-            f"请确认这段是否真的是自洽的一组，或把它加进 --expect-defs。")
+    def check_region(lo: int, hi: int, text: str, expect: list[str], label: str) -> list:
+        """区间必须自洽：只含预期定义、无锚点漂移、无对 server 的导入。"""
+        inner = top_level_nodes(tree, lo, hi)
+        got = {node_name(n) for n in inner}
+        unexpected = got - set(expect) - {"import"}
+        if unexpected:
+            die(f"{label} 区间内有未预期的顶层定义：{sorted(unexpected)}。"
+                f"请确认这段是否真的该一起走，或把它加进 --expect-defs / --also 的名字里。")
+        if "Path(__file__)" in text:
+            die(f"{label} 区间内出现 `Path(__file__)`：搬到 app/routers/ 后它会指向 "
+                f"app/routers，路径解析会静默错位。请改用 app.core.paths.PROJECT_ROOT。")
+        if "from server" in text or "import server" in text:
+            die(f"{label} 区间内出现对 server 的导入：在 `python server.py` 下会二次执行整个文件。")
+        if "if __name__" in text:
+            die(f"{label} 区间内出现 `__main__` 块，不该被搬走。")
+        return inner
 
-    if "Path(__file__)" in block_text:
-        die("区间内出现 `Path(__file__)`：搬到 app/routers/ 后它会指向 app/routers，"
-            "路径解析会静默错位。请改用 app.core.paths.PROJECT_ROOT。")
-    if "from server" in block_text or "import server" in block_text:
-        die("区间内出现对 server 的导入：在 `python server.py` 下会二次执行整个文件。")
-    if "if __name__" in block_text:
-        die("区间内出现 `__main__` 块，不该被搬走。")
+    # ---- 安全阀 -----------------------------------------------------------
+    inner = check_region(args.start, args.end, block_text, args.expect_defs, "主")
 
     # 路由装饰器必须全部是 @app.*（否则可能已经搬过）
     for n in inner:
@@ -198,10 +212,47 @@ def main() -> None:
                 ):
                     die(f":{n.lineno} 的路由装饰器不是 @app.*，可能已搬过。")
 
+    # ---- 额外区间（只被本组使用的私有辅助，写在 server.py 别处）-----------
+    # 这些辅助**不能**由新模块 `from server import ...` 取得（二次执行），
+    # 也不能留在 server.py 里被"再导出"给新模块——因此只能随本组一起搬走。
+    extra_blocks: list[str] = []
+    regions: list[tuple[int, int]] = [(args.start, args.end)]
+    for spec in args.also:
+        region, _, names = spec.partition(":")
+        lo_s, _, hi_s = region.partition("-")
+        expect = [n for n in names.split(",") if n]
+        try:
+            lo, hi = int(lo_s), int(hi_s)
+        except ValueError:
+            die(f"--also 的区间无法解析：{spec!r}，应为 `起-止:名字,名字`。")
+        if not (1 <= lo <= hi <= len(lines)):
+            die(f"--also 区间越界：{lo}-{hi}（文件 {len(lines)} 行）。")
+        if not expect:
+            die(f"--also 必须写明期望的顶层定义名（防切错）：{spec!r}。")
+        for r_lo, r_hi in regions:
+            if not (hi < r_lo or lo > r_hi):
+                die(f"--also 区间 {lo}-{hi} 与另一个待搬区间重叠。")
+        text_ = "".join(lines[lo - 1:hi])
+        check_region(lo, hi, text_, expect, f"--also {lo}-{hi}")
+        # 与主区间一样，把紧贴其上的装饰器带上（辅助函数通常没有，但保持一致）
+        while lo > 1 and lines[lo - 2].lstrip().startswith("@"):
+            lo -= 1
+        extra_blocks.append("".join(lines[lo - 1:hi]))
+        regions.append((lo, hi))
+
+    if extra_blocks:
+        print(f"另搬 {len(extra_blocks)} 个额外区间：" +
+              "、".join(f"{lo}-{hi}" for lo, hi in regions[1:]))
+
     # ---- 写模块 -----------------------------------------------------------
     # 先做 `@app.` → `@router.` 的改写：自动头需要据此判断依赖（改完之后
     # 装饰器里的 `app` 不再是外部名字，`router` 则记为由头提供）。
     body = block_text.replace("@app.", "@router.")
+    for block in extra_blocks:
+        # 额外区间接在正文之后。它们都是模块级 def/class，Python 在**调用时**
+        # 才解析名字，因此"定义在使用之后"不影响行为。
+        body = body.rstrip("\n") + "\n\n\n" + block
+    before_text = block_text + "".join(extra_blocks)
     if args.auto_header:
         header, _ = _auto_header(tree, body, args.module, args.doc)
     else:
@@ -210,7 +261,11 @@ def main() -> None:
         header = header.rstrip("\n") + "\n\n"
 
     # ---- 从 server.py 删除并装配 ------------------------------------------
-    rest = "".join(lines[:args.start - 1] + lines[args.end:])
+    # 多个区间时要**从后往前**删，否则先删前面的会让后面区间的行号整体前移。
+    out = list(lines)
+    for lo, hi in sorted(regions, reverse=True):
+        del out[lo - 1:hi]
+    rest = "".join(out)
     marker = 'if __name__ == "__main__":'
     if rest.count(marker) != 1:
         die("找不到唯一的 `__main__` 块，装配段无从插入。")
@@ -237,7 +292,7 @@ def main() -> None:
 
     # 装饰器一条都不能少：切走的 `@app.*` 条数必须等于搬来的 `@router.*` 条数。
     # 少了就说明有装饰器被留在了 server.py 里（孤儿行，见上方注释）。
-    n_before = block_text.count("@app.")
+    n_before = before_text.count("@app.")
     n_after = body.count("@router.")
     if n_before != n_after or n_after == 0:
         die(f"装饰器数量对不上：切走 {n_before} 个 @app.*，搬来 {n_after} 个 @router.*。"
