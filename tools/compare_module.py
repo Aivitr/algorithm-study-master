@@ -91,6 +91,26 @@ def _show(path: str, value) -> str:
     return repr(value)
 
 
+_ADDRESS = re.compile(r"0x[0-9a-fA-F]+")
+
+
+def _values_equal(a, b) -> bool:
+    """叶子值是否相同。
+
+    不能一律用 `==`：SQLAlchemy 的 `Engine` **没有定义 `__eq__`**，于是退化成
+    身份比较，两个配置相同、各自新建的 Engine 永远"不相等"——实测就是这样报出
+    一条假差异。反过来也不能一律用 `repr`：`sessionmaker` 的 repr 里有内存地址。
+
+    所以按语义分流：类型自己定义了 `__eq__`（str/int/dataclass/...）就用 `==`；
+    只有默认身份相等的对象（Engine 这类）才退到 repr，并把地址抹掉。
+    """
+    if type(a) is not type(b):
+        return False
+    if getattr(type(a), "__eq__", object.__eq__) is not object.__eq__:
+        return a == b
+    return _ADDRESS.sub("0x?", repr(a)) == _ADDRESS.sub("0x?", repr(b))
+
+
 def _source_of(obj) -> str | None:
     try:
         return re.sub(r"\s+", " ", inspect.getsource(obj)).strip()
@@ -98,12 +118,17 @@ def _source_of(obj) -> str | None:
         return None
 
 
-def compare(old, new, only: str | None) -> list[str]:
+def compare(old, new, only: str | None, moved_to=None) -> list[str]:
     problems: list[str] = []
 
     old_names = {n for n in dir(old) if not n.startswith("_")}
     new_names = {n for n in dir(new) if not n.startswith("_")}
     for name in sorted(old_names - new_names):
+        if moved_to is not None and hasattr(moved_to, name):
+            # 名字离开了本模块，但确实在指定模块里——不比对对象本身：
+            # 两个模块各自定义的同名类本来就是不同的类对象，该比的是**结构**，
+            # 那由 schema_snapshot.py 负责。这里只确认"没丢"。
+            continue
         problems.append(f"搬迁后**丢失**了公开名字：{name}")
     for name in sorted(new_names - old_names):
         problems.append(f"搬迁后**新增**了公开名字：{name}（若非有意，需说明）")
@@ -125,7 +150,7 @@ def compare(old, new, only: str | None) -> list[str]:
         for key in sorted(set(fa) | set(fb)):
             if only and not key.startswith(only):
                 continue
-            if fa.get(key) != fb.get(key):
+            if not _values_equal(fa.get(key), fb.get(key)):
                 problems.append(
                     f"{key}：\n      搬迁前: {_show(key, fa.get(key))}"
                     f"\n      搬迁后: {_show(key, fb.get(key))}"
@@ -141,12 +166,15 @@ def main() -> int:
                     help="加载旧文件时使用的临时模块名")
     ap.add_argument("--new-module", required=True, help="搬迁后的模块（点号路径）")
     ap.add_argument("--only", default=None, help="只比对字段路径以此开头的项")
+    ap.add_argument("--allow-moved-to", default=None, metavar="MODULE",
+                    help="本模块里少掉的名字，若存在于该模块则视为「搬走了」而非丢失")
     args = ap.parse_args()
 
     old = load_from_file(args.old_name, args.old_file)
     new = importlib.import_module(args.new_module)
+    moved_to = importlib.import_module(args.allow_moved_to) if args.allow_moved_to else None
 
-    problems = compare(old, new, args.only)
+    problems = compare(old, new, args.only, moved_to)
     if problems:
         print(f"比对未通过，{len(problems)} 处：")
         for p in problems:

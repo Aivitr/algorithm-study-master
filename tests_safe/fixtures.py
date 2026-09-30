@@ -16,7 +16,7 @@ BASE_TIME = datetime(2026, 1, 1, 9, 0, 0)
 
 def seed_all(db) -> dict:
     """写入一整套合成数据，返回关键 ID。"""
-    from database import (
+    from app.models import (
         AIInsight,
         EmotionLog,
         Exercise,

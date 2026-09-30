@@ -58,7 +58,7 @@ def _import_compat(name: str):
     raise SystemExit(f"两种布局下都找不到 {name}（cwd={root}）")
 
 
-# 必须在导入 database 之前设定：database.py 在导入期就用它建 engine。
+# 必须在导入 database 之前设定：app/core/database.py 在导入期就用它建 engine。
 # 指向 sqlite 同时意味着 _ensure_transcripts_columns() 找不到 transcripts 表、
 # 直接 return——不会对任何真实库发 DDL。
 os.environ["DATABASE_URL"] = "sqlite:///./__schema_dump__.db"
@@ -76,7 +76,22 @@ def _default_repr(default):
     return repr(arg)
 
 
-metadata = database.Base.metadata
+def _model_home():
+    """返回「模型类住在哪个模块」——它的位置随搬迁变过，工具要两边都能跑。
+
+    阶段 3.1 之前模型定义在 `database.py`；3.1 拆到 `app/models/` 但由 `database`
+    转出；3.2 起 `database` 不再转出。本工具将来还要用于 3.3/3.4 的搬迁，
+    所以按"哪种布局在场"判断，而不是写死一种。
+    """
+    if (Path(os.getcwd()) / "app" / "models" / "base.py").is_file():
+        import importlib
+
+        return importlib.import_module("app.models")
+    return database
+
+
+models = _model_home()
+metadata = models.Base.metadata
 
 tables = []
 for name in sorted(metadata.tables):
@@ -118,7 +133,7 @@ for attr in ("User", "Meeting", "Transcript", "EmotionLog", "KnowledgeGraph",
              "GraphNode", "GraphEdge", "LearningReport", "Exercise", "StudentAnswer",
              "MentalHealthAssessment", "ViewpointVote", "MemberConnection",
              "ReportTemplate", "AIInsight"):
-    cls = getattr(database, attr, None)
+    cls = getattr(models, attr, None)
     descriptors[attr] = None if cls is None else sorted(
         k for k in vars(cls) if not k.startswith("_")
     )

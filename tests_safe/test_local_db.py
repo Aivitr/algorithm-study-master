@@ -4,7 +4,7 @@
 
 背景
 ----
-`database.py:13-20` 无条件传入：
+`app/core/database.py` 的 `create_engine(...)` 无条件传入：
 
     connect_args={'timeout': 10, 'login_timeout': 10}
 
@@ -31,6 +31,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# 阶段 3.2：`Base` 从 `database` 移到了 `app.models`。此前 `import database`
+# 一条语句就顺带把全部模型注册进 metadata；现在这一步必须显式发生，
+# 否则 create_all 会建出一张表都不少的**空** schema——不报错，只是什么都没建。
+from app.models import Base  # noqa: E402
+
 
 def _reimport_database(monkeypatch, db_file: Path):
     """在 DATABASE_URL 指向本地 sqlite 的前提下重新导入 database 模块。
@@ -42,9 +47,9 @@ def _reimport_database(monkeypatch, db_file: Path):
     `config`，不复原就会污染后续测试（详见 conftest 中该夹具的说明）。
     """
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file.as_posix()}")
-    for mod in ("database", "app.core.config"):
+    for mod in ("app.core.database", "app.core.config"):
         sys.modules.pop(mod, None)
-    import database  # noqa: PLC0415  —— 需在环境变量就位后导入
+    from app.core import database  # noqa: PLC0415  —— 需在环境变量就位后导入
 
     return database
 
@@ -66,12 +71,12 @@ def test_local_sqlite_schema_can_be_created(tmp_path, monkeypatch, module_surger
     db_file = tmp_path / "app.db"
     database = _reimport_database(monkeypatch, db_file)
 
-    database.Base.metadata.create_all(database.engine)
+    Base.metadata.create_all(database.engine)
 
     from sqlalchemy import inspect
 
     tables = set(inspect(database.engine).get_table_names())
     assert tables, "建表后不应为空"
-    assert tables == set(database.Base.metadata.tables), (
-        f"建出的表与 ORM 定义不一致：缺 {set(database.Base.metadata.tables) - tables}"
+    assert tables == set(Base.metadata.tables), (
+        f"建出的表与 ORM 定义不一致：缺 {set(Base.metadata.tables) - tables}"
     )

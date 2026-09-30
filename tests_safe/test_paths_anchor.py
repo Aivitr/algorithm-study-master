@@ -39,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # ——旧路径读不到文件会得到空字符串，而空字符串里当然找不到 `__file__`，
 # 断言会"通过"。所以列表里每一项都必须指向真实存在的文件（见下方
 # test_runtime_module_paths_exist）。
-RUNTIME_MODULES = ("server.py", "app/core/config.py", "database.py")
+RUNTIME_MODULES = ("server.py", "app/core/config.py", "app/core/database.py")
 
 
 def test_runtime_module_paths_exist():

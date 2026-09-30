@@ -70,7 +70,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 # 🚫 ThreadPoolExecutor🚫 yield
 
-from database import get_db, User, Meeting, Transcript, EmotionLog, AIInsight, KnowledgeGraph, LearningReport, Exercise, StudentAnswer, SessionLocal, ViewpointVote, MemberConnection
+from app.core.database import SessionLocal, get_db
+from app.models import (
+    AIInsight,
+    EmotionLog,
+    Exercise,
+    KnowledgeGraph,
+    LearningReport,
+    Meeting,
+    MemberConnection,
+    StudentAnswer,
+    Transcript,
+    User,
+    ViewpointVote,
+)
 from llm_service import llm
 from knowledge_graph_service import kg_service
 from app.core.config import (
@@ -5801,7 +5814,7 @@ async def upload_report_template(
 ):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         template_dir = os.path.join(BASE_DIR, "storage", "templates")
         os.makedirs(template_dir, exist_ok=True)
@@ -5847,7 +5860,7 @@ async def upload_report_template(
 async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         templates = db.query(ReportTemplate).filter(
             ReportTemplate.teacher_id == teacher_id
@@ -5873,7 +5886,7 @@ async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
 async def delete_template(template_id: int, db: Session = Depends(get_db)):
     """??"""
     try:
-        from database import ReportTemplate
+        from app.models import ReportTemplate
         
         template = db.query(ReportTemplate).filter(ReportTemplate.id == template_id).first()
         if template:

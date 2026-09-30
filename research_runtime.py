@@ -5,7 +5,8 @@ from threading import Lock, Thread
 from typing import Dict, List, Optional, Tuple
 
 from app.core.config import settings
-from database import SessionLocal, Transcript
+from app.core.database import SessionLocal
+from app.models import Transcript
 from research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
 from research_registry import (
     get_algorithm_registry,
