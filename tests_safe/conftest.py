@@ -1,45 +1,16 @@
-"""全局隔离：保证测试进程在任何路径下都无法触达生产环境。
+"""tests_safe 自己的夹具。
 
-本文件同时封堵**两条**通向生产库的路径——这一点常被忽略：
-ORM 路径只是其中一条。详见下方 §1 与 §2。
+**生产隔离不在这里**——它在仓库根的 `conftest.py`。原先它写在本文件里，
+但那只能覆盖「按默认方式运行 pytest」（`pytest.ini` 的 `testpaths = tests_safe`）；
+一旦显式给出路径参数，`testpaths` 就被覆盖，本文件根本不会加载。详见根
+`conftest.py` 的文件头与 `docs/待验收事项.md` A13。
 
-§1 ORM 路径
------------
-`database.py` 在**模块导入时**就执行 `_ensure_transcripts_columns()`
-（`database.py:243`），该函数会对 `DATABASE_URL` 指向的库执行 inspect，
-必要时执行 `ALTER TABLE transcripts ADD ...`。
-
-也就是说：**`import database` 这一个动作本身，就可能在生产库上执行 DDL。**
-因此隔离必须发生在**测试模块导入之前**——conftest.py 由 pytest 在收集阶段
-最先加载，是唯一可靠的插入点。
-
-§2 直连路径（绕过 ORM）
-----------------------
-`server.py:1935`（`/api/register`）与 `server.py:1985`（`/api/login`）
-**不使用 ORM**，而是直接：
-
-    import pymssql
-    conn = pymssql.connect(server=os.getenv("DB_HOST"), ...)
-
-它们**完全不读 `DATABASE_URL`**。因此只改 `DATABASE_URL` 对这两条路由毫无作用，
-调用它们仍会真实连接到生产服务器并写入数据。
-
-**为什么不能简单地 `del os.environ["DB_HOST"]`**：
-`config._load_dotenv()` 使用 `os.environ.setdefault`，若该键不存在，
-它会立刻从 `.env` 把生产值重新填回来。**必须显式赋成无害值**——键已存在时
-setdefault 才不会覆盖。
-
-§3 socket 层兜底
----------------
-上述两条是"已知的"绕过路径。为防还有未发现的路径，另加一道与具体实现无关的
-防护：整个测试会话期间阻断一切非回环的网络连接（见 `block_external_network`）。
-这是一道兜底，不是替代品。
+本文件保留了「隔离是否已生效」的断言（见下），根 conftest 若被删除或改名，
+这里会立刻失败，而不是静默地退回生产配置。
 """
 
 import os
-import socket
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -50,6 +21,31 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 
+# --------------------------------------------------- 隔离是否已生效（防线二）
+def _assert_isolation_active() -> None:
+    """确认仓库根 conftest.py 已经跑过。
+
+    这不是重复实现，而是**对根闸门的断言**：本文件只有在根 conftest 之后加载，
+    若后者不存在，`.env` 的生产值就会原样留在这里——那时下面的断言会失败。
+    """
+    url = os.environ.get("DATABASE_URL", "")
+    problems = []
+    if not url.startswith("sqlite"):
+        problems.append(f"DATABASE_URL 未隔离：{url or '(未设置)'}")
+    if os.environ.get("DB_HOST") not in ("127.0.0.1", "localhost", "::1"):
+        problems.append(f"DB_HOST 未隔离：{os.environ.get('DB_HOST') or '(未设置)'}")
+    if os.environ.get("DB_PORT") != "1":
+        problems.append(f"DB_PORT 未隔离：{os.environ.get('DB_PORT') or '(未设置)'}")
+    assert not problems, (
+        "生产隔离未生效，测试拒绝启动：\n  - "
+        + "\n  - ".join(problems)
+        + "\n请确认仓库根的 conftest.py 存在（它是唯一覆盖所有调用方式的闸门）。"
+    )
+
+
+_assert_isolation_active()
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--record-baseline",
@@ -57,70 +53,6 @@ def pytest_addoption(parser):
         default=False,
         help="把当前行为录制为基线，而不是与已录基线比对",
     )
-
-_SESSION_TMP = Path(tempfile.mkdtemp(prefix="smartclass-tests-"))
-
-# ---------------------------------------------------------------- §1 ORM 路径
-os.environ["DATABASE_URL"] = f"sqlite:///{(_SESSION_TMP / 'app.db').as_posix()}"
-
-# ------------------------------------------------------- §2 直连 pymssql 路径
-# 显式赋值（而非删除）——见文件头说明。
-os.environ["DB_HOST"] = "127.0.0.1"
-os.environ["DB_PORT"] = "1"  # 不可达端口
-os.environ["DB_USER"] = "testsuite"
-os.environ["DB_PASSWORD"] = "testsuite"
-os.environ["DB_NAME"] = "testsuite"
-
-# ------------------------------------------------------------ §3 socket 兜底
-_LOOPBACK = {"127.0.0.1", "::1", "localhost", "0.0.0.0", "", None}
-
-
-def _is_loopback(address) -> bool:
-    if isinstance(address, str):
-        return address in _LOOPBACK
-    if isinstance(address, (tuple, list)) and address:
-        return str(address[0]) in _LOOPBACK
-    return True
-
-
-@pytest.fixture(scope="session", autouse=True)
-def block_external_network():
-    """整个会话期间，禁止任何非回环的网络连接。
-
-    与实现无关——即便某条路由用了我们尚未发现的第三方客户端，
-    只要它试图连外网，就会在这里被拦下。
-    """
-    real_connect = socket.socket.connect
-    real_connect_ex = socket.socket.connect_ex
-    attempts = []
-
-    def guard(self, address, *args, **kwargs):
-        if not _is_loopback(address):
-            attempts.append(address)
-            raise OSError(
-                f"测试进程禁止访问外部网络，已阻断：{address}。"
-                f"若该连接指向生产环境，即为隔离失效。"
-            )
-        return real_connect(self, address, *args, **kwargs)
-
-    def guard_ex(self, address, *args, **kwargs):
-        if not _is_loopback(address):
-            attempts.append(address)
-            raise OSError(f"测试进程禁止访问外部网络，已阻断：{address}")
-        return real_connect_ex(self, address, *args, **kwargs)
-
-    socket.socket.connect = guard
-    socket.socket.connect_ex = guard_ex
-    try:
-        yield attempts
-    finally:
-        socket.socket.connect = real_connect
-        socket.socket.connect_ex = real_connect_ex
-
-
-@pytest.fixture(scope="session")
-def session_tmp_dir() -> Path:
-    return _SESSION_TMP
 
 
 # ------------------------------------------------------------------ 应用与数据
