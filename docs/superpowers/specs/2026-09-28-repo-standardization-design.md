@@ -51,7 +51,7 @@
 | D14 | 配置改造范围 | **先做开发环境**，生产侧（真实键值、线上键名核对）列为待办 |
 | D15 | 容器化范围 | **仅本地开发容器化**；线上部署编排与部署指令列为待办 |
 | D16 | 空目录 | `steploc/` `templates/` `static/` `assets/` **四者均确认为空**（`assets/` 的 css/img/js 亦为空子目录），**直接移除** |
-| D17 | 冒烟基线选址 | **基线不需要连生产库**。生产与 ORM 的差异（§3.8）全部为 0 代码引用，对代码可达路径行为等价；本地按 ORM 建库即可（订正 §8.1 原先的阻塞判断） |
+| D17 | 冒烟基线选址 | **基线不需要连生产库**。生产与 ORM 的差异（§3.8）全部为 0 代码引用，对代码可达路径行为等价；本地按 ORM 建库即可（订正 §8.1 原先的阻塞判断）。**已验证可行**：全部 ORM 表可在本地 sqlite 上建成，NVARCHAR 无兼容问题 |
 | D18 | `users` 异常记录 | 2026-09-28 那条 `users` 记录**经需求方确认，为需求方本人使用系统新建用户所致**，非异常写入，无需处置。**同时该事实证明系统在 2026-09-28 仍可正常访问与使用**（见 §3.9） |
 
 ---
@@ -251,6 +251,49 @@ server  video_processor  voiceprint_manager
 **现状**：**不存在开发/生产之分**。唯一一份 `.env`（17 个键，仅含数据库、云服务、LLM、Agora 四类凭据）**直接指向生产 RDS**。即：本机开发与线上生产**共用同一套生产凭据**。
 
 **结论**：分环境所需的机制**已具备大半**（锚点正确、`APP_ENV` 已存在、环境变量优先级正确），缺的是**选择逻辑**与**失败时的可见性**。
+
+### 3.11 导入时的自动建表迁移（已实测 · 与 C4/C6 直接相关）
+
+`database.py:213-243`：
+
+```python
+def _ensure_transcripts_columns():
+    try:
+        inspector = inspect(engine)
+        if "transcripts" not in inspector.get_table_names():
+            return
+        columns = {col.get("name") for col in inspector.get_columns("transcripts")}
+        ddl_list = []
+        if "binding_source" not in columns:
+            ddl_list.append("ALTER TABLE transcripts ADD binding_source NVARCHAR(100) NULL")
+        # …… 共 5 列
+        if ddl_list:
+            with engine.begin() as conn:
+                for ddl in ddl_list:
+                    conn.execute(text(ddl))
+            print(f"[DB_MIGRATION] transcripts patched with {len(ddl_list)} research columns")
+    except Exception as e:
+        print(f"[DB_MIGRATION] transcripts patch skipped: {e}")
+
+_ensure_transcripts_columns()   # ← 模块导入时无条件执行
+```
+
+| 项 | 事实 |
+|---|---|
+| 触发时机 | **`import database`**——即服务启动、跑测试、跑任何脚本 |
+| 作用对象 | 当时 `DATABASE_URL` 指向的库，**包含生产库** |
+| 动作 | 缺列则 `ALTER TABLE transcripts ADD ...`（最多 5 列） |
+| 失败处理 | **吞掉全部异常**，仅打印一行提示 |
+
+**三个后果**：
+
+1. **存在一条隐藏的、非显式的结构变更路径**——应用自身会在启动时修改表结构，不经任何迁移工具、不留版本记录。§3.8 的生产库/ORM 差异，很可能部分正源于此类路径与手工操作。
+2. **`import` 带副作用**。任何"先跑起来看看"的代码，只要还连着生产库，就已经对生产执行了 inspect，必要时执行 DDL。**这使"测试不得触碰生产"从纪律问题变成必须由代码强制保证的问题**——本轮已落地 `tests_safe/conftest.py`，并配断言回归保护。
+3. **错误不可见**。异常被吞、提示词为 "skipped"，形似正常。§1.2 的故障二正因这一点而更难被发现。
+
+**约束**：该函数**不删不改**（C2）；其行为不违反 C4/C6（只补列，不删表、不改类型），但它说明**「不改数据库」这条承诺需要被主动守护**，不能假设应用不会动库。
+
+**本轮已完成的关联修复**：`database.py` 的 `connect_args` 原为无条件传入 `login_timeout`（pymssql 专有），导致 sqlite 下抛 `TypeError`。改为按方言选择后，生产侧传入的实参与此前**完全一致**，本地 sqlite 可用（见 §6 阶段 1）。
 
 ---
 
