@@ -53,6 +53,8 @@ MOVED_MODULES: dict[str, str] = {
     "voiceprint_manager": "app.services.voiceprint_manager",
     "video_processor": "app.services.video_processor",
     "gemma_emotion_client": "app.services.gemma_emotion_client",
+    "oss_config": "app.services.oss_config",
+    "oss_utils": "app.services.oss_utils",
 }
 
 # 扫描时跳过的目录，每一个都有明确理由：
