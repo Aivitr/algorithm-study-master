@@ -27,7 +27,15 @@ requirements.txt 里——名单一旦过期，测试红，而不是静默漏装
 
 用法
 ----
-    python tools/split_requirements.py requirements.txt /tmp/heavy.txt /tmp/light.txt
+    python tools/split_requirements.py requirements-dev.txt /tmp/heavy.txt /tmp/light.txt
+
+开发镜像喂的是 `requirements-dev.txt`（测试工具也得有），它首行是
+`-r requirements.txt`，所以本工具会**跟随 `-r` 引用**把被引用的清单展开进来。
+这样"哪些包要装"始终只有一份定义，不必在 Dockerfile 里再抄一遍 pytest、httpx。
+
+跟随引用时有个坑：只展开、**不把 `-r` 那一行本身当成包**（它没有包名）。
+不展开的话，torch 会因为藏在被引用的文件里而整个漏掉 —— 而漏掉的后果是
+Linux 上装成 CUDA 版，镜像涨好几 GB，且不报任何错。
 """
 
 from __future__ import annotations
@@ -44,11 +52,14 @@ HEAVY_PACKAGES: tuple[str, ...] = ("torch", "torchvision", "torchaudio")
 # `torch>=2.0`、`torch==2.14.0`、`uvicorn[standard]`、`setuptools<81` 都取主干名
 _NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 
+# pip 的 -r / --requirement 引用
+_INCLUDE_RE = re.compile(r"^\s*(?:-r|--requirement)[=\s]+(\S+)\s*$")
+
 
 def package_name(line: str) -> str:
     """从一行 requirement 里取出包名（小写，去掉 extras 与版本约束）。
 
-    不是一行 requirement 时返回空串——调用方据此跳过注释与空行。
+    不是一行 requirement 时返回空串——调用方据此跳过注释、空行与 `-r` 引用。
     """
     if not line.strip() or line.lstrip().startswith("#"):
         return ""
@@ -56,10 +67,45 @@ def package_name(line: str) -> str:
     return match.group(1).lower() if match else ""
 
 
-def split_requirements(source: str) -> tuple[list[str], list[str]]:
+def expand_requirements(source: str, base_dir: Path | None = None) -> list[str]:
+    """展开 `-r` 引用，按顺序返回所有 requirement 行（注释与空行已剔除）。
+
+    只做**一层层就地展开**，不重排：`-r requirements.txt` 出现在哪一行，
+    被引用的内容就插在哪一行。`base_dir` 是被引用文件的相对基准目录。
+    """
+    base_dir = Path(".") if base_dir is None else base_dir
+    return _expand(source, base_dir, seen=set())
+
+
+def _expand(source: str, base_dir: Path, seen: set[Path]) -> list[str]:
+    lines: list[str] = []
+    for raw in source.splitlines():
+        include = _INCLUDE_RE.match(raw)
+        if include:
+            target = (base_dir / include.group(1).strip()).resolve()
+            if target in seen:
+                continue  # 循环引用：跳过而不是递归到栈溢出
+            seen.add(target)
+            try:
+                nested = target.read_text(encoding="utf-8")
+            except OSError as exc:
+                print(f"警告：展开 {target} 失败（{exc}），该处引用被忽略", file=sys.stderr)
+                continue
+            lines.extend(_expand(nested, target.parent, seen))
+            continue
+
+        if package_name(raw):
+            lines.append(raw.strip())
+    return lines
+
+
+def split_requirements(
+    source: str, base_dir: Path | None = None
+) -> tuple[list[str], list[str]]:
     """切成 `(heavy, light)`。
 
-    两份合起来是原文条的**划分**：每一项恰好落到一边，且各自保持原文顺序。
+    `source` 可以含 `-r` 引用，会先展开（见 `expand_requirements`）。
+    两份合起来是展开后清单的**划分**：每一项恰好落到一边，且各自保持原文顺序。
     注释与空行不进任何一边（它们没有安装语义，跟着走只会让两边的 diff 变脏）。
     这一点由 `tests_safe/test_docker_assets.py` 钉住。
     """
@@ -67,18 +113,16 @@ def split_requirements(source: str) -> tuple[list[str], list[str]]:
     heavy: list[str] = []
     light: list[str] = []
 
-    for raw in source.splitlines():
-        name = package_name(raw)
-        if not name:
-            continue
-        (heavy if name in heavy_names else light).append(raw.strip())
+    for line in expand_requirements(source, base_dir):
+        name = package_name(line)
+        (heavy if name in heavy_names else light).append(line)
 
     return heavy, light
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("source", type=Path, help="requirements.txt 的路径")
+    parser.add_argument("source", type=Path, help="requirements 清单的路径")
     parser.add_argument("heavy_out", type=Path, help="torch 三件套写到哪")
     parser.add_argument("light_out", type=Path, help="其余依赖写到哪")
     args = parser.parse_args()
@@ -89,7 +133,7 @@ def main() -> int:
         print(f"读不到 {args.source}：{exc}", file=sys.stderr)
         return 1
 
-    heavy, light = split_requirements(source)
+    heavy, light = split_requirements(source, args.source.parent)
     if not heavy:
         # 空的重型层也算"成功"，但几乎肯定是 HEAVY_PACKAGES 与 requirements.txt
         # 对不上了——那时镜像会在 Linux 上悄悄装成 CUDA 版。出声。

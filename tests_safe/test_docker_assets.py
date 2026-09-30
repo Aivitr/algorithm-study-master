@@ -163,22 +163,23 @@ class TestComposeNeutralizesProductionDatabase:
 
 
 class TestRequirementsSplit:
-    def test_split_is_a_partition_preserving_order(self):
+    @pytest.mark.parametrize("manifest", ["requirements.txt", "requirements-dev.txt"])
+    def test_split_is_a_partition_preserving_order(self, manifest):
         tool = _load_split_tool()
-        source = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
-        heavy, light = tool.split_requirements(source)
+        path = REPO_ROOT / manifest
+        source = path.read_text(encoding="utf-8")
+        # 基准取**展开 -r 之后**的清单：开发镜像是照着 requirements-dev.txt 装的，
+        # 它首行的 `-r requirements.txt` 必须被跟随，否则 torch 会整个漏掉。
+        origin = tool.expand_requirements(source, path.parent)
+        heavy, light = tool.split_requirements(source, path.parent)
 
-        origin = [
-            line.strip()
-            for line in source.splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        ]
+        assert origin, f"{manifest} 展开后一条 requirement 都没有"
         merged = heavy + light
 
         # (a) 合起来 = 原清单。少一项就是容器里运行期 ModuleNotFoundError，
         #     多一项就是装了个清单里没有的包。
         assert sorted(merged) == sorted(origin), (
-            "切分后的两份合起来与 requirements.txt 对不上——"
+            f"切分后的两份合起来与 {manifest}（展开 -r 后）对不上——"
             "有包被漏掉或重复。漏掉的包在容器里要到**运行时**才报 ModuleNotFoundError。\n"
             f"  只在原清单：{sorted(set(origin) - set(merged))}\n"
             f"  只在切分后：{sorted(set(merged) - set(origin))}"
@@ -197,24 +198,27 @@ class TestRequirementsSplit:
             return all(item in it for item in sub)
 
         assert is_subsequence(heavy, origin), (
-            f"重型层的顺序与 requirements.txt 不一致：{heavy}"
+            f"重型层的顺序与 {manifest} 不一致：{heavy}"
         )
         assert is_subsequence(light, origin), (
-            f"其余层的顺序与 requirements.txt 不一致：{light}"
+            f"其余层的顺序与 {manifest} 不一致：{light}"
         )
 
     def test_every_declared_heavy_package_exists_in_requirements(self):
         tool = _load_split_tool()
-        source = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+        # 拿开发镜像真正会喂进去的那份清单来核。
+        path = REPO_ROOT / "requirements-dev.txt"
         names = {
-            line.strip().split("==")[0].split(">=")[0].split("<")[0].strip().lower()
-            for line in source.splitlines()
-            if line.strip() and not line.strip().startswith("#")
+            tool.package_name(line)
+            for line in tool.expand_requirements(
+                path.read_text(encoding="utf-8"), path.parent
+            )
         }
         missing = [name for name in tool.HEAVY_PACKAGES if name not in names]
         assert not missing, (
-            f"切分工具声明这些包走 PyTorch 索引，但 requirements.txt 里没有：{missing}。\n"
-            f"多半是 requirements.txt 改了名或删了包，而切分名单没跟着改——"
+            f"切分工具声明这些包走 PyTorch 索引，但 requirements-dev.txt"
+            f"（展开 -r 后）里没有：{missing}。\n"
+            f"多半是清单改了名或删了包，而切分名单没跟着改——"
             f"那会让 Dockerfile 去装一个清单里不存在的包，或者反过来"
             f"让某个 torch 系包走了普通 PyPI（在 Linux 上会拉进 CUDA 版，镜像涨到数 GB）。"
         )

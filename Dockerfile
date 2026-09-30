@@ -91,8 +91,10 @@ RUN apt-get update \
 #   层 B  其余依赖
 #   层 C  代码          —— 每次改动都变，所以放最后
 #
-# 依赖清单的唯一来源是 requirements.txt。这里不抄一份 torch 名单，
-# 而是用 tools/split_requirements.py 现算（理由见该文件头）。
+# 依赖清单的唯一来源是 requirements-dev.txt（开发镜像，测试工具也要有；
+# 它的首行是 `-r requirements.txt`）。这里既不抄一份 torch 名单，也不抄一份
+# pytest/httpx —— 都由 tools/split_requirements.py 现算，它会跟随 `-r` 引用
+# 把被引用的清单展开进来（理由见该文件头）。
 #
 # venv 放 /opt/venv 而**不是** /app/venv：docker-compose 会把仓库目录
 # 挂载到 /app，那样一来 /app 下的任何东西都会被宿主目录盖掉，
@@ -109,7 +111,9 @@ RUN pip install --index-url "$PIP_INDEX_URL" "cython<4"
 # 后续的 pip 就都不用再重复 --index-url。
 ENV PIP_INDEX_URL="$PIP_INDEX_URL"
 
-COPY requirements.txt tools/split_requirements.py /tmp/build/
+# 两份清单都要 COPY：requirements-dev.txt 靠 `-r requirements.txt` 引用后者，
+# 只拷一份的话展开会失败（而它失败的方式是**警告后跳过**，于是 torch 静默消失）。
+COPY requirements.txt requirements-dev.txt tools/split_requirements.py /tmp/build/
 
 # 层 A：torch 三件套，走 CPU 索引。
 #
@@ -119,7 +123,8 @@ COPY requirements.txt tools/split_requirements.py /tmp/build/
 # 得靠 --extra-index-url 回落到镜像。反过来的写法（镜像当主索引）看似更稳，
 # 实际会把 CUDA 版装进来。
 RUN python /tmp/build/split_requirements.py \
-        /tmp/build/requirements.txt /tmp/req-heavy.txt /tmp/req-light.txt \
+        /tmp/build/requirements-dev.txt /tmp/req-heavy.txt /tmp/req-light.txt \
+ && test -s /tmp/req-heavy.txt \
  && pip install --index-url "$TORCH_INDEX_URL" --extra-index-url "$PIP_INDEX_URL" \
         -r /tmp/req-heavy.txt
 
@@ -147,8 +152,17 @@ COPY . .
 # （见 .dockerignore），DATABASE_URL 取默认的 sqlite，因此这次冒烟
 # **碰不到生产库**——它正是来证明这件事的。
 #
+# LLM_API_KEY 给的是**假值**，这是必须的：app/services/llm_service.py 在
+# 模块级构造 `llm = LLMService()`，而它的 __init__ 会 `OpenAI(api_key=...)`，
+# 空 key 直接抛 OpenAIError。也就是说 —— **服务没有 LLM 凭据连导入都过不去**。
+# 这不是容器引入的问题，是本仓库既有的行为；但它意味着 `.env` 里必须有
+# 非空的 LLM_API_KEY，否则容器起不来。已记进 deploy/docker.md。
+#
+# 假值在这里是安全的：本步只 import，不发任何请求。
+#
 # 用 python 而不是 uvicorn：这里只要导入成功，不要它监听端口。
-RUN python -c "import server; print('import ok:', server.app.title or 'FastAPI')"
+RUN LLM_API_KEY=build-smoke-not-a-real-key \
+    python -c "import server; print('import ok:', server.app.title or 'FastAPI')"
 
 # ---------------------------------------------------------------------------
 # 4. 运行
