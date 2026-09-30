@@ -131,12 +131,15 @@ def test_runtime_modules_do_not_derive_root_from_own_location(module_path):
 
 
 # server.py 追加进 sys.path 的目录名（相对仓库根）。
-# `2/` 被原代码无条件 append，但**该目录从未存在**——实测 `ls` 只有 `1/` 与 `3/`。
-# 它一直是纯惰性的，因此列入「已知不存在」而不是「应当存在」。
-# 归档 `1/`（§4.3）时这条断言会失败，逼那一步显式处理这两处 append，
-# 而不是留下两条指向虚空的路径。
-_EXPECTED_SYSPATH_DIRS = {"1", "2", "_tmp_agora_token_builder"}
-_KNOWN_ABSENT_SYSPATH_DIRS = {"2"}
+#
+# 原有三条：`1/`、`2/`、`_tmp_agora_token_builder`。前两条已在阶段 3 移除——
+# `1/` 归档到 archive/prototypes/legacy-1/（不含任何被导入的模块），`2/` 则
+# **从未存在**过（原代码无条件 append，一直是空操作）。
+#
+# 这条断言正是促使那次清理的原因：它在本目录被归档时立刻失败，逼那一步显式
+# 处理这段 append，而不是留下指向虚空的路径。
+_EXPECTED_SYSPATH_DIRS = {"_tmp_agora_token_builder"}
+_KNOWN_ABSENT_SYSPATH_DIRS: set[str] = set()
 
 
 def test_server_syspath_additions_are_known_and_present():
@@ -144,7 +147,7 @@ def test_server_syspath_additions_are_known_and_present():
 
     两件事合在一起才有效：
       - 集合相等 → 防止有人悄悄加一条指向新目录的 append
-      - 存在性   → 让 `1/` 被归档走的那一步无法悄无声息地过去
+      - 存在性   → 让目录被移走/归档的那一步无法悄无声息地过去
     """
     import server
 

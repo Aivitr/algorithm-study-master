@@ -41,12 +41,14 @@ if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
 BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 20 余处 os.path.join(BASE_DIR, ...) 调用点
 
 # 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
-# `1/`、`2/` 是历史遗留：实测没有任何模块从 `1/` 导入（`2/` 甚至不存在），
-# 今天它们是惰性的。§4.3 归档 `1/` 时，这里必须同步处理，否则会留下指向
-# 虚空的路径——静默无效。
+#
+# `1/`、`2/` 两条已于阶段 3 移除：
+#   - `1/` 实测不含任何被导入的模块（`1/README1.md` 亦确认「未被 server.py 接线」），
+#     现已归档到 archive/prototypes/legacy-1/
+#   - `2/` **从未存在**，原代码无条件追加它，一直是空操作
+# 保留指向已归档目录的 append，只会留下一条指向虚空的路径——静默无效，
+# 正是本仓库反复出现的那类故障。移除它们不改变任何行为。
 _SERVER_SYSPATH_ADDITIONS = [
-    os.path.join(BASE_DIR, '1'),
-    os.path.join(BASE_DIR, '2'),
     os.path.join(BASE_DIR, '_tmp_agora_token_builder'),
 ]
 for _extra_dir in _SERVER_SYSPATH_ADDITIONS:
