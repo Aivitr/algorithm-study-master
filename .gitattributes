@@ -1,0 +1,44 @@
+# 统一行尾符。
+#
+# 背景：本仓库文件在索引中**已是 LF**，但 core.autocrlf=true 使检出为 CRLF，
+# 每次提交都出现 "LF will be replaced by CRLF" 警告。阶段 3 将大规模搬迁文件，
+# 届时某次检出可能重写整个文件的行尾符、污染全部 diff，使「仅改物理位置、
+# 不改内容」这一承诺无法自证。
+#
+# 加入前的实测（git ls-files --eol）：索引中 154 个文件**全部为 LF、0 个 CRLF**。
+# 因此本文件只是把现状固化，不产生任何重写 diff。
+
+* text=auto eol=lf
+
+# PowerShell 脚本保留 CRLF——Windows PowerShell 对 LF 脚本的处理存在边界情况，
+# 而这些脚本当前不是重构对象，不应顺带改变其行为。
+*.ps1 text eol=crlf
+
+# 二进制文件不做任何行尾符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.bmp binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.wav binary
+*.mp3 binary
+*.mp4 binary
+*.zip binary
+*.7z binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.pkl binary
+*.pt binary
+*.bin binary
+*.onnx binary
