@@ -1,0 +1,866 @@
+{
+  "GET /": {
+    "content_type": "text/html",
+    "digest": "756249ede71f854b",
+    "length": 616598,
+    "status": 200
+  },
+  "GET /api/active-groups/1": {
+    "content_type": "application/json",
+    "digest": "9890a28d40cad0f9",
+    "length": 179,
+    "shape": {
+      "groups": [
+        "list[1]",
+        {
+          "class_code": "str",
+          "meeting_id": "int",
+          "member_count": "int",
+          "score": "int",
+          "speech_count": "int",
+          "status_tag": "str",
+          "topic": "str"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/all-student-reports/1": {
+    "content_type": "application/json",
+    "digest": "a35c6ba3e83f5fbc",
+    "length": 295,
+    "shape": {
+      "reports": [
+        "list[1]",
+        {
+          "avg_relevance": "float",
+          "class_code": "str",
+          "created_at": "str",
+          "exercise_count": "int",
+          "meeting_id": "int",
+          "report_id": "int",
+          "speech_count": "int",
+          "student_id": "str",
+          "student_name": "str",
+          "summary": "str",
+          "topic": "str",
+          "user_id": "int"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/class-groups/1": {
+    "content_type": "application/json",
+    "digest": "c89c8812a85923eb",
+    "length": 369,
+    "shape": {
+      "groups": [
+        "list[2]",
+        {
+          "avg_quality": "float",
+          "avg_relevance": "float",
+          "score": "int",
+          "speech_count": "int",
+          "status": "str",
+          "status_color": "str",
+          "user_id": "int",
+          "username": "str"
+        }
+      ],
+      "meeting_topic": "str",
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/class-history/2": {
+    "content_type": "application/json",
+    "digest": "8b3710d7d2617a14",
+    "length": 592,
+    "shape": {
+      "history": [
+        "list[2]",
+        {
+          "class_code": "str",
+          "created_at": "str",
+          "duration_minutes": "int",
+          "end_time": "str",
+          "has_report": "bool",
+          "meeting_id": "int",
+          "participant_count": "int",
+          "speech_count": "int",
+          "start_time": "str",
+          "status": "str",
+          "topic": "str"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/download-exercises/1": {
+    "content_type": "text/plain",
+    "digest": "f3dc6fa34164be05",
+    "length": 519,
+    "status": 200
+  },
+  "GET /api/emotion-details/1": {
+    "content_type": "application/json",
+    "digest": "17f2bf3d10330720",
+    "length": 1274,
+    "shape": {
+      "all_individual_emotions": {
+        "李同学": [
+          "list[1]",
+          {
+            "emotion_type": "str",
+            "emotion_value": "int",
+            "id": "int",
+            "intensity": "float",
+            "snapshot_path": "str",
+            "time": "str",
+            "timestamp": "int"
+          }
+        ]
+      },
+      "current_user_key": "null",
+      "group_emotion_timeline": [
+        "list[1]",
+        {
+          "count": "int",
+          "time": "str",
+          "value": "int"
+        }
+      ],
+      "individual_emotions": {
+        "李同学": [
+          "list[1]",
+          {
+            "emotion_type": "str",
+            "emotion_value": "int",
+            "id": "int",
+            "intensity": "float",
+            "snapshot_path": "str",
+            "time": "str",
+            "timestamp": "int"
+          }
+        ]
+      },
+      "status": "str",
+      "video_segments": [
+        "list[3]",
+        {
+          "audio_path": "str",
+          "emotion": "str",
+          "id": "int",
+          "text": "str",
+          "time": "str",
+          "timestamp": "int",
+          "username": "str",
+          "video_path": "str"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /api/exercises/1": {
+    "content_type": "application/json",
+    "digest": "97d88d833a08bc26",
+    "length": 456,
+    "shape": {
+      "exercises": [
+        "list[2]",
+        {
+          "answer": "str",
+          "difficulty": "float",
+          "estimated_time": "int",
+          "id": "int",
+          "knowledge_tag": "str",
+          "options": "null",
+          "question": "str",
+          "type": "str"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/get-video-context": {
+    "content_type": "application/json",
+    "digest": "d00ce3c7b0d959a8",
+    "length": 130,
+    "shape": {
+      "emotion_type": "str",
+      "jump_to_time": "int",
+      "status": "str",
+      "timestamp": "int",
+      "video_url": "str"
+    },
+    "status": 200
+  },
+  "GET /api/knowledge-graph/1": {
+    "content_type": "application/json",
+    "digest": "b2ffe78982e1def6",
+    "length": 317,
+    "shape": {
+      "data": {
+        "categories": [
+          "list[4]",
+          {
+            "name": "str"
+          }
+        ],
+        "links": [
+          "list[0]",
+          null
+        ],
+        "nodes": [
+          "list[1]",
+          {
+            "category": "str",
+            "id": "str",
+            "label": {
+              "fontSize": "...",
+              "show": "..."
+            },
+            "name": "str",
+            "symbolSize": "int",
+            "tooltip": {
+              "formatter": "..."
+            },
+            "value": "int"
+          }
+        ]
+      },
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/meeting-reports/1": {
+    "content_type": "application/json",
+    "digest": "764f2190c4959fcb",
+    "length": 267,
+    "shape": {
+      "reports": [
+        "list[1]",
+        {
+          "avg_relevance": "float",
+          "class_code": "str",
+          "created_at": "str",
+          "improvement_suggestions": "str",
+          "meeting_id": "int",
+          "report_id": "int",
+          "speech_count": "int",
+          "student_id": "str",
+          "student_name": "str",
+          "summary": "str",
+          "user_id": "int"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/meeting/1": {
+    "content_type": "application/json",
+    "digest": "0fdad0681c28fa7a",
+    "length": 107,
+    "shape": {
+      "goals": [
+        "list[0]",
+        null
+      ],
+      "meeting_id": "int",
+      "status": "str",
+      "teaching_design": "null",
+      "topic": "str"
+    },
+    "status": 200
+  },
+  "GET /api/realtime-stats/1": {
+    "content_type": "application/json",
+    "digest": "9ef6c8632de8b5e4",
+    "length": 613,
+    "shape": {
+      "emotion_timeline": {
+        "李同学": [
+          "list[1]",
+          {
+            "emotion": "str",
+            "time": "str",
+            "value": "int"
+          }
+        ]
+      },
+      "interaction": {
+        "edges": [
+          "list[1]",
+          {
+            "source": "str",
+            "target": "str",
+            "value": "int"
+          }
+        ],
+        "nodes": [
+          "list[2]",
+          {
+            "name": "str",
+            "value": "int"
+          }
+        ]
+      },
+      "member_scores": [
+        "list[2]",
+        {
+          "avg_emotion": "int",
+          "avg_quality": "int",
+          "interaction_count": "int",
+          "latest_feedback": "str",
+          "name": "str",
+          "score": "int",
+          "speech_count": "int"
+        }
+      ],
+      "pie_data": [
+        "list[2]",
+        {
+          "name": "str",
+          "value": "int"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/reports/2": {
+    "content_type": "application/json",
+    "digest": "3d068b36bdbb6534",
+    "length": 203,
+    "shape": {
+      "reports": [
+        "list[1]",
+        {
+          "class_code": "str",
+          "created_at": "str",
+          "data": {
+            "score": "int",
+            "summary": "str"
+          },
+          "exercise_count": "int",
+          "meeting_id": "int",
+          "report_id": "int"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/research-runtime": {
+    "content_type": "application/json",
+    "digest": "c27373003d05d5a8",
+    "length": 14388,
+    "shape": {
+      "config": {
+        "cache_root": "str",
+        "deployment_profile": "str",
+        "enabled": "bool",
+        "env_file": "str",
+        "gallery_root": "str",
+        "model_root": "str",
+        "runtime_mode": "str"
+      },
+      "data": {
+        "adapter_statuses": {
+          "insightface": {
+            "dependency_available": "bool",
+            "detail": "str",
+            "key": "str",
+            "model_available": "bool",
+            "name": "str",
+            "ready": "bool",
+            "uses_bridge": "bool"
+          },
+          "pyannote": {
+            "dependency_available": "bool",
+            "detail": "str",
+            "key": "str",
+            "model_available": "bool",
+            "name": "str",
+            "ready": "bool",
+            "uses_bridge": "bool"
+          },
+          "talknet_asd": {
+            "dependency_available": "bool",
+            "detail": "str",
+            "key": "str",
+            "model_available": "bool",
+            "name": "str",
+            "ready": "bool",
+            "uses_bridge": "bool"
+          },
+          "wespeaker": {
+            "dependency_available": "bool",
+            "detail": "str",
+            "key": "str",
+            "model_available": "bool",
+            "name": "str",
+            "ready": "bool",
+            "uses_bridge": "bool"
+          }
+        },
+        "algorithm_fusion": {
+          "algorithms": {
+            "ccm": "str",
+            "cdl": "str",
+            "ipa": "str",
+            "one_shot_mvg": "str",
+            "pdl_clpc": "str"
+          },
+          "backbones": {
+            "bge_m3": {
+              "available": "...",
+              "configured_path": "...",
+              "intended_role": "...",
+              "load_error": "...",
+              "runtime_backend": "...",
+              "source_model_id": "..."
+            },
+            "clip_vit_b16": {
+              "available": "...",
+              "configured_path": "...",
+              "intended_role": "...",
+              "runtime_backend": "...",
+              "source_model_id": "..."
+            }
+          }
+        },
+        "algorithms": {
+          "ccm": {
+            "classroom_inputs": [
+              "list[3]",
+              "..."
+            ],
+            "classroom_outputs": [
+              "list[2]",
+              "..."
+            ],
+            "current_status": "str",
+            "deployment_note": "str",
+            "inspired_by": [
+              "list[1]",
+              "..."
+            ],
+            "key": "str",
+            "main_backbones": [
+              "list[1]",
+              "..."
+            ],
+            "name": "str",
+            "original_datasets": [
+              "list[3]",
+              "..."
+            ]
+          },
+          "cdl": {
+            "classroom_inputs": [
+              "list[4]",
+              "..."
+            ],
+            "classroom_outputs": [
+              "list[2]",
+              "..."
+            ],
+            "current_status": "str",
+            "deployment_note": "str",
+            "inspired_by": [
+              "list[2]",
+              "..."
+            ],
+            "key": "str",
+            "main_backbones": [
+              "list[1]",
+              "..."
+            ],
+            "name": "str",
+            "original_datasets": [
+              "list[3]",
+              "..."
+            ]
+          },
+          "clpc_viewpoint_refinement": {
+            "classroom_inputs": [
+              "list[4]",
+              "..."
+            ],
+            "classroom_outputs": [
+              "list[4]",
+              "..."
+            ],
+            "current_status": "str",
+            "deployment_note": "str",
+            "inspired_by": [
+              "list[1]",
+              "..."
+            ],
+            "key": "str",
+            "main_backbones": [
+              "list[2]",
+              "..."
+            ],
+            "name": "str",
+            "original_datasets": [
+              "list[3]",
+              "..."
+            ]
+          },
+          "ipa": {
+            "classroom_inputs": [
+              "list[4]",
+              "..."
+            ],
+            "classroom_outputs": [
+              "list[3]",
+              "..."
+            ],
+            "current_status": "str",
+            "deployment_note": "str",
+            "inspired_by": [
+              "list[1]",
+              "..."
+            ],
+            "key": "str",
+            "main_backbones": [
+              "list[1]",
+              "..."
+            ],
+            "name": "str",
+            "original_datasets": [
+              "list[2]",
+              "..."
+            ]
+          },
+          "one_shot_mvg": {
+            "classroom_inputs": [
+              "list[4]",
+              "..."
+            ],
+            "classroom_outputs": [
+              "list[3]",
+              "..."
+            ],
+            "current_status": "str",
+            "deployment_note": "str",
+            "inspired_by": [
+              "list[1]",
+              "..."
+            ],
+            "key": "str",
+            "main_backbones": [
+              "list[1]",
+              "..."
+            ],
+            "name": "str",
+            "original_datasets": [
+              "list[3]",
+              "..."
+            ]
+          }
+        },
+        "async_pipeline": [
+          "list[4]",
+          "str"
+        ],
+        "auto_download_implemented": "bool",
+        "auto_download_requested": "bool",
+        "backbones": {
+          "bge_m3": {
+            "deployment_status": "str",
+            "family": "str",
+            "gpu_recommended": "bool",
+            "intended_role": "str",
+            "key": "str",
+            "name": "str",
+            "notes": "str",
+            "original_datasets": [
+              "list[1]",
+              "..."
+            ],
+            "source": "str"
+          },
+          "clip_vit_b16": {
+            "deployment_status": "str",
+            "family": "str",
+            "gpu_recommended": "bool",
+            "intended_role": "str",
+            "key": "str",
+            "name": "str",
+            "notes": "str",
+            "original_datasets": [
+              "list[4]",
+              "..."
+            ],
+            "source": "str"
+          }
+        },
+        "cache_root": "str",
+        "classroom_datasets": {
+          "classroom_identity_track": {
+            "key": "str",
+            "note": "str",
+            "purpose": "str",
+            "required_fields": [
+              "list[6]",
+              "..."
+            ]
+          },
+          "classroom_viewpoint_cluster": {
+            "key": "str",
+            "note": "str",
+            "purpose": "str",
+            "required_fields": [
+              "list[6]",
+              "..."
+            ]
+          }
+        },
+        "deployment_profile": "str",
+        "effective_mode": "str",
+        "enabled": "bool",
+        "enhanced_profile_selected": "bool",
+        "enhanced_python": "str",
+        "enhanced_stack_ready": "bool",
+        "gallery_root": "str",
+        "gpu_inference_worker_enabled": "bool",
+        "gpu_inference_worker_note": "str",
+        "hook_layer_active": "bool",
+        "live_pipeline": [
+          "list[3]",
+          "str"
+        ],
+        "missing_required_models": [
+          "list[6]",
+          {
+            "expected_path": "str",
+            "key": "str",
+            "name": "str",
+            "reason": "str"
+          }
+        ],
+        "model_manifest": [
+          "list[6]",
+          {
+            "adapter_status": {
+              "dependency_available": "...",
+              "detail": "...",
+              "key": "...",
+              "model_available": "...",
+              "name": "...",
+              "ready": "...",
+              "uses_bridge": "..."
+            },
+            "auto_download_supported": "bool",
+            "available": "bool",
+            "expected_path": "str",
+            "key": "str",
+            "name": "str",
+            "required_in_enhanced": "bool",
+            "role": "str",
+            "runtime_ready": "bool"
+          }
+        ],
+        "model_root": "str",
+        "model_source": "str",
+        "post_class_pipeline": [
+          "list[6]",
+          "str"
+        ],
+        "profile_label": "str",
+        "profile_options": [
+          "list[2]",
+          {
+            "gpu_requirement": "str",
+            "key": "str",
+            "label": "str",
+            "pipeline": [
+              "list[3]",
+              "..."
+            ],
+            "recommended_for": "str"
+          }
+        ],
+        "runtime_mode": "str",
+        "selection_guide": [
+          "list[3]",
+          "str"
+        ],
+        "setup_scripts": {
+          "check_runtime": "str",
+          "download_open_models": "str",
+          "prepare_layout": "str",
+          "requirements_file": "str",
+          "setup_enhanced_runtime": "str"
+        },
+        "strict_enhanced_policy": "str"
+      },
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/snapshot/1": {
+    "content_type": "application/json",
+    "digest": "352722310c5db773",
+    "length": 113,
+    "shape": {
+      "emotion_type": "str",
+      "snapshot_path": "str",
+      "status": "str",
+      "timestamp": "int"
+    },
+    "status": 200
+  },
+  "GET /api/student-home-stats/2": {
+    "content_type": "application/json",
+    "digest": "3926f14e85cd2b46",
+    "length": 88,
+    "shape": {
+      "stats": {
+        "activeClasses": "int",
+        "completedClasses": "int",
+        "studyHours": "str"
+      },
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/student-quiz-history/2": {
+    "content_type": "application/json",
+    "digest": "3755a127ee478259",
+    "length": 88,
+    "shape": {
+      "accuracy": "float",
+      "correct": "int",
+      "status": "str",
+      "total": "int",
+      "wrong": "int",
+      "wrong_details": [
+        "list[0]",
+        null
+      ]
+    },
+    "status": 200
+  },
+  "GET /api/teacher-classes/1": {
+    "content_type": "application/json",
+    "digest": "fa97007bb9649209",
+    "length": 523,
+    "shape": {
+      "classes": [
+        "list[2]",
+        {
+          "class_code": "str",
+          "created_at": "str",
+          "duration_minutes": "int",
+          "meeting_id": "int",
+          "member_count": "int",
+          "score": "int",
+          "score_color": "str",
+          "score_level": "str",
+          "speech_count": "int",
+          "status": "str",
+          "topic": "str"
+        }
+      ],
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/teacher-stats/1": {
+    "content_type": "application/json",
+    "digest": "0fa00cc86cad29dc",
+    "length": 94,
+    "shape": {
+      "stats": {
+        "avgScore": "int",
+        "riskGroups": "int",
+        "totalClasses": "int",
+        "totalStudents": "int"
+      },
+      "status": "str"
+    },
+    "status": 200
+  },
+  "GET /api/teacher-templates/1": {
+    "content_type": "application/json",
+    "digest": "85839d8d1cf6d9ec",
+    "length": 168,
+    "shape": {
+      "status": "str",
+      "templates": [
+        "list[1]",
+        {
+          "created_at": "str",
+          "filename": "str",
+          "filepath": "str",
+          "id": "int",
+          "is_default": "int"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /api/transcripts/1": {
+    "content_type": "application/json",
+    "digest": "a0e56a977f04c5ef",
+    "length": 576,
+    "shape": {
+      "status": "str",
+      "transcripts": [
+        "list[3]",
+        {
+          "action": "str",
+          "emotion": "str",
+          "id": "int",
+          "quality_feedback": "null",
+          "quality_score": "int",
+          "text": "str",
+          "timestamp": "int",
+          "username": "str"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /api/voiceprint/status/李同学": {
+    "content_type": "application/json",
+    "digest": "9dc66fb5eae4c35a",
+    "length": 62,
+    "shape": {
+      "registered": "bool",
+      "status": "str",
+      "username": "str"
+    },
+    "status": 200
+  },
+  "GET /api/voiceprint/users": {
+    "content_type": "application/json",
+    "digest": "6194367342eed75c",
+    "length": 66,
+    "shape": {
+      "count": "int",
+      "status": "str",
+      "users": [
+        "list[2]",
+        "str"
+      ]
+    },
+    "status": 200
+  },
+  "GET /pcm-processor.js": {
+    "content_type": "application/javascript",
+    "digest": "8bcd40780c6091a8",
+    "length": 1623,
+    "status": 200
+  }
+}
