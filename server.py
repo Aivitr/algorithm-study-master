@@ -163,82 +163,9 @@ def resolve_user_by_identifier(db: Session, identifier: str):
     return db.query(User).filter(User.username == identifier).first()
 
 
-def normalize_emotion_label(label: str) -> str:
-    raw = str(label or "").strip().lower()
-    if not raw:
-        return "neutral"
-    raw = raw.split("|", 1)[0].strip()
-    raw = raw.replace(" ", "_").replace("-", "_")
-
-    aliases = {
-        "happy": "happy",
-        "happiness": "happy",
-        "joy": "happy",
-        "joyful": "happy",
-        "smile": "happy",
-        "smiling": "happy",
-        "pleased": "happy",
-        "delight": "happy",
-        "positive": "happy",
-        "\u5f00\u5fc3": "happy",
-        "\u9ad8\u5174": "happy",
-        "\u5feb\u4e50": "happy",
-        "\u5fae\u7b11": "happy",
-        "excited": "excited",
-        "excite": "excited",
-        "energetic": "excited",
-        "active": "excited",
-        "\u5174\u594b": "excited",
-        "surprise": "surprised",
-        "surprised": "surprised",
-        "surprise/excited": "surprised",
-        "\u60ca\u559c": "surprised",
-        "\u60ca\u8bb6": "surprised",
-        "calm": "calm",
-        "relaxed": "calm",
-        "relax": "calm",
-        "peaceful": "calm",
-        "\u5e73\u9759": "calm",
-        "neutral": "neutral",
-        "normal": "neutral",
-        "thinking": "thinking",
-        "thoughtful": "thinking",
-        "focused": "thinking",
-        "focus": "thinking",
-        "\u601d\u8003": "thinking",
-        "confused": "confused",
-        "confusion": "confused",
-        "uncertain": "confused",
-        "fear": "confused",
-        "fearful": "confused",
-        "anxious": "confused",
-        "worried": "confused",
-        "nervous": "confused",
-        "disgust": "confused",
-        "contempt": "confused",
-        "anxious/frown": "confused",
-        "\u56f0\u60d1": "confused",
-        "\u62c5\u5fc3": "confused",
-        "sad": "sad",
-        "sadness": "sad",
-        "down": "sad",
-        "unhappy": "sad",
-        "\u96be\u8fc7": "sad",
-        "angry": "angry",
-        "anger": "angry",
-        "mad": "angry",
-        "\u751f\u6c14": "angry",
-    }
-
-    if raw in aliases:
-        return aliases[raw]
-
-    for part in re.split(r"[/,;]+", raw):
-        part = part.strip()
-        if part in aliases:
-            return aliases[part]
-
-    return raw or "neutral"
+# 阶段 5 迁至 app/core/emotions.py，此处**再导出**（19 处调用点保持不变）。
+# 理由：它横跨实时链路、报告生成、情绪统计多个域，必须只有一份实现。
+from app.core.emotions import normalize_emotion_label
 
 
 def emotion_value_for_label(label: str) -> int:
