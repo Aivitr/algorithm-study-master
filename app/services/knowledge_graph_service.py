@@ -5,7 +5,7 @@
 import json
 from typing import List, Dict, Any
 from datetime import datetime
-from llm_service import llm
+from app.services.llm_service import llm
 
 class KnowledgeGraphService:
     def __init__(self):

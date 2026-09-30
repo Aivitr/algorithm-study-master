@@ -84,8 +84,8 @@ from app.models import (
     User,
     ViewpointVote,
 )
-from llm_service import llm
-from knowledge_graph_service import kg_service
+from app.services.llm_service import llm
+from app.services.knowledge_graph_service import kg_service
 from app.core.config import (
     apply_research_runtime_config,
     ensure_research_directories,

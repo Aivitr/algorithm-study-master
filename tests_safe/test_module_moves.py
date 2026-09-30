@@ -42,6 +42,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MOVED_MODULES: dict[str, str] = {
     "config": "app.core.config",
     "database": "app.core.database",
+    # 阶段 3.3：服务层搬入 app/services/
+    "llm_service": "app.services.llm_service",
+    "knowledge_graph_service": "app.services.knowledge_graph_service",
 }
 
 # 扫描时跳过的目录，每一个都有明确理由：

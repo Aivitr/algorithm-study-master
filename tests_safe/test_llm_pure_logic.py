@@ -31,7 +31,7 @@ def llm():
 
     导入会构造 `OpenAI(...)` 客户端，但**不发起请求**——构造本身不触网。
     """
-    from llm_service import llm as _llm
+    from app.services.llm_service import llm as _llm
 
     return _llm
 
@@ -156,7 +156,7 @@ def test_normalize_text_truncates_to_max_len(llm):
 
 @pytest.fixture
 def cache():
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     return ExpiringLRUCache(maxsize=10, expiry=3600)
 
@@ -169,7 +169,7 @@ def test_cache_get_set(cache):
 
 def test_cache_lru_eviction_removes_oldest():
     """超出容量时驱逐**最久未使用**的一条。"""
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     cache = ExpiringLRUCache(maxsize=2, expiry=3600)
     cache.set("key1", "value1")
@@ -188,7 +188,7 @@ def test_cache_get_refreshes_recency():
     原文只测了"写入顺序驱逐"，没测"读取会影响驱逐顺序"——而后者才是
     LRU 之所以叫 LRU 的那一半。设计文档 §4 把缓存策略列为待验证项，这条补上。
     """
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     cache = ExpiringLRUCache(maxsize=2, expiry=3600)
     cache.set("key1", "value1")
@@ -228,7 +228,7 @@ def test_cache_expired_entry_is_dropped_and_counted():
     用 `expiry=-1` 制造"必定已过期"，避免依赖 `sleep`——那会让测试变慢且
     在负载高时不稳定。
     """
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     cache = ExpiringLRUCache(maxsize=10, expiry=-1)
     cache.set("key", "value")
@@ -244,7 +244,7 @@ def test_cache_none_value_is_indistinguishable_from_miss():
     当前调用方（`llm_service` 内部）缓存的是字符串，暂时不受影响。
     记录为既有行为，不在本次重构中改动——改它会改变缓存语义。
     """
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     cache = ExpiringLRUCache(maxsize=10, expiry=3600)
     cache.set("key", None)
@@ -259,7 +259,7 @@ def test_cache_is_thread_safe_under_concurrent_writers_and_readers():
     原文这条只写了 `assert True`——即"不抛异常就算过"，等于什么都没断言。
     此处补上真正的不变量：容量上限、以及抢先写入的键必然能读回。
     """
-    from llm_service import ExpiringLRUCache
+    from app.services.llm_service import ExpiringLRUCache
 
     maxsize = 50
     cache = ExpiringLRUCache(maxsize=maxsize, expiry=3600)
