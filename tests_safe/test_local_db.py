@@ -37,6 +37,9 @@ def _reimport_database(monkeypatch, db_file: Path):
 
     必须在导入前设置环境变量：config._load_dotenv() 使用 os.environ.setdefault，
     因此预先存在的环境变量优先于 .env，从而无需改动 .env 即可切换数据库。
+
+    **调用方必须同时请求 `module_surgery` 夹具**——本函数会摘掉 `database` 与
+    `config`，不复原就会污染后续测试（详见 conftest 中该夹具的说明）。
     """
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file.as_posix()}")
     for mod in ("database", "config"):
@@ -46,7 +49,7 @@ def _reimport_database(monkeypatch, db_file: Path):
     return database
 
 
-def test_local_sqlite_engine_can_connect(tmp_path, monkeypatch):
+def test_local_sqlite_engine_can_connect(tmp_path, monkeypatch, module_surgery):
     """期望：DATABASE_URL 指向本地 sqlite 时，engine 可以建立连接。"""
     db_file = tmp_path / "app.db"
     database = _reimport_database(monkeypatch, db_file)
@@ -55,7 +58,7 @@ def test_local_sqlite_engine_can_connect(tmp_path, monkeypatch):
         assert conn.exec_driver_sql("SELECT 1").scalar() == 1
 
 
-def test_local_sqlite_schema_can_be_created(tmp_path, monkeypatch):
+def test_local_sqlite_schema_can_be_created(tmp_path, monkeypatch, module_surgery):
     """期望：ORM 定义能在本地 sqlite 上建出全部表。
 
     用于暴露 MSSQL 专有类型（如 NVARCHAR）在 sqlite 上的兼容性问题。
