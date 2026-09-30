@@ -168,7 +168,31 @@ def test_runtime_modules_do_not_derive_root_from_own_location(module_path):
 # 所以这里把「不许用 `Path(__file__)` 推导项目内路径」也变成断言。
 # 只匹配 `Path(__file__)` 这一串字面 token——`Path(cv2.__file__)` 是另一串，
 # 不会误伤：那种用法指向的是第三方包自己的数据目录，本来就该跟着包走。
-FILE_PATH_ANCHORED_MODULES = ("research_runtime.py", "video_processor.py")
+#
+# `research_runtime` 另有一条**行为**断言（5 条脚本路径必须落在仓库根下），
+# 写在 `test_research_assets.py` 里——那里还带着"哪一条本来就是缺的"这类
+# 领域信息，比放在本文件更合适。这里不重复它。
+#
+# 记的是**裸模块名**而不是路径：本文件要横跨搬迁前后都存在，路径写死就得每次
+# 搬迁手动改一处，而"忘了改"的结果是这条断言对着一个不存在的文件——
+# 要么报错（吵，尚可），要么被写成"读不到就跳过"（静默失效，最坏）。
+# 由 _module_file 去两种布局里找，找到哪个查哪个。
+FILE_PATH_ANCHORED_MODULES = ("research_runtime", "video_processor")
+
+
+def _module_file(bare: str) -> Path:
+    """在两种布局里找出模块文件：搬迁后的 `app/services/X.py` 优先，退回根级 `X.py`。
+
+    找不到时**直接失败**，不返回 None、不跳过——"没找到要检查的东西"和
+    "找到了且没问题"必须长得不一样（对照 test_registry_is_honest 的教训）。
+    """
+    for rel in (f"app/services/{bare}.py", f"{bare}.py"):
+        if (REPO_ROOT / rel).is_file():
+            return REPO_ROOT / rel
+    raise AssertionError(
+        f"两种布局下都找不到 {bare}.py（仓库根 {REPO_ROOT}）。"
+        f"若它又被搬到了别处，请把新位置加进 _module_file。"
+    )
 
 # 项目内的路径必须由这里推导（阶段 0 建立的唯一锚点）
 def _path_file_uses(source: str) -> list[tuple[int, str]]:
@@ -232,36 +256,18 @@ def _import_runtime_module(bare: str):
     raise AssertionError(f"两种布局下都找不到 {bare}（仓库根 {REPO_ROOT}）")
 
 
-@pytest.mark.parametrize("module_path", FILE_PATH_ANCHORED_MODULES)
-def test_no_project_paths_derived_from_own_file(module_path):
+@pytest.mark.parametrize("bare", FILE_PATH_ANCHORED_MODULES)
+def test_no_project_paths_derived_from_own_file(bare):
     """不得用 `Path(__file__)` 推导项目内路径——文件一挪就静默指错。"""
-    source = (REPO_ROOT / module_path).read_text(encoding="utf-8", errors="replace")
-    offenders = [f"{module_path}:{lineno}: {line}" for lineno, line in _path_file_uses(source)]
+    path = _module_file(bare)
+    source = path.read_text(encoding="utf-8", errors="replace")
+    offenders = [f"{path.name}:{lineno}: {line}" for lineno, line in _path_file_uses(source)]
 
     assert not offenders, (
         "以下行用模块自身位置推导项目内路径——文件一旦搬进 app/ 就会静默指错：\n  "
         + "\n  ".join(offenders)
         + "\n改为 `from app.core.paths import PROJECT_ROOT`。"
     )
-
-
-def test_research_runtime_anchors_scripts_to_project_root():
-    """`research_runtime` 报出的脚本路径必须落在仓库根下。
-
-    这是上面那条静态检查的**行为证据**：静态只证明"没写 `Path(__file__)`"，
-    这条证明"算出来的值确实指向仓库根"。
-    """
-    from app.core.paths import PROJECT_ROOT
-
-    module = _import_runtime_module("research_runtime")
-    summary = module.research_runtime._setup_scripts_summary()
-
-    assert summary, "脚本摘要不应为空"
-    for key, value in summary.items():
-        assert Path(value).parent == PROJECT_ROOT, (
-            f"{key} 指向 {value}，其父目录是 {Path(value).parent}，"
-            f"并非仓库根 {PROJECT_ROOT}——脚本路径的锚点漂了。"
-        )
 
 
 def test_video_processor_looks_for_cascade_in_project_root(monkeypatch):

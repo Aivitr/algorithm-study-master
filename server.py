@@ -92,7 +92,7 @@ from app.core.config import (
     get_research_runtime_settings_snapshot,
     persist_research_runtime_config,
 )
-from research_runtime import research_runtime
+from app.services.research_runtime import research_runtime
 
 # 实时链路管理器（阶段 3 自本文件迁出，见设计文档 §4.1）。
 # 两者均为纯内存结构，不碰数据库与网络，因此不牵动任何初始化顺序。

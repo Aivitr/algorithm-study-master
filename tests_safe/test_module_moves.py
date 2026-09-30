@@ -46,6 +46,10 @@ MOVED_MODULES: dict[str, str] = {
     "llm_service": "app.services.llm_service",
     "knowledge_graph_service": "app.services.knowledge_graph_service",
     "ai_core": "app.services.ai_core",
+    "research_runtime": "app.services.research_runtime",
+    "research_registry": "app.services.research_registry",
+    "research_enhanced_adapters": "app.services.research_enhanced_adapters",
+    "research_algorithm_fusion": "app.services.research_algorithm_fusion",
 }
 
 # 扫描时跳过的目录，每一个都有明确理由：

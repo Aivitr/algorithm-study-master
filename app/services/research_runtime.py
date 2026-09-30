@@ -8,8 +8,8 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.paths import PROJECT_ROOT
 from app.models import Transcript
-from research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
-from research_registry import (
+from app.services.research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
+from app.services.research_registry import (
     get_algorithm_registry,
     get_backbone_registry,
     get_classroom_dataset_registry,
@@ -1154,7 +1154,7 @@ class ResearchRuntime:
 research_runtime = ResearchRuntime()
 
 
-from research_algorithm_fusion import ResearchAlgorithmFusion
+from app.services.research_algorithm_fusion import ResearchAlgorithmFusion
 
 
 _ORIGINAL_GET_RUNTIME_SUMMARY = ResearchRuntime.get_runtime_summary
