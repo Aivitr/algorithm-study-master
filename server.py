@@ -2330,88 +2330,6 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
         return {"status": "error", "message": str(e)}
 
 
-def _as_bool(value, default: bool = False) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _reset_research_runtime_state() -> None:
-    try:
-        research_runtime._adapters = None
-        if hasattr(research_runtime, "_fusion"):
-            research_runtime._fusion = None
-    except Exception:
-        pass
-
-
-@app.get("/api/research-runtime")
-async def get_research_runtime():
-    try:
-        ensure_research_directories()
-        return {
-            "status": "success",
-            "config": get_research_runtime_settings_snapshot(),
-            "data": research_runtime.get_runtime_summary(),
-        }
-    except Exception as e:
-        print(f"[ERROR] 获取增强运行时状态失败: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-@app.post("/api/research-runtime/config")
-async def update_research_runtime_config(
-    deployment_profile: str = Form(...),
-    enabled: Optional[str] = Form(None),
-    runtime_mode: Optional[str] = Form(None),
-    persist: Optional[str] = Form("true"),
-):
-    try:
-        enabled_value = _as_bool(enabled, deployment_profile.strip().lower() == "enhanced")
-        persist_value = _as_bool(persist, True)
-        if persist_value:
-            config_snapshot = persist_research_runtime_config(
-                deployment_profile=deployment_profile,
-                enabled=enabled_value,
-                runtime_mode=runtime_mode or "",
-            )
-        else:
-            config_snapshot = apply_research_runtime_config(
-                deployment_profile=deployment_profile,
-                enabled=enabled_value,
-                runtime_mode=runtime_mode or "",
-            )
-        ensure_research_directories()
-        _reset_research_runtime_state()
-        return {
-            "status": "success",
-            "message": "增强运行时配置已更新",
-            "persisted": persist_value,
-            "config": config_snapshot,
-            "data": research_runtime.get_runtime_summary(),
-        }
-    except Exception as e:
-        print(f"[ERROR] 更新增强运行时配置失败: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-@app.post("/api/research-runtime/prepare-layout")
-async def prepare_research_runtime_layout():
-    try:
-        paths = ensure_research_directories()
-        _reset_research_runtime_state()
-        return {
-            "status": "success",
-            "message": "增强版模型目录结构已准备完成",
-            "paths": paths,
-            "config": get_research_runtime_settings_snapshot(),
-            "data": research_runtime.get_runtime_summary(),
-        }
-    except Exception as e:
-        print(f"[ERROR] 准备增强版目录结构失败: {e}")
-        return {"status": "error", "message": str(e)}
 
 
 @app.post("/api/generate-report")
@@ -6170,6 +6088,11 @@ async def get_all_student_reports(teacher_id: int, db: Session = Depends(get_db)
 from app.routers.voiceprint import router as voiceprint_router
 
 app.include_router(voiceprint_router)
+
+
+from app.routers.research_runtime import router as research_runtime_router
+
+app.include_router(research_runtime_router)
 
 
 if __name__ == "__main__":
