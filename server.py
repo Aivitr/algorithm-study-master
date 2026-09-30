@@ -1166,54 +1166,13 @@ def _stream_realtime_speech_analysis_events(prepared: Dict[str, Any]):
 
 
 
-def _build_meeting_window_map(db: Session, meeting_ids: List[int]) -> Dict[int, Dict[str, Any]]:
-    if not meeting_ids:
-        return {}
-
-    rows = db.query(
-        Transcript.meeting_id.label("meeting_id"),
-        sa_func.min(Transcript.created_at).label("first_at"),
-        sa_func.max(Transcript.created_at).label("last_at"),
-    ).filter(
-        Transcript.meeting_id.in_(meeting_ids)
-    ).group_by(
-        Transcript.meeting_id
-    ).all()
-
-    return {
-        int(row.meeting_id): {
-            "first_at": row.first_at,
-            "last_at": row.last_at,
-        }
-        for row in rows
-    }
-
-
-def _build_meeting_activity_map(db: Session, meeting_ids: List[int], *, exclude_teacher: bool = True) -> Dict[int, Dict[str, int]]:
-    if not meeting_ids:
-        return {}
-
-    query = db.query(
-        Transcript.meeting_id.label("meeting_id"),
-        sa_func.count(Transcript.id).label("speech_count"),
-        sa_func.count(sa_func.distinct(Transcript.user_id)).label("member_count"),
-    )
-    if exclude_teacher:
-        query = query.join(User, User.id == Transcript.user_id).filter(User.role != "teacher")
-
-    rows = query.filter(
-        Transcript.meeting_id.in_(meeting_ids)
-    ).group_by(
-        Transcript.meeting_id
-    ).all()
-
-    return {
-        int(row.meeting_id): {
-            "speech_count": int(row.speech_count or 0),
-            "member_count": int(row.member_count or 0),
-        }
-        for row in rows
-    }
+# 阶段 5 迁至 app/services/meeting_metrics.py，此处**再导出**（server.py 内的
+# 既有调用点保持不变）。这两个辅助同时被学生统计域与教师域使用，不能只跟着
+# 其中一组走，因此给它们一个中立的家。
+from app.services.meeting_metrics import (
+    _build_meeting_activity_map,
+    _build_meeting_window_map,
+)
 
 
 
