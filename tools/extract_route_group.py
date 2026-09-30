@@ -16,13 +16,28 @@
   * 区间内只允许出现给定名字的顶层定义（多一个就报错退出，不会静默搬错东西）；
   * 区间内不得出现 `Path(__file__)`（锚点会随文件位置漂移）；
   * 区间内不得出现 `from server` / `import server`（会造成二次执行）；
-  * 区间内不得含 `if __name__`。
+  * 区间内不得含 `if __name__`；
+  * 落地前新模块必须**没有任何"被全局查找却无模块级绑定"的名字**
+    （用 symtable 判定，见 tools/static_checks.py）。
+
+最后一条针对的是最隐蔽的一类回归：搬走的路由体引用了某名字，它在 server.py 里
+是模块级全局（`import re`、`from datetime import datetime`），新模块没提供。
+它不会导入失败，而是执行到那条路由才 NameError——外层 `try/except` 又会把它
+吞成 200 的 `{"status":"error"}`，于是测试全绿而接口是坏的。
 """
 
 import argparse
 import ast
 import sys
 from pathlib import Path
+
+# `tools/static_checks.py` 用的是 symtable（编译器自己的作用域分析），
+# 与 AST 收集名字相比，它能正确区分"函数体内的局部导入"和"模块级绑定"。
+# 作为脚本运行时 sys.path[0] 是 tools/，作为包导入时用包路径——两种都支持。
+try:
+    from tools.static_checks import free_globals
+except ImportError:  # pragma: no cover
+    from static_checks import free_globals
 
 SERVER = Path("server.py")
 ROUTERS = Path("app/routers")
@@ -65,50 +80,35 @@ def _server_import_table(tree: ast.Module) -> dict[str, tuple[str, str, str]]:
     return table
 
 
-def _needed_names(tree: ast.Module, inner: list) -> set[str]:
-    """区间内用到的、不在本区间定义的名字（= 得由新模块自己提供）。"""
-    import builtins
+def _needed_names(body_text: str) -> set[str]:
+    """模块体里"被全局查找、却没有任何模块级绑定"的名字（= 必须由头提供）。
 
-    lib = set(dir(builtins))
-    defined, used = set(), set()
-    for n in inner:
-        # 装饰器 `@app.get(...)` 里的 `app` 是路由挂载点，改写成 @router. 后
-        # 就不再需要了，因此**不把装饰器算作函数体的依赖**。
-        deco_nodes = {id(d) for deco in getattr(n, "decorator_list", []) for d in ast.walk(deco)}
-        for a in ast.walk(n):
-            if id(a) in deco_nodes:
-                continue
-            if isinstance(a, ast.Name):
-                (used if isinstance(a.ctx, ast.Load) else defined).add(a.id)
-            if isinstance(a, ast.arg):
-                defined.add(a.arg)
-            if isinstance(a, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                defined.add(a.name)
-                defined |= {x.arg for x in a.args.args}
-            if isinstance(a, ast.ExceptHandler) and a.name:
-                defined.add(a.name)
-            if isinstance(a, (ast.Import, ast.ImportFrom)):
-                for al in a.names:
-                    defined.add(al.asname or al.name.split(".")[0])
-    return (used - defined - lib)
+    这里**不能**用 AST 收集名字。AST 版会把函数体内的局部导入也算作
+    "本区间已经提供了这个名字"，于是
+    `def a(): from datetime import datetime` 会被当成全区可用，而
+    `def b(): datetime.now()` 照样在运行时 NameError——本仓库真实踩过
+    （`app/routers/votes.py` 的 `/api/confirm-vote`）。symtable 的判据与
+    运行时一致，见 `tools/static_checks.py`。
+
+    头的产物 `router` / `APIRouter` 由头自己提供，先扣掉。
+    """
+    return free_globals(body_text, "<抽取候选体>") - {"router", "APIRouter"}
 
 
-def _auto_header(tree: ast.Module, inner: list, module: str, doc: str) -> tuple[str, list[str]]:
+def _auto_header(tree: ast.Module, body_text: str, module: str, doc: str) -> tuple[str, list[str]]:
     """按 server.py 的 import 表推出新模块的头。返回 (头文本, 需人工处理的名字)。"""
     table = _server_import_table(tree)
-    needed = _needed_names(tree, inner)
-
-    # 本区间内自己定义的名字（含被一并带走的私有辅助）不需要导入
-    local_defs = set()
-    for n in inner:
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            local_defs.add(n.name)
+    try:
+        needed = _needed_names(body_text)
+    except SyntaxError as exc:
+        die(f"抽取区间的代码无法单独解析（第 {exc.lineno} 行）：{exc.msg}。"
+            f"多半是区间起点切在了一个语句中间。")
 
     from_imports: dict[str, list[str]] = {}
     plain_imports: set[str] = set()
     manual: list[str] = []
 
-    for name in sorted(needed - local_defs):
+    for name in sorted(needed):
         entry = table.get(name)
         if entry is None:
             manual.append(name)          # server.py 内部定义（函数/类/变量）
@@ -199,13 +199,15 @@ def main() -> None:
                     die(f":{n.lineno} 的路由装饰器不是 @app.*，可能已搬过。")
 
     # ---- 写模块 -----------------------------------------------------------
+    # 先做 `@app.` → `@router.` 的改写：自动头需要据此判断依赖（改完之后
+    # 装饰器里的 `app` 不再是外部名字，`router` 则记为由头提供）。
+    body = block_text.replace("@app.", "@router.")
     if args.auto_header:
-        header, _ = _auto_header(tree, inner, args.module, args.doc)
+        header, _ = _auto_header(tree, body, args.module, args.doc)
     else:
         header = Path(args.header).read_text(encoding="utf-8")
     if not header.endswith("\n\n"):
         header = header.rstrip("\n") + "\n\n"
-    body = block_text.replace("@app.", "@router.")
 
     # ---- 从 server.py 删除并装配 ------------------------------------------
     rest = "".join(lines[:args.start - 1] + lines[args.end:])
@@ -242,23 +244,18 @@ def main() -> None:
             f"多半是装饰器没被一起带走。")
 
     # ---- 头是否把所有需要的名字都提供了 ----------------------------------
-    # 少一个 import 的后果是**运行到那条路由时才 NameError**，而路由契约测试
-    # 只看路由表、根本不执行处理器——静态解析也发现不了。所以在这里静态核对：
-    # 新模块顶层绑定的名字（import/def/assign）必须覆盖区间内用到的全部名字。
-    module_tree = ast.parse(module_text)
-    bound: set[str] = set()
-    for node in module_tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(node.name)
-        elif isinstance(node, ast.Assign):
-            bound |= {t.id for t in node.targets if isinstance(t, ast.Name)}
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            bound |= {(a.asname or a.name.split(".")[0]) for a in node.names}
-    missing = _needed_names(tree, inner) - bound
+    # 少一个 import 的后果是**运行到那条路由时才 NameError**——而且本仓库的路由
+    # 处理器普遍把异常吞成 200 的 {"status":"error"}，所以它不会冒泡、测试也
+    # 看不见（路由契约测试只查路由表，根本不执行处理器）。因此在这里静态核对
+    # 整个新模块：任何"被全局查找、却无模块级绑定"的名字都必须为零。
+    missing = free_globals(module_text, f"app/routers/{args.module}.py")
     if missing:
-        die(f"新模块缺少这些名字的导入：{sorted(missing)}。\n"
+        die(f"新模块里这些名字没有定义也没有导入：{sorted(missing)}。\n"
+            f"它们多半原本是 server.py 的模块级全局（如 `import re`、"
+            f"`from datetime import datetime`）。\n"
             f"补进 --header 的头里，或改用 --auto-header。\n"
-            f"（缺 import 不会在测试里暴露：契约测试只检查路由表，不执行处理器。）")
+            f"（这类缺失不会在测试里暴露：契约测试只检查路由表，不执行处理器；"
+            f"而处理器会把 NameError 吞成 200 的错误响应。）")
 
     ROUTERS.mkdir(exist_ok=True)
     (ROUTERS / f"{args.module}.py").write_text(module_text, encoding="utf-8")
