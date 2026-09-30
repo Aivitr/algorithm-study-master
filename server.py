@@ -125,11 +125,11 @@ for d in ("storage", *STORAGE_SUBDIRS):
 
 app = FastAPI()
 
-NO_CACHE_HEADERS = {
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-    "Pragma": "no-cache",
-    "Expires": "0",
-}
+# 阶段 5 迁至 app/core/http.py，此处**再导出**：拆分后的路由模块也要用它，
+# 而路由模块不能从 server.py 导入（`python server.py` 下会二次执行整个文件）。
+# 定义只保留一份，避免两处缓存策略分叉——那种分叉不报错，只表现为
+# "某些接口仍然吃缓存"。
+from app.core.http import NO_CACHE_HEADERS
 
 # 🔧 CORS🔧
 app.add_middleware(
@@ -1957,14 +1957,6 @@ def process_user_stream_generator(username, video_data, meeting_id):
 
 
 # ... (?? get/post login ??) ...
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    with open(os.path.join(BASE_DIR, "index.html"), "r", encoding="utf-8") as f:
-        return HTMLResponse(f.read(), headers=NO_CACHE_HEADERS)
-
-@app.get("/pcm-processor.js")
-async def get_pcm_processor():
-    return FileResponse(os.path.join(BASE_DIR, "pcm-processor.js"), media_type="application/javascript")
 
 
 
@@ -5547,6 +5539,11 @@ app.include_router(votes_router)
 from app.routers.auth import router as auth_router
 
 app.include_router(auth_router)
+
+
+from app.routers.pages import router as pages_router
+
+app.include_router(pages_router)
 
 
 if __name__ == "__main__":
