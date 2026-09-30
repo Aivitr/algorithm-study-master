@@ -1888,77 +1888,6 @@ def process_user_stream_generator(username, video_data, meeting_id):
 
 
 
-@app.get("/summary")
-async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
-    transcripts = db.query(Transcript).filter(Transcript.meeting_id == meeting_id).all()
-    emotions = db.query(EmotionLog).filter(EmotionLog.meeting_id == meeting_id).all()
-    emo_stats = {}
-    for e in emotions:
-        emotion_key = normalize_emotion_label(e.emotion_type)
-        emo_stats[emotion_key] = emo_stats.get(emotion_key, 0) + 1
-    full_text = "\n".join([f"{t.user.username}: {t.content}" for t in transcripts])
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    return llm.analyze_emotion_and_summary(meeting.topic, full_text, emo_stats)
-
-
-@app.get("/api/knowledge-graph/{meeting_id}")
-async def get_knowledge_graph(meeting_id: int, db: Session = Depends(get_db)):
-    """获取知识图谱"""
-    kg = db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
-    if not kg:
-        return {"status": "empty", "data": {"nodes": [], "edges": []}}
-
-    # 生成可视化数据
-    viz_data = kg_service.generate_graph_visualization_data(kg.graph_data)
-    return {"status": "success", "data": viz_data}
-
-
-@app.get("/api/meeting/{meeting_id}")
-async def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
-    """获取课堂信息（包括目标）"""
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        return {"status": "error", "message": "课堂不存在"}
-
-    return {
-        "status": "success",
-        "meeting_id": meeting.id,
-        "topic": meeting.topic,
-        "goals": meeting.knowledge_points or [],
-        "teaching_design": meeting.teaching_design
-    }
-
-
-@app.get("/api/transcripts/{meeting_id}")
-async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depends(get_db)):
-    """获取课堂历史发言（用于前端对话栏展示）"""
-    try:
-        limit = max(1, min(int(limit), 2000))
-        transcripts = db.query(Transcript).options(joinedload(Transcript.user)).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.created_at.asc()).limit(limit).all()
-
-        items = []
-        for t in transcripts:
-            # 课堂对话历史只展示学生发言（不包含老师）
-            if getattr(t.user, "role", None) == "teacher":
-                continue
-            ts = t.created_at or t.timestamp
-            items.append({
-                "id": t.id,
-                "username": t.user.username if t.user else "",
-                "text": t.content,
-                "timestamp": int(ts.timestamp() * 1000) if ts else None,
-                "quality_score": getattr(t, "quality_score", None),
-                "quality_feedback": getattr(t, "quality_feedback", None),
-                "emotion": getattr(t, "emotion_tag", None),
-                "action": getattr(t, "body_action", None),
-            })
-
-        return {"status": "success", "transcripts": items}
-    except Exception as e:
-        print(f"[ERROR] 获取课堂发言失败: {e}")
-        return {"status": "error", "message": str(e)}
 
 
 
@@ -5471,6 +5400,11 @@ app.include_router(auth_router)
 from app.routers.pages import router as pages_router
 
 app.include_router(pages_router)
+
+
+from app.routers.meeting import router as meeting_router
+
+app.include_router(meeting_router)
 
 
 if __name__ == "__main__":
