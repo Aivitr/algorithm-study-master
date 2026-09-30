@@ -38,10 +38,25 @@ setdefault 才不会覆盖。
 
 import os
 import socket
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
+
+# 保证 `from fixtures import ...` 可用（不依赖 pytest 的 import 模式）
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--record-baseline",
+        action="store_true",
+        default=False,
+        help="把当前行为录制为基线，而不是与已录基线比对",
+    )
 
 _SESSION_TMP = Path(tempfile.mkdtemp(prefix="smartclass-tests-"))
 
@@ -106,3 +121,40 @@ def block_external_network():
 @pytest.fixture(scope="session")
 def session_tmp_dir() -> Path:
     return _SESSION_TMP
+
+
+# ------------------------------------------------------------------ 应用与数据
+
+
+@pytest.fixture(scope="session")
+def local_app():
+    """在本地库上建表并返回 FastAPI app。"""
+    import database
+
+    database.Base.metadata.create_all(database.engine)
+
+    import server
+
+    return server.app
+
+
+@pytest.fixture(scope="session")
+def seeded_ids(local_app):
+    """写入合成数据，返回固定 ID 表。"""
+    import database
+    from fixtures import seed_all
+
+    db = database.SessionLocal()
+    try:
+        return seed_all(db)
+    finally:
+        db.close()
+
+
+@pytest.fixture(scope="session")
+def client(local_app):
+    """TestClient——进程内驱动 ASGI，不监听端口、不出网。"""
+    from fastapi.testclient import TestClient
+
+    with TestClient(local_app) as c:
+        yield c
