@@ -73,7 +73,7 @@ from sqlalchemy.orm import joinedload
 from database import get_db, User, Meeting, Transcript, EmotionLog, AIInsight, KnowledgeGraph, LearningReport, Exercise, StudentAnswer, SessionLocal, ViewpointVote, MemberConnection
 from llm_service import llm
 from knowledge_graph_service import kg_service
-from config import (
+from app.core.config import (
     apply_research_runtime_config,
     ensure_research_directories,
     get_research_runtime_settings_snapshot,

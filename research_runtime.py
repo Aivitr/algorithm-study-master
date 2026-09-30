@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Lock, Thread
 from typing import Dict, List, Optional, Tuple
 
-from config import settings
+from app.core.config import settings
 from database import SessionLocal, Transcript
 from research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
 from research_registry import (

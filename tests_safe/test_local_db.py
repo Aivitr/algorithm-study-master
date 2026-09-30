@@ -42,7 +42,7 @@ def _reimport_database(monkeypatch, db_file: Path):
     `config`，不复原就会污染后续测试（详见 conftest 中该夹具的说明）。
     """
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_file.as_posix()}")
-    for mod in ("database", "config"):
+    for mod in ("database", "app.core.config"):
         sys.modules.pop(mod, None)
     import database  # noqa: PLC0415  —— 需在环境变量就位后导入
 

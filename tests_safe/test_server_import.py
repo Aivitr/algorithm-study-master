@@ -56,7 +56,7 @@ def test_importing_server_does_not_open_network(monkeypatch, module_surgery):
 
     monkeypatch.setattr(socket.socket, "connect", spy_connect)
 
-    for mod in ("server", "database", "config"):
+    for mod in ("server", "database", "app.core.config"):
         sys.modules.pop(mod, None)
 
     try:

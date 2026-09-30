@@ -1,6 +1,6 @@
 import os
 
-import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool

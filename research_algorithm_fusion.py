@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from config import settings
+from app.core.config import settings
 
 
 def _safe_text(value: Optional[str]) -> str:

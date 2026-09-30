@@ -1,5 +1,5 @@
 import os
-import config  # 先加载 .env，确保 os.getenv 能读到 LLM_API_KEY
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到 LLM_API_KEY
 import json
 import time
 import threading

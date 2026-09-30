@@ -188,7 +188,7 @@ def test_settings_agree_with_engine(local_app):
     两者若不一致，说明存在"配置说本地、实际连生产"（或反之）的错位——
     这种错位不会报错，只会让测试在错误的数据上通过。
     """
-    import config
+    from app.core import config
     import database
 
     engine_url = str(database.engine.url)

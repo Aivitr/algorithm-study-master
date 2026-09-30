@@ -1,5 +1,5 @@
 import os
-import config  # 先加载 .env，确保 os.getenv 能读到 facebody 密钥
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到 facebody 密钥
 from typing import Tuple
 
 from alibabacloud_tea_openapi import models as open_api_models

@@ -33,7 +33,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # 运行期模块：这些是应用启动链上真正会被导入的模块。清单需随 app/ 的
 # 建立而增长——每迁入一个模块，就把它加进来，锚点契约才覆盖得到它。
-RUNTIME_MODULES = ("server.py", "config.py", "database.py")
+#
+# 阶段 3.2：`config.py` 已迁入 `app/core/`，此处随之改为新路径。这正是上面那句
+# 「清单需随 app/ 的建立而增长」的意思：**搬迁如果没同步改这里，契约就悄悄缩水**
+# ——旧路径读不到文件会得到空字符串，而空字符串里当然找不到 `__file__`，
+# 断言会"通过"。所以列表里每一项都必须指向真实存在的文件（见下方
+# test_runtime_module_paths_exist）。
+RUNTIME_MODULES = ("server.py", "app/core/config.py", "database.py")
+
+
+def test_runtime_module_paths_exist():
+    """清单里的每个路径都必须真实存在。
+
+    这一条是上面那条断言的地基：文件不存在时读取会得到空字符串，
+    而空字符串里找不到 `__file__` —— 「没有违规」于是变成了「没在检查」。
+    路径写错、文件被搬走而清单没跟上，都会在这里立刻暴露。
+    """
+    for module_path in RUNTIME_MODULES:
+        assert (REPO_ROOT / module_path).is_file(), (
+            f"RUNTIME_MODULES 里的 {module_path} 不存在——"
+            f"锚点契约对它实际处于失效状态，请随搬迁同步更新清单。"
+        )
 
 
 def test_project_root_is_the_repo_root():
@@ -95,7 +115,7 @@ def test_runtime_modules_agree_on_root():
     """运行期模块各自导出的根目录，必须与 paths 的解析结果一致。"""
     from app.core.paths import PROJECT_ROOT
 
-    import config
+    from app.core import config
     import server
 
     assert config.BASE_DIR == PROJECT_ROOT, "config.BASE_DIR 与 PROJECT_ROOT 不一致"
