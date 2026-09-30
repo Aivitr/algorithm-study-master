@@ -45,6 +45,7 @@ MOVED_MODULES: dict[str, str] = {
     # 阶段 3.3：服务层搬入 app/services/
     "llm_service": "app.services.llm_service",
     "knowledge_graph_service": "app.services.knowledge_graph_service",
+    "ai_core": "app.services.ai_core",
 }
 
 # 扫描时跳过的目录，每一个都有明确理由：

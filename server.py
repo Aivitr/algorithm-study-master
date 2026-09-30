@@ -109,7 +109,7 @@ except Exception as e:
     print(f"OSS not configured: {e}")
 
 try:
-    from ai_core import engine
+    from app.services.ai_core import engine
 except ImportError:
     sys.exit(1)
 
@@ -3407,7 +3407,7 @@ class ASRSessionManager:
         def on_error(msg):
             print(f"[ASR ERROR] {username}@meeting{meeting_id}: {msg}")
 
-        from ai_core import RealtimeTranscriber
+        from app.services.ai_core import RealtimeTranscriber
 
         # 实时语音识别官方接口不支持说话人分离。
         # 这里仅使用阿里云做实时转写，真实用户归属由本地声纹按句子音频片段确认。
