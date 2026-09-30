@@ -154,13 +154,9 @@ def get_analyzer():
     return analyzer
 
 
-def resolve_user_by_identifier(db: Session, identifier: str):
-    if not identifier:
-        return None
-    user = db.query(User).filter(User.student_id == identifier).first()
-    if user:
-        return user
-    return db.query(User).filter(User.username == identifier).first()
+# 阶段 5 迁至 app/services/user_lookup.py，此处**再导出**（调用点保持不变）。
+# 它被实时链路、情绪统计、快照三块共用，不能只跟着其中一块走。
+from app.services.user_lookup import resolve_user_by_identifier
 
 
 # 阶段 5 迁至 app/core/emotions.py，此处**再导出**（19 处调用点保持不变）。
