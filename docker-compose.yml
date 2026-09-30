@@ -1,0 +1,103 @@
+# ============================================================================
+# 本地开发编排（阶段 5）。
+#
+#   docker compose up --build        起服务，浏览器开 http://localhost:8000
+#   docker compose run --rm app python -m pytest      （在容器里跑测试套件）
+#
+# ⚠️ 这个容器的默认配置**连不上生产数据库，这是故意的**，先读下面两节再改。
+#
+# ---------------------------------------------------------------------------
+# 一、为什么下面那几个数据库键必须硬写在这里
+# ---------------------------------------------------------------------------
+#
+# app/core/config.py 的 _apply_env_file() 用的是 `os.environ.setdefault` 语义：
+# **进程里已有的环境变量赢过 .env 文件**。这条既有语义正好能当安全阀用。
+#
+# 本仓库的 .env 指向**生产 RDS**（tests_safe/README.md 有完整导入链）。而
+# app/core/database.py 在**导入期**就执行 _ensure_transcripts_columns()，
+# 也就是"import 即 DDL"。于是"容器起来时连的是哪个库"直接决定了它会不会
+# 对生产库发 ALTER TABLE。
+#
+# 所以 environment 段显式给出那 6 个键。它们进了进程环境，setdefault 就不再
+# 从 .env 取值 —— 生产值被挡住。**不要删它们，也不要改成空字符串**：
+#   * 删掉 → .env 的生产值原样生效
+#   * 留空 → create_engine("") 直接抛 ArgumentError，应用起不来
+#
+# 需要**临时**连真实库做联调时，**本仓库刻意不提供现成的叠加文件** ——
+# 那等于把"容器会连生产库"变成一个随手可得的开关。真要做的话步骤记在
+# deploy/docker.md，且要自己写那份叠加文件。**那之后容器会对生产库发 DDL**，
+# 动手前请确认你确实要这个。
+#
+# ---------------------------------------------------------------------------
+# 二、代码怎么进来的
+# ---------------------------------------------------------------------------
+#
+# 仓库目录整份挂到 /app（改代码即时生效，不用重建镜像），但 /app/venv 被一个
+# 空命名卷盖住 —— 那是开发机上的 Windows venv，足足 2.1 GB，容器里既用不了
+# （二进制不兼容）又会让文件监听去遍历它。容器用的是镜像里的 /opt/venv。
+#
+# .env **会**跟着挂进来，这是有意的：LLM/OSS/阿里云那些键正需要它，
+# 而被 environment 段挡住的只有数据库那 6 个。
+# 副作用（与在本机直接跑 uvicorn 时一样）：调 /api/research-runtime 的
+# 配置接口会就地改写 .env 里的 RESEARCH_* 三行。
+# ============================================================================
+
+name: algorithm-study-master
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: algorithm-study-master:dev
+
+    ports:
+      # 宿主端口取自 .env 的 APP_PORT（没写就是 8000）。
+      # 注意右边必须是 8000：server.py 的 __main__ 里是写死的，
+      # settings.app.port 目前没有任何调用点。
+      - "${APP_PORT:-8000}:8000"
+
+    # .env 里的非数据库配置照常生效；文件不存在也不报错（required: false）。
+    env_file:
+      - path: .env
+        required: false
+
+    environment:
+      APP_ENV: dev
+      PYTHONIOENCODING: utf-8
+
+      # —— 安全阀：见文件头「一」。删掉任何一行都会让容器连回生产库 ——
+      DATABASE_URL: sqlite:///./storage/app.db
+      DB_HOST: 127.0.0.1
+      DB_PORT: "1433"
+      DB_USER: dev_container
+      DB_PASSWORD: dev_container_local_only
+      DB_NAME: cscl_db
+
+      # Windows / macOS 的宿主文件系统不产生 inotify 事件，
+      # 不开轮询的话 --reload 永远不触发（表现为"改了代码没反应"）。
+      WATCHFILES_FORCE_POLLING: "true"
+
+    volumes:
+      - .:/app
+      # 盖住宿主的 Windows venv：见文件头「二」
+      - container-venv-shadow:/app/venv
+
+    # 开发用命令：带热重载。镜像自带的 CMD 是不带 --reload 的那条。
+    command:
+      - uvicorn
+      - server:app
+      - --host=0.0.0.0
+      - --port=8000
+      - --reload
+      - --reload-dir=/app/app
+      - --reload-dir=/app/server.py
+      - --reload-dir=/app/index.html
+
+    stdin_open: true
+    tty: true
+
+volumes:
+  # 空卷，只为把宿主的 venv/ 遮掉
+  container-venv-shadow:
