@@ -20,5 +20,6 @@ uploads/
 
 # ===== 工具/构建产物 =====
 .claude/
+.codegraph/
 .qoder/
 _tmp_agora_token_builder/
