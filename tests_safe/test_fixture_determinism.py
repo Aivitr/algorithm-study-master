@@ -1,8 +1,9 @@
 """合成数据必须完全确定——两次播种的结果逐字节相同。
 
 背景（实测发现）：
-    `database.py` 里多数模型的时间列写作 `Column(DateTime, default=datetime.now)`
-    （如 `Transcript.created_at` :71、`User.created_at` :35）。若 fixtures 不显式
+    模型里多数时间列写作 `Column(DateTime, default=datetime.now)`
+    （如 `app/models/transcript.py` 的 `Transcript.created_at`、
+    `app/models/user.py` 的 `User.created_at`）。若 fixtures 不显式
     赋值，SQLAlchemy 会在 INSERT 时填入**当下的墙钟时间**。
 
     后果是：基线里的 digest 每次运行都不同。这不是被测路由的缺陷——路由行为
@@ -27,10 +28,10 @@ WALL_CLOCK_PROXIMITY = timedelta(days=1)
 @pytest.fixture
 def fresh_session(tmp_path):
     """在一个全新的空库上建表并返回会话（与全局测试库相互独立）。"""
-    import database
+    from app.models import Base
 
     engine = create_engine(f"sqlite:///{(tmp_path / 'probe.db').as_posix()}")
-    database.Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)
     session = Session(bind=engine)
     try:
         yield session
@@ -42,10 +43,10 @@ def fresh_session(tmp_path):
 @pytest.fixture
 def second_session(tmp_path):
     """第二个独立空库，用于对比两次播种。"""
-    import database
+    from app.models import Base
 
     engine = create_engine(f"sqlite:///{(tmp_path / 'probe2.db').as_posix()}")
-    database.Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)
     session = Session(bind=engine)
     try:
         yield session
@@ -56,9 +57,9 @@ def second_session(tmp_path):
 
 def _mapped_classes() -> dict:
     """{表名: ORM 类}——经 mapper 解析，不依赖类名与表名是否相同。"""
-    import database
+    from app.models import Base
 
-    return {mapper.class_.__table__.name: mapper.class_ for mapper in database.Base.registry.mappers}
+    return {mapper.class_.__table__.name: mapper.class_ for mapper in Base.registry.mappers}
 
 
 def _iter_scalar_cells(session):
@@ -139,7 +140,7 @@ def test_meeting_timestamps_are_distinct(fresh_session):
     seed_all(fresh_session)
     fresh_session.flush()
 
-    from database import Meeting
+    from app.models import Meeting
 
     stamps = [(m.id, m.created_at) for m in fresh_session.query(Meeting).all()]
     assert len(stamps) > 1, "只有一场课堂时这条守卫没有意义"

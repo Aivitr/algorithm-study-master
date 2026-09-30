@@ -29,8 +29,8 @@ import types
 RUNTIME_MODULES = [
     "server.py",
     "ai_core.py",
-    "config.py",
-    "database.py",
+    "app/core/config.py",
+    "app/core/database.py",
     "gemma_emotion_client.py",
     "knowledge_graph_service.py",
     "llm_service.py",

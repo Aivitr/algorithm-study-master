@@ -1,5 +1,5 @@
 import time, uuid, base64, hmac, hashlib, requests, re, os, json
-import config  # 先加载 .env，确保 os.getenv 能读到阿里云密钥
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到阿里云密钥
 import urllib.parse
 import urllib3
 import websocket

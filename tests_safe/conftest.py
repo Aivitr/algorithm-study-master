@@ -64,9 +64,10 @@ def module_surgery():
 
     为什么必须有这个夹具
     --------------------
-    `database.py:11` 与 `config.py:177` 都在**导入期**读取环境变量并据此建立
-    engine。要验证「换个 `DATABASE_URL` 会怎样」，只能把模块从 `sys.modules`
-    摘掉再重新导入——没有别的办法。
+    `app/core/database.py` 在**导入期**读 `DATABASE_URL` 建 engine，而
+    `app/core/config.py` 在**导入期**执行 `_load_dotenv()`（用 `setdefault`
+    从 `.env` 补值）。要验证「换个 `DATABASE_URL` 会怎样」，只能把这两个模块
+    从 `sys.modules` 摘掉再重新导入——没有别的办法。
 
     但**摘掉之后不还回去，就会污染后续每一个测试**：之后的 `import database`
     拿到的是本测试临时造的那个模块，engine 指向本测试的临时库。
@@ -90,9 +91,10 @@ def module_surgery():
 @pytest.fixture(scope="session")
 def local_app():
     """在本地库上建表并返回 FastAPI app。"""
-    import database
+    from app.core import database
+    from app.models import Base
 
-    database.Base.metadata.create_all(database.engine)
+    Base.metadata.create_all(database.engine)
 
     import server
 
@@ -102,7 +104,7 @@ def local_app():
 @pytest.fixture(scope="session")
 def seeded_ids(local_app):
     """写入合成数据，返回固定 ID 表。"""
-    import database
+    from app.core import database
     from fixtures import seed_all
 
     db = database.SessionLocal()

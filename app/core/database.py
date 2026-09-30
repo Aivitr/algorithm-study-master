@@ -1,6 +1,6 @@
 import os
 
-import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
@@ -21,27 +21,9 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 阶段 3.1：模型已搬到 `app/models/`。这里原样转出，使 `from database import User` 这类
-# 既有写法继续有效——本步据此可以声称「调用方零改动」。这层转发是**临时的**，
-# 阶段 3.2 搬迁本文件时会连同这些调用方一起收拢，届时删除。
-from app.models import (
-    User,
-    Meeting,
-    MemberConnection,
-    Transcript,
-    EmotionLog,
-    MentalHealthAssessment,
-    AIInsight,
-    KnowledgeGraph,
-    GraphNode,
-    GraphEdge,
-    LearningReport,
-    Exercise,
-    StudentAnswer,
-    ReportTemplate,
-    ViewpointVote,
-)
-from app.models.base import Base  # noqa: F401  （Base 的公开位置未变）
+# 模型不在这里——它们在 `app/models/`（阶段 3.1 拆出）。
+# 本文件只负责引擎、会话与那一次补列的迁移，不再转出模型类：
+# 阶段 3.1 留的转发层已在阶段 3.2 随调用方一起收拢（见 A16 的「后续」）。
 
 def _ensure_transcripts_columns():
     """Patch legacy transcript tables with research enhancement fields."""

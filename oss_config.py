@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import config  # 先加载 .env，确保 os.getenv 能读到 OSS 密钥
+from app.core import config  # 先加载 .env，确保 os.getenv 能读到 OSS 密钥
 """
 [EMOJI]OSS[EMOJI]
 """

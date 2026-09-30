@@ -22,11 +22,11 @@ def test_database_url_is_not_production():
 def test_imported_engine_is_local():
     """导入 database 模块后，其 engine 仍指向本地库。
 
-    这条断言针对的是一个具体风险：database.py 在导入时就会连接数据库
+    这条断言针对的是一个具体风险：app/core/database.py 在导入时就会连接数据库
     （见 conftest.py 的说明）。因此「导入后仍指向本地」必须被显式验证，
     否则一次不小心的导入顺序变化就会把测试变成对生产的操作。
     """
-    import database
+    from app.core import database
 
     assert not database.SQLALCHEMY_DATABASE_URL.startswith(MSSQL_PREFIX), (
         f"database 模块连到了生产库：{database.SQLALCHEMY_DATABASE_URL}"

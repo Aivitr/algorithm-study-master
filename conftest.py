@@ -20,7 +20,7 @@
 
 这不是推测。实测第二条命令收集到 3 个测试、耗时 3.59s，即一次真实的
 `import server` → `import database`，也就是一次对生产库的 DDL 尝试
-（`database.py:243` 的 `_ensure_transcripts_columns()` 在**导入期**执行）。
+（`app/core/database.py` 的 `_ensure_transcripts_columns()` 在**导入期**执行）。
 详见 `docs/待验收事项.md`。
 
 结论：闸门必须放在**无论参数怎么写都会被加载**的位置。conftest.py 的加载范围
@@ -51,9 +51,11 @@ _LOOPBACK = {"127.0.0.1", "::1", "localhost", "0.0.0.0", "", None}
 _SESSION_TMP = Path(tempfile.mkdtemp(prefix="smartclass-tests-"))
 
 # ---------------------------------------------------------------- §1 ORM 路径
-# `database.py:11` 在**导入期**读 `DATABASE_URL` 建 engine，随后
-# `_ensure_transcripts_columns()`（`database.py:243`）可能执行
-# `ALTER TABLE transcripts ADD ...`。**`import database` 这个动作本身即 DDL。**
+# `app/core/database.py` 在**导入期**读 `DATABASE_URL` 建 engine，随后
+# `_ensure_transcripts_columns()` 可能执行
+# `ALTER TABLE transcripts ADD ...`。**导入 database 这个动作本身即 DDL。**
+#
+# （阶段 3.2 之前该文件在仓库根、名为 `database.py`；内容与行为未变，只是位置变了。）
 # 改成一次性 sqlite 文件，DDL 即便发生也只落在临时目录里。
 os.environ["DATABASE_URL"] = f"sqlite:///{(_SESSION_TMP / 'app.db').as_posix()}"
 

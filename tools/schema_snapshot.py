@@ -31,19 +31,40 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 # 本脚本用绝对路径被调用，而 `config` / `database` 在**当前工作目录**下。
 # 脚本所在目录会被 Python 自动放进 sys.path[0]，cwd 不会——必须显式加，
-# 否则 import config 直接失败（而失败若被当成"两边一样"，就是假阳性）。
+# 否则导入直接失败（而失败若被当成"两边一样"，就是假阳性）。
 sys.path.insert(0, os.getcwd())
 
-# 必须在导入 database 之前设定：database.py 在导入期就用它建 engine。
+
+def _import_compat(name: str):
+    """按两种布局导入：`app.core.X`（搬迁后）优先，退回根级 `X`（搬迁前）。
+
+    本工具要能同时跑在**两个 checkout** 上——HEAD 那棵树里 `config.py` 还在根
+    目录，当前树里它已在 `app/core/`。写死任一种都会让另一边失败，而失败若被
+    当成"两边一致"，比对就成了假阳性。
+
+    用**文件是否存在**判断，而不是 try/except ImportError：后者会把模块内部
+    真实的导入错误也吞掉、悄悄退回另一种布局，那就又是一种静默失效。
+    """
+    root = Path(os.getcwd())
+    for module_name, rel in ((f"app.core.{name}", f"app/core/{name}.py"), (name, f"{name}.py")):
+        if (root / rel).is_file():
+            import importlib
+
+            return importlib.import_module(module_name)
+    raise SystemExit(f"两种布局下都找不到 {name}（cwd={root}）")
+
+
+# 必须在导入 database 之前设定：app/core/database.py 在导入期就用它建 engine。
 # 指向 sqlite 同时意味着 _ensure_transcripts_columns() 找不到 transcripts 表、
 # 直接 return——不会对任何真实库发 DDL。
 os.environ["DATABASE_URL"] = "sqlite:///./__schema_dump__.db"
 
-import config  # noqa: F401,E402  —— 先加载 .env，与原逻辑一致
-import database  # noqa: E402
+config = _import_compat("config")  # 先加载 .env，与原逻辑一致
+database = _import_compat("database")
 
 def _default_repr(default):
     if default is None:
@@ -55,7 +76,22 @@ def _default_repr(default):
     return repr(arg)
 
 
-metadata = database.Base.metadata
+def _model_home():
+    """返回「模型类住在哪个模块」——它的位置随搬迁变过，工具要两边都能跑。
+
+    阶段 3.1 之前模型定义在 `database.py`；3.1 拆到 `app/models/` 但由 `database`
+    转出；3.2 起 `database` 不再转出。本工具将来还要用于 3.3/3.4 的搬迁，
+    所以按"哪种布局在场"判断，而不是写死一种。
+    """
+    if (Path(os.getcwd()) / "app" / "models" / "base.py").is_file():
+        import importlib
+
+        return importlib.import_module("app.models")
+    return database
+
+
+models = _model_home()
+metadata = models.Base.metadata
 
 tables = []
 for name in sorted(metadata.tables):
@@ -97,7 +133,7 @@ for attr in ("User", "Meeting", "Transcript", "EmotionLog", "KnowledgeGraph",
              "GraphNode", "GraphEdge", "LearningReport", "Exercise", "StudentAnswer",
              "MentalHealthAssessment", "ViewpointVote", "MemberConnection",
              "ReportTemplate", "AIInsight"):
-    cls = getattr(database, attr, None)
+    cls = getattr(models, attr, None)
     descriptors[attr] = None if cls is None else sorted(
         k for k in vars(cls) if not k.startswith("_")
     )

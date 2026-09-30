@@ -2,8 +2,8 @@
 
 为什么需要这个文件
 ------------------
-`server.py` → `database.py` 的**模块导入期**会执行
-`_ensure_transcripts_columns()`（`database.py:243`），必要时对 `DATABASE_URL`
+`server.py` → `app/core/database.py` 的**模块导入期**会执行
+`_ensure_transcripts_columns()`，必要时对 `DATABASE_URL`
 指向的库发出 `ALTER TABLE transcripts ADD ...`。而遗留测试文件顶部写着
 `from server import app`——**收集它们就是尝试对生产库做 DDL。**
 
@@ -63,7 +63,7 @@ def test_legacy_dir_no_longer_exists_in_repo_root(legacy):
     assert not (REPO_ROOT / legacy).exists(), (
         f"{legacy}/ 又出现在仓库根了。它应当只存在于 archive/legacy-tests/ 下。\n"
         f"这些文件顶部 `from server import app`，一旦落入收集范围即触发生产库 "
-        f"DDL 尝试（database.py:243）。"
+        f"DDL 尝试（app/core/database.py 的 _ensure_transcripts_columns）。"
     )
 
     archived = ARCHIVE / LEGACY_DIRS[legacy]
@@ -170,7 +170,7 @@ def test_active_database_is_local_sqlite(local_app):
 
     这是隔离是否生效的终局判据——不看意图，看实际连的是什么。
     """
-    import database
+    from app.core import database
 
     url = str(database.engine.url)
     assert url.startswith("sqlite"), (
@@ -188,8 +188,8 @@ def test_settings_agree_with_engine(local_app):
     两者若不一致，说明存在"配置说本地、实际连生产"（或反之）的错位——
     这种错位不会报错，只会让测试在错误的数据上通过。
     """
-    import config
-    import database
+    from app.core import config
+    from app.core import database
 
     engine_url = str(database.engine.url)
     settings_url = str(config.settings.db.url)
