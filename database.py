@@ -10,13 +10,16 @@ from datetime import datetime
 # 数据库配置 - 阿里云 RDS SQL Server
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./storage/app.db")
 
+# connect_args 中的 login_timeout 是 pymssql 专有参数。此前无条件传入，
+# 导致 DATABASE_URL 指向 sqlite 时 sqlite3.connect() 抛
+# TypeError: 'login_timeout' is an invalid keyword argument。
+# 现按方言选择——生产（mssql+pymssql）传入的实参与此前完全一致。
+_IS_MSSQL = SQLALCHEMY_DATABASE_URL.startswith("mssql")
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     poolclass=NullPool,  # 无连接池
-    connect_args={
-        'timeout': 10,
-        'login_timeout': 10
-    }
+    connect_args={'timeout': 10, 'login_timeout': 10} if _IS_MSSQL else {}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
