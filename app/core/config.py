@@ -2,6 +2,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping, MutableMapping
 
 # 根目录由 app.core.paths 统一解析，不再由本文件的位置推断。
 #
@@ -15,19 +16,99 @@ from app.core.paths import PROJECT_ROOT
 BASE_DIR = PROJECT_ROOT
 
 
-def _load_dotenv() -> None:
-    env_path = BASE_DIR / ".env"
-    if not env_path.exists():
-        return
+# 「活动 env 文件」——读与写必须是同一个，由 _load_dotenv() 在导入期确定。
+# 有覆盖层 `.env.<APP_ENV>` 时是覆盖层，否则是基础层 `.env`。
+# `_write_env_updates()` 与配置快照都依赖它：运行期的研究配置持久化会**就地改写
+# 这个文件**（server.py 的 /api/research-runtime 配置接口），读写分家就会写错文件。
+ACTIVE_ENV_FILE: "Path | None" = None
 
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+
+def _read_env_file(path: Path) -> list[tuple[str, str]]:
+    """读一个 env 文件，返回 `[(键, 值)]`。
+
+    文件不存在或读不动时返回空列表，**不抛异常**——调用方靠"这一层是空的"来判断
+    该层是否存在（覆盖层不存在时继续走基础层，这是正常情形而非错误）。
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+
+    pairs: list[tuple[str, str]] = []
+    for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        pairs.append((key.strip(), value.strip().strip('"').strip("'")))
+    return pairs
+
+
+def _apply_env_file(path: Path, environ: MutableMapping[str, str]) -> int:
+    """把文件里的键按 `setdefault` 语义写进 `environ`，返回本次新写入的条数。
+
+    **已存在的环境变量一律优先**——这是本仓库既有语义，本步特意不动它：
+    根目录 `conftest.py` 的测试隔离闸门正是靠这条，先显式赋值 `DB_*` /
+    `DATABASE_URL` 再导入 config，从而挡住生产库。改成"文件覆盖环境变量"
+    会让那道闸门失效。
+    """
+    added = 0
+    for key, value in _read_env_file(path):
+        if key not in environ:
+            environ[key] = value
+            added += 1
+    return added
+
+
+def _resolve_app_env(environ: Mapping[str, str], base_env_path: Path) -> str:
+    """确定 `APP_ENV`：进程环境 > 基础 `.env` 里的 `APP_ENV=` > `dev`。
+
+    只查**基础层**，不查覆盖层：覆盖层正是由这个值选出来的，
+    让覆盖层再定义它自己就是循环定义。
+    """
+    from_process = (environ.get("APP_ENV") or "").strip()
+    if from_process:
+        return from_process
+
+    for key, value in _read_env_file(base_env_path):
+        if key == "APP_ENV" and value.strip():
+            return value.strip()
+    return "dev"
+
+
+def _overlay_path(root: Path, app_env: str) -> Path:
+    """覆盖层路径 `.env.<APP_ENV>`（不保证存在）。"""
+    return root / f".env.{app_env}"
+
+
+def _load_dotenv(
+    root: Path | None = None,
+    environ: MutableMapping[str, str] | None = None,
+) -> Path | None:
+    """加载分环境配置，返回**活动 env 文件**；一个都没有时返回 None。
+
+    优先级（高 → 低）：进程环境变量 > `.env.<APP_ENV>` > `.env`
+
+    覆盖层先写、基础层后写，两次都是 setdefault，**先写的赢**——所以覆盖层里
+    出现过的键不会被基础层改回去，而基础层独有的键仍然保留。
+
+    没有覆盖层文件时，本函数与改造前逐键等价（有测试钉住这一条）：
+    本仓库当前只有一个 `.env` 且指向生产库，这个"零变化"是硬要求。
+    """
+    root = BASE_DIR if root is None else root
+    environ = os.environ if environ is None else environ
+
+    base = root / ".env"
+    overlay = _overlay_path(root, _resolve_app_env(environ, base))
+
+    active: Path | None = None
+    if overlay.is_file():
+        _apply_env_file(overlay, environ)
+        active = overlay
+    if base.is_file():
+        _apply_env_file(base, environ)
+        active = active or base
+    return active
 
 
 def _get_env(name: str, default: str = "") -> str:
@@ -64,7 +145,7 @@ def _get_float(name: str, default: float) -> float:
         return default
 
 
-_load_dotenv()
+ACTIVE_ENV_FILE = _load_dotenv()
 
 
 @dataclass(frozen=True)
@@ -234,8 +315,12 @@ def _normalize_research_runtime_mode(profile: str, runtime_mode: str = "") -> st
     return "enhanced_strict" if profile == "enhanced" else "documented_only"
 
 
-def _write_env_updates(updates: dict) -> str:
-    env_path = BASE_DIR / ".env"
+def _write_env_updates(updates: dict, env_path: Path | None = None) -> str:
+    """就地改写 env 文件。**默认写活动文件**（有覆盖层时即覆盖层）。
+
+    参数 `env_path` 供测试注入；生产路径走默认值，因此读写始终指向同一份。
+    """
+    env_path = env_path or ACTIVE_ENV_FILE or (BASE_DIR / ".env")
     if env_path.exists():
         lines = env_path.read_text(encoding="utf-8").splitlines()
     else:
@@ -303,7 +388,7 @@ def get_research_runtime_settings_snapshot() -> dict:
         "model_root": settings.research.model_root,
         "gallery_root": settings.research.gallery_root,
         "cache_root": settings.research.cache_root,
-        "env_file": str(BASE_DIR / ".env"),
+        "env_file": str(ACTIVE_ENV_FILE or (BASE_DIR / ".env")),
     }
 
 
