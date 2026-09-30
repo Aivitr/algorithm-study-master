@@ -49,6 +49,46 @@ NGINX_PREFIXES = (
 )
 
 
+def _leaf_routes(routes):
+    """展开路由树，产出 `(真实路由对象, 生效路径, 生效方法集)`。
+
+    为什么不能只遍历 `app.routes`
+    -----------------------------
+    FastAPI 0.141 起，`include_router()` **不再把子路由摊平**进 `app.routes`，
+    而是放一个 `_IncludedRouter` 惰性节点（本仓库当前的顶层构成实测为：
+    49 个 APIRoute + 4 个 Route + 3 个 APIWebSocketRoute + 1 个 Mount
+    + 1 个 `_IncludedRouter`）。
+
+    于是"把声纹路由拆进 app/routers/voiceprint.py"这个纯结构改动，会让那 7 条
+    路由从 `app.routes` 的平铺视图里**整体消失**——本契约会误报"路由被删"，
+    而它们其实好好的（OpenAPI schema 里 7 条全在）。这正是本文件要防的那类
+    故障的反面：不是路由没了，是**看路由的方式过期了**。
+
+    这里改跟 FastAPI 自己的视图走：`effective_route_contexts()` 是它做路由匹配
+    时实际使用的展开结果，**已把前缀合进去**。两个字段的坑（实测）：
+
+        APIRoute  : ctx.path 是对的，ctx.starlette_route 为 None
+        WS/Route  : ctx.path 是空串，路径在 ctx.starlette_route.path 上
+
+    因此按 `starlette_route.path → ctx.path → original_route.path` 依次取。
+    """
+    for route in routes:
+        expand = getattr(route, "effective_route_contexts", None)
+        if callable(expand):
+            for ctx in expand():
+                path = (
+                    getattr(ctx.starlette_route, "path", None)
+                    or getattr(ctx, "path", "")
+                    or getattr(ctx.original_route, "path", "")
+                )
+                methods = getattr(ctx, "methods", None) or getattr(
+                    ctx.original_route, "methods", set()
+                )
+                yield ctx.original_route, path, methods
+        else:
+            yield route, getattr(route, "path", "?"), getattr(route, "methods", set())
+
+
 def _enumerate(app):
     """把 `app.routes` 压成可稳定比对的 (kind, methods, path) 三元组集合。
 
@@ -56,15 +96,15 @@ def _enumerate(app):
     本项目的接口契约，纳入比对会引入与重构无关的噪声。
     """
     rows = set()
-    for route in app.routes:
+    for route, path, methods in _leaf_routes(app.routes):
         if isinstance(route, APIRoute):
-            rows.add(("HTTP", ",".join(sorted(route.methods - {"HEAD"})), route.path))
+            rows.add(("HTTP", ",".join(sorted(set(methods) - {"HEAD"})), path))
         elif isinstance(route, WebSocketRoute):
-            rows.add(("WS", "", route.path))
+            rows.add(("WS", "", path))
         elif isinstance(route, Mount):
-            rows.add(("MOUNT", "", route.path))
+            rows.add(("MOUNT", "", path))
         else:
-            rows.add((type(route).__name__, "", getattr(route, "path", "?")))
+            rows.add((type(route).__name__, "", path))
     return rows
 
 
@@ -196,6 +236,43 @@ def test_route_table_matches_contract(actual_routes):
     assert not problems, (
         "路由表与契约不一致——这是对外接口变更，会直接打断 nginx 反代。\n\n"
         + "\n\n".join(problems)
+    )
+
+
+def test_enumeration_agrees_with_openapi(actual_routes, local_app):
+    """独立第二视角：枚举出的 HTTP 路由必须与 OpenAPI schema 逐条一致。
+
+    为什么需要这条
+    --------------
+    上一条断言的全部力量，都建立在"`_enumerate()` 能看见所有路由"之上。
+    而 `_enumerate()` 读的是 `app.routes` 与 FastAPI 的私有展开结构——**若哪天
+    它读漏了，被漏掉的路由就从断言里静默消失，契约退化成一条永远绿的测试**。
+    本仓库反复出现的就是这类失效（守卫本身坏掉却不出声）。
+
+    OpenAPI schema 由 FastAPI 独立生成，不经过本文件的任何代码。两个视角一致，
+    才说明枚举器没有漏读：
+
+        app.routes + 私有展开  ←→  app.openapi()["paths"]
+
+    （WebSocket 与 Mount 不在 schema 里，故只比 HTTP 这一面。）
+    """
+    schema = local_app.openapi()
+    from_schema = {
+        (method.upper(), path)
+        for path, operations in schema["paths"].items()
+        for method in operations
+    }
+    from_routes = {(m, p) for kind, m, p in actual_routes if kind == "HTTP"}
+
+    only_schema = from_schema - from_routes
+    only_routes = from_routes - from_schema
+
+    assert not only_schema and not only_routes, (
+        "两个独立视角给出的 HTTP 路由不一致——枚举器可能读漏了路由树。\n"
+        f"  只在 OpenAPI 中：{sorted(only_schema)}\n"
+        f"  只在路由树中：{sorted(only_routes)}\n"
+        "若这是「路由设了 include_in_schema=False」，请在此显式登记；\n"
+        "若是枚举器的问题，那它会静默削弱上一条断言的力量。"
     )
 
 

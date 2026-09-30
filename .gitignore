@@ -33,3 +33,12 @@ _tmp_agora_token_builder/
 # 提交信息草稿（本地临时文件，见 CLAUDE.md 记法：shell 会破坏反引号/括号）
 _msg.txt
 _msg*.txt
+
+# 抽取脚手架的输入文件（tools/extract_route_group.py --header、
+# tools/move_block.py --header）。它们是**一次性**的：头的内容当下就写进了
+# app/routers/<模块>.py 与 app/realtime/<模块>.py，留在这里没有用途。
+# 曾经有 4 个（_header_auth/pages/research_runtime/votes）被误提交，
+# 见 docs/待验收事项.md。它们还会被 tests_safe/test_module_moves.py 的
+# rglob("*.py") 枚举成一个多余的参数，把测试数量搅浑。
+_header*.py
+_before_*.py
