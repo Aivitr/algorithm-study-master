@@ -1,39 +1,57 @@
-refactor(archive): 归档早期原型 1/ 与 3/，并清理两条指向虚空的 sys.path
+refactor(archive): 归档运维脚本，并按 A7 加生产目标防护
 
-设计文档 §4.3 的第一组归档。
+设计文档 §4.3 的第二组归档，共 16 个脚本：
 
-- `1/` -> `archive/prototypes/legacy-1/`（10 个文件）
-- `3/` -> `archive/prototypes/legacy-3/`（1 个文件）
-- 改名依据 §4.3 命名说明：原编号含义无文档记载，沿用会暗示未经证实的顺序
-- 新增 archive/prototypes/README.md，三节齐备：原本干什么 / 为什么在这里 /
-  已知引用关系与注意事项
+- ops-scripts/codemods/       modify_backend / update_backend / update_frontend
+                              / remove_all_emojis / temp_fix(0 字节)
+- ops-scripts/db-maintenance/ init_db / fix_db_final / check_all_tables
+                              / check_db_structure / check_users / check_users_quick
+- ops-scripts/diagnostics/    check_video_logs / debug_emotion_data
+                              / detect_oss_region / diagnose_agora
+- ops-scripts/install_voiceprint.py
 
-迁移前已核实：**没有任何运行期模块从 1/ 导入**（`1/README1.md` 亦明确记载
-「未被 server.py 接线，只把该目录加入了 sys.path，并未 import 或 subprocess
-启动其中任何脚本」）。
+这些脚本不被应用导入、也不被任何测试引用（AST 实测：server.py 的导入传递
+闭包为 15 个模块，本组一个都不在其中）。
 
-本次归档由一条既有断言强制显式处理
-----------------------------------
-刚加的 tests_safe/test_paths_anchor.py::test_server_syspath_additions_are_known_and_present
-在移动 1/ 的**同一分钟**就失败了——这正是它存在的目的。随之处理：
+A7 约定的那一条：生产目标警示
+-----------------------------
+新增 archive/ops-scripts/_prod_guard.py，并在 6 个会连数据库的脚本里调用。
+行为按目标分档：
 
-  - 从 server.py 的 _SERVER_SYSPATH_ADDITIONS 中移除 '1'（已归档）与 '2'
-    （**该目录从未存在**，原代码无条件 append 它，一直是空操作）
-  - 同步更新该测试的预期集合
+    本机回环 / sqlite  → 只打印警示，照常继续
+    远程（*.rds.…）    → 要求显式确认（--yes 或 OPS_SCRIPT_CONFIRM=1），
+                         否则以退出码 2 终止
 
-移除这两条 append 不改变任何行为：'1' 不含被导入的模块，'2' 本就不存在。
-留着它们则会指向虚空——静默无效。
+**这是对 A7 的一处强化，已在 README 里标注**：A7 说的是「非阻塞警示」，
+但纯打印的警示在这里近乎无用——脚本打印完下一行就开始执行 DDL，操作者看到时
+事情已经发生。故**仅对远程目标**加确认，本地目标仍非阻塞。
 
-归档的代价，已记录在 README 里
+一个必须守住的细节：DATABASE_URL 整串里含**明文口令**。防护模块打印前一律
+脱敏（user:***@host）。这与 A8 记录的问题同源——那次是响应里夹带 .env 凭据，
+这里是日志里夹带。
+
+实测四种情形（直接调 guard()，不触发任何真实连接）：
+    远程+无确认 → 退出码 2，输出不含口令原文  ✓
+    远程+已确认 → 退出码 0                     ✓
+    127.0.0.1   → 退出码 0（无摩擦）            ✓
+    sqlite://   → 退出码 0（无摩擦）            ✓
+
+顺带：归档后脚本仍可运行
+------------------------
+脚本移出仓库根后 sys.path[0] 变成归档目录，原本连 `import config` 都会失败。
+_prod_guard 在导入时把仓库根挂上 sys.path，因此
+`python archive/ops-scripts/db-maintenance/init_db.py` 仍可用。
+这是有意的——这些是数据库维护工具，将来仍可能需要。
+
+归档过程中核实并记录的两处事实
 ------------------------------
-legacy-3/c_realtime_integration.py 按 ROOT_DIR/'1' 引用 legacy-1，归档后该
-相对关系不再成立，脚本不再可直接运行。README 记录了两点：一是这个断裂本身，
-二是该脚本依赖的 `domo.mp4` **从来就不在本仓库中**——也就是说它在归档之前
-就已无法端到端运行，归档只是让这一点更明显。
-（§4.3 规则 1 要求「有引用关系成组搬迁」，这里两个目录确实成组搬了；断掉的是
-它们对**仓库根**的假设，不是彼此之间的引用。）
+- fix_db_final.py 用的是 **MySQL 语法**（ALTER TABLE ... MODIFY COLUMN），
+  而实际库是 SQL Server。它在归档**之前**就会报错。归档不修复它——
+  它作为「曾按 MySQL 写、后迁到 SQL Server」的证据，原样才有意义。
+- codemods/ 里那几个脚本**会原地改写 server.py**，它们正是 §3.5 那批注释污染
+  的来源。保留它们有明确价值（是那批污染成因的唯一证据），README 中已写明
+  「不要运行」。
 
-未做：不移动任何运行期模块，不删除任何文件，空目录按 A6 既有决定处理。
-归档映射的完整表格与四处偏离记入 docs/待验收事项.md A11。
-
-全套 105 条通过。
+新增 archive/ops-scripts/README.md，三节齐备，并含防护行为对照表。
+根目录 .py 由 57 个减至 41 个。全套 105 条通过，pytest 收集范围仍恰为
+tests_safe 的 105 条（归档内容未被收集）。

@@ -1,7 +1,18 @@
 # -*- coding: utf-8 -*-
 """检查数据库表结构"""
 import os
-import config  # 先加载 .env，确保 os.getenv 能读到数据库配置
+# --- 归档防护：见 archive/ops-scripts/README.md 与 docs/待验收事项.md A7 ---
+# 三个动作合一：定位 _prod_guard、挂上仓库根（使下方 import config 仍可用）、
+# 在执行任何数据库操作前先打印实际目标并（仅对远程库）要求确认。
+import pathlib as _pathlib
+import sys as _sys
+for _p in _pathlib.Path(__file__).resolve().parents:
+    if (_p / "_prod_guard.py").exists():
+        _sys.path.insert(0, str(_p))
+        break
+from _prod_guard import guard
+import config  # noqa: F401  ——挂 sys.path 后此导入才成立
+
 import pymssql
 
 DB_CONFIG = {
@@ -13,6 +24,7 @@ DB_CONFIG = {
     'charset': 'utf8'
 }
 
+guard("读取表清单与 transcripts / emotion_logs 的列结构（只读）")
 print("正在连接数据库...")
 try:
     conn = pymssql.connect(**DB_CONFIG)

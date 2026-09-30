@@ -1,6 +1,20 @@
 
-from database import SessionLocal, EmotionLog
+# --- 归档防护：见 archive/ops-scripts/README.md 与 docs/待验收事项.md A7 ---
+# 三个动作合一：定位 _prod_guard、挂上仓库根（使下方 import config 仍可用）、
+# 在执行任何数据库操作前先打印实际目标并（仅对远程库）要求确认。
+import pathlib as _pathlib
+import sys as _sys
+for _p in _pathlib.Path(__file__).resolve().parents:
+    if (_p / "_prod_guard.py").exists():
+        _sys.path.insert(0, str(_p))
+        break
+from _prod_guard import guard
+
 import os
+from database import SessionLocal, EmotionLog  # 上面已把仓库根挂上 sys.path
+
+guard("经 ORM 读取 emotion_logs 表中带 video_url 的记录（只读）")
+
 
 def check_emotion_logs():
     db = SessionLocal()
