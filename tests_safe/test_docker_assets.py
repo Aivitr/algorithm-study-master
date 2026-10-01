@@ -555,6 +555,45 @@ class TestNoProductionCredentialsAreTracked:
         )
 
 
+class TestGeneratedSchemaCarriesNoSourceHost:
+    """比上一条**更早生效**的守卫：不依赖 `.env.prod` 是否存在。
+
+    上一条在新克隆的仓库里会 skip（那里没有 `.env.prod` 当真相），于是最需要它
+    的时候恰好不在。这一条不问"值泄没泄"，只问"产物里有没有写出源主机的位置"——
+    与真值无关，任何克隆都跑。
+
+    实测经过：`db/schema.sql` 的自动生成头部原本写的是
+    `来源：cscl_db @ <真实主机>`，随第一次提交入了库，随后才被上一条抓住（见 A33）。
+    所以这里再钉一道，并且钉在**产物形状**上——生成器改回去就会立刻红。
+    """
+
+    def test_schema_sql_source_line_has_no_host(self):
+        text = (REPO_ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+        offenders = [ln for ln in text.splitlines() if "来源：" in ln and "@" in ln]
+        assert not offenders, (
+            "db/schema.sql 的「来源」行里嵌了主机名 —— 这个文件是入库的：\n  "
+            + "\n  ".join(offenders)
+            + "\n主机名只应存在于 .env.prod（已 gitignore）。"
+            "产物里别写它，或改写 <生产 RDS 主机名>。"
+        )
+
+    def test_exporter_header_does_not_interpolate_the_host(self):
+        """生成器本身也不许把 host 插进「来源」行——否则重新生成就会复发。
+
+        改产物是治标：`db/schema.sql` 是**生成物**，跑一次
+        `python tools/export_prod_schema.py --yes` 就带回来了。真正的修处在模板。
+        """
+        lines = (REPO_ROOT / "tools" / "export_prod_schema.py").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        offenders = [ln.strip() for ln in lines if "来源：" in ln and "{host}" in ln]
+        assert not offenders, (
+            "生成器的头部模板又把源主机名插回去了：\n  "
+            + "\n  ".join(offenders)
+            + "\n改这里才治本 —— db/schema.sql 是生成物。"
+        )
+
+
 # --------------------------------------------------------------------------
 # 3. 依赖切分是一份**划分**：不漏、不重、不另立清单
 # --------------------------------------------------------------------------
