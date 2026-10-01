@@ -13,6 +13,10 @@
    "Vue 加载了、图标没加载、图裂了"这种最难定位的组合故障。
    → `TestNoExternalReferences`
 
+   注意扫描面**不是** `index.html` 一个文件：阶段 7 把 `<style>`/`<script>`
+   外移成了 `static/css/app.css` 与 `static/js/app.js`，页面能拉到的字节
+   从此不全住在 `index.html` 里。详见 `_first_party_sources()` 的注释。
+
 2. **路径笔误。** `/static/vendor/vue-2.6.14.js` 写成 `vue-2.6.14.js.old`。
    404 是**静默**的：浏览器只在控制台留一行，页面照样出来，只是白屏。
    → `TestReachability::test_every_reachable_asset_exists`
@@ -111,8 +115,64 @@ def _index_html() -> str:
     return INDEX_HTML.read_text(encoding="utf-8")
 
 
-def _absolute_hosts() -> set[str]:
-    return set(_ABSOLUTE_URL_RE.findall(_index_html()))
+# 除 `index.html` 之外，**页面还会去拉**的第一方文本（仓库根相对路径）。
+#
+# 与 `_FIRST_PARTY`（下面那个集合）不是一回事，虽然有一半重叠：
+#   * `_FIRST_PARTY` 管的是"`static/` 下哪些文件不是下载来的、不该进 SOURCES.json"，
+#     只用在清单完整性断言里——它回答的是**文件从哪来**；
+#   * 这张表管的是"浏览器会读到哪些由本项目作者写的字节"——它回答的是**页面会拉什么**。
+# 所以 `pcm-processor.js` 在这里而不在那里：它由 app.js:1220 以
+# `audioWorklet.addModule('/pcm-processor.js')` 加载，会随页面一起跑，
+# 但它不在 `static/` 下（走 `pages.py` 的专用单例路由），因此没有"下载来源"可谈。
+#
+# 新增一个页面会拉的第一方文件时，**必须**登记到这里——否则外部引用扫描看不见它。
+_PAGE_LOADED_FIRST_PARTY = (
+    "static/css/app.css",   # index.html 原 <style> 块（阶段 7 外移）
+    "static/js/app.js",     # index.html 原 <script> 块（阶段 7 外移）
+    "pcm-processor.js",     # 音频工作线程（app.js:1220 加载）
+)
+
+
+def _first_party_sources() -> dict[str, str]:
+    """{仓库根相对路径: 文本} —— 页面会拉取的、由本项目作者写的全部文本。
+
+    为什么扫描面不止 `index.html`
+    ------------------------------
+    阶段 6 做本地化时，23 个引用确实**都**在 `index.html` 里，扫它一个就够。
+    但阶段 7 把内联的 `<style>` / `<script>` 外移成了 `app.css` / `app.js`
+    （见 `test_frontend_extraction.py`），上面那个前提**已经不再成立**。
+
+    外移之后的失效方式很隐蔽：有人往 `app.js` 里补一条 `https://cdn.…/vue.js`，
+    浏览器会真的去拉，而"只扫 `index.html`"的断言**一声不吭**——因为那些字节
+    已经不住在 `index.html` 里了。这正是本文件开头说的"开发机有外网所以看不出来"。
+    已实测：同一条注入，旧扫描面 18 条主机断言全绿，只有下面那条正向对照会响。
+
+    为什么**不**扩到 `static/vendor/`
+    -------------------------------
+    那两份第三方 CSS 里真的有 `https://fontawesome.com` 与 `https://github.com`，
+    但它们在**注释**里（署名与许可），不是 `url()`，浏览器不会去拉。把它们纳进来
+    只会换来两条永远为红的假告警——而假告警的代价是真告警被忽略。
+    何况 vendor 的字节已由 `SOURCES.json` 的 SHA256 钉死（`TestVendoredFilesMatchManifest`），
+    改不动，用不着这层扫描。
+    """
+    sources = {INDEX_HTML.name: _index_html()}
+    for rel in _PAGE_LOADED_FIRST_PARTY:
+        path = REPO_ROOT / rel
+        assert path.is_file(), (
+            f"扫描面上的第一方文件不存在：{path}。\n"
+            f"它要么被挪走了（那就更新 `_PAGE_LOADED_FIRST_PARTY`），"
+            f"要么是被误删了。"
+        )
+        sources[rel] = path.read_text(encoding="utf-8")
+    return sources
+
+
+def _absolute_hosts() -> dict[str, set[str]]:
+    """{来源文件: 其中的绝对 URL 主机名}。任何一处非空都算失败。"""
+    return {
+        name: set(_ABSOLUTE_URL_RE.findall(text))
+        for name, text in _first_party_sources().items()
+    }
 
 
 def _index_local_refs() -> set[str]:
@@ -161,16 +221,20 @@ class TestNoExternalReferences:
         assert INDEX_HTML.is_file()
 
     def test_no_absolute_urls_remain(self):
-        """本地化完成后，`index.html` 里不该再有任何绝对 URL。
+        """第一方文本里不该再有任何绝对 URL。
 
-        `index.html` 不发起任何 API 调用（那些都在 JS 里用相对路径），
-        所以"绝对 URL 集合为空"是个干净、无例外的判据。
+        `index.html` 与 `app.js` 都不发起绝对 URL 的请求（API 调用在 JS 里
+        用相对路径），所以"绝对 URL 集合为空"是个干净、无例外的判据。
         真需要留一个例外时，请在此显式登记——不要放宽成 `startswith('https://api')`。
         """
-        hosts = _absolute_hosts()
-        assert not hosts, (
-            "index.html 里仍有绝对 URL 指向外部主机：\n  "
-            + "\n  ".join(sorted(hosts))
+        offenders = {
+            name: sorted(hosts)
+            for name, hosts in _absolute_hosts().items()
+            if hosts
+        }
+        assert not offenders, (
+            "以下第一方文件里仍有绝对 URL 指向外部主机：\n  "
+            + "\n  ".join(f"{name}: {hosts}" for name, hosts in offenders.items())
             + "\n阶段 6 的目标是断外网也能用；这些引用会让部署环境在 CDN 不可达时"
             "缺组件（且开发机有外网，看不出来）。"
         )
@@ -182,10 +246,52 @@ class TestNoExternalReferences:
         与上一条的区别：上一条给的是"还剩哪些主机"的集合，
         本参数化直接指出"`images.unsplash.com` 还在"——定位成本差很多。
         """
-        hosts = _absolute_hosts()
-        assert host not in hosts, (
-            f"index.html 仍在引用 {host}。"
-            f"当前残留的外部主机：{sorted(hosts)}"
+        offenders = sorted(
+            name for name, hosts in _absolute_hosts().items() if host in hosts
+        )
+        assert not offenders, (
+            f"第一方文件仍在引用 {host}：{offenders}。"
+        )
+
+    def test_scan_covers_the_sources_phase_7_moved_out(self):
+        """正向对照：扫描面必须**真的**含阶段 7 外移的那两个文件，以及 `pcm-processor.js`。
+
+        没有这一条，`_first_party_sources()` 哪天被"简化"回只读 `index.html`，
+        上面两条会照常全绿——而它们要保护的恰恰是外移之后的那批字节。
+        守卫的扫描面本身也得被钉住，否则它会静默缩水。
+        （已实测：把扫描面改回单文件后，同一条 CDN 注入下 18 条主机断言全绿，
+        只有这一条会响。这就是它存在的理由。）
+
+        **但它挡不住"名单本身被改小"。** 它拿 `_PAGE_LOADED_FIRST_PARTY` 当期望值，
+        而扫描面也是从同一个常量来的——把 `static/js/app.js` 从那行摘掉，
+        期望值与实际值会**一起缩水**，这条照样绿。真正咬住那次改动的是下一条，
+        它拿的是**另一份**名单（`_FIRST_PARTY`）。两条一起才有用。
+        """
+        scanned = set(_first_party_sources())
+        missing = {INDEX_HTML.name, *_PAGE_LOADED_FIRST_PARTY} - scanned
+        assert not missing, (
+            f"扫描面漏掉了这些页面会拉的第一方文件：{sorted(missing)}。"
+            f"当前只扫 {sorted(scanned)}。"
+        )
+
+    def test_both_first_party_lists_agree_on_their_overlap(self):
+        """两份名单的交集必须对得上——它们各说各话时，漏掉的那半无声无息。
+
+        `_FIRST_PARTY` 用 `static/` 相对路径（`css/app.css`），
+        `_PAGE_LOADED_FIRST_PARTY` 用仓库根相对路径（`static/css/app.css`）。
+        两边都有"文件从哪来 / 页面拉什么"的分工，所以**不强行合并**；
+        但凡是 `_FIRST_PARTY` 登记过的 `static/` 第一方件，就一定会随页面被拉，
+        因此**必须**同时出现在扫描面上。反过来不要求：`pcm-processor.js`
+        在扫描面上、不在 `_FIRST_PARTY` 里（它没有下载来源）。
+        """
+        not_scanned = [
+            name for name in sorted(_FIRST_PARTY)
+            if f"static/{name}" not in _PAGE_LOADED_FIRST_PARTY
+        ]
+        assert not not_scanned, (
+            f"这些文件被登记为 `static/` 下的第一方件，却没进外部引用扫描面："
+            f"{not_scanned}。\n"
+            f"它们是页面会拉的字节，漏扫等于给 CDN 引用留一个后门。"
         )
 
 
