@@ -118,7 +118,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # 如果没有 requirements.txt,手动安装
-pip install fastapi uvicorn[standard] sqlalchemy pymysql opencv-python numpy openai aiohttp websockets python-multipart
+pip install fastapi uvicorn[standard] sqlalchemy pymssql opencv-python numpy openai aiohttp websockets python-multipart
 ```
 
 ### 5. 配置环境变量
@@ -371,8 +371,8 @@ curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" http://localhost:800
 ### 问题 3: 数据库连接失败
 
 ```bash
-# 检查数据库连接
-mysql -h host -P port -u username -p
+# 检查数据库连接（SQL Server 用 sqlcmd，不是 mysql 客户端）
+sqlcmd -S host,1433 -U username -P password -d cscl_db -C -Q "SELECT 1"
 
 # 检查环境变量
 sudo cat /etc/smartclass1/smartclass1.env | grep DATABASE_URL
@@ -467,22 +467,19 @@ sudo apt update && sudo apt upgrade -y
 
 ### 数据库备份
 
+⚠️ **本节原给的是 `mysqldump` 脚本，对 SQL Server 完全无效**（该命令是 MySQL 的工具，
+本系统的库是 SQL Server 2022）。原文已移除，**不是**改成另一段现成脚本——
+线上的库是**阿里云 RDS**，其备份方式（自动备份策略、时间点恢复、`BACKUP DATABASE`
+是否可用）**以阿里云控制台与服务商文档为准**，写死一段在这里反而会误导。
+
+需要手工备份时，先用 `sqlcmd` 确认连通，再按服务商的备份方案执行：
+
 ```bash
-# 创建备份脚本
-sudo nano /opt/backup/backup_db.sh
-
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-mysqldump -h host -P port -u username -ppassword database > /opt/backup/db_$DATE.sql
-find /opt/backup -name "db_*.sql" -mtime +7 -delete
-
-# 添加执行权限
-sudo chmod +x /opt/backup/backup_db.sh
-
-# 添加到 crontab (每天凌晨 2 点备份)
-sudo crontab -e
-0 2 * * * /opt/backup/backup_db.sh
+sqlcmd -S <host>,1433 -U <user> -P <password> -d cscl_db -C -Q "SELECT 1"
 ```
+
+另注：`db/schema.sql` 是**表结构的冻结快照**，不是数据备份——它能让空库长出同样的表，
+但里面没有一行业务数据，不能拿去顶替备份。
 
 ### 文件备份
 
