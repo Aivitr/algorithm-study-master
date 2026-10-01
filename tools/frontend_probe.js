@@ -409,6 +409,13 @@ const CLICKS = [
     }
   }
 
+  // 根实例**真正注册**了哪些 watch。
+  // app.js 的选项对象里有**两个同层 `watch` 键**（约 546 行与文件末尾），
+  // 而 JS 对象字面量对重复键是"后者整体胜出"——所以前一个里的 3 个监视器
+  // 从未注册过（见 docs/待验收事项.md A26）。这里从运行时取实际注册集合，
+  // 比用括号深度扫源码可靠：那个扫法我自己写错过一次（被正则字面量带偏）。
+  out.watch_keys = Object.keys(vm.$options.watch || {}).sort();
+
   const counted = new Map();
   for (const note of notes) counted.set(note, (counted.get(note) || 0) + 1);
   out.notes = [...counted].map(([note, times]) => (times > 1 ? `${note}  ×${times}` : note));
