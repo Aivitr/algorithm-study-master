@@ -76,6 +76,19 @@ _FORBIDDEN_HOSTS = (
     "images.unsplash.com",       # 15 张落地页配图
 )
 
+# `static/` 下从此也有了**第一方**源码（不是下载来的第三方件）。
+#
+# `SOURCES.json` 的含义是"下载物的来源与校验清单"——第一方文件没有来源 URL、
+# 没有上游版本，硬塞进去只会让那份清单的含义变浑浊（`test_every_entry_has_provenance`
+# 会立刻要求给它编一个 url 与 version）。
+#
+# 这里**显式列出**，而不是把断言放宽成"只查 vendor/"：显式名单能让
+# "新增了一个第一方文件却忘了登记"在评审里看得见。详见 `docs/待验收事项.md` A27。
+_FIRST_PARTY = {
+    "css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
+    "js/app.js",    # index.html 原 <script> 块（阶段 7 外移）
+}
+
 _ABSOLUTE_URL_RE = re.compile(r"https?://([^/\"'\s)>]+)")
 
 # 会真正发起网络请求的引用形式。只取这四种：
@@ -304,6 +317,17 @@ def _reachable_assets() -> dict[str, str]:
             ref = match.group(2)
             if ref.startswith(("data:", "http://", "https://", "#")):
                 continue
+            if ref.startswith(URL_PREFIX + "/"):
+                # 站内绝对路径，以挂载点为根——**不能**按 CSS 所在目录解析。
+                #
+                # 这条分支此前不存在，因为那时 `@import url('/static/vendor/inter/inter.css')`
+                # 写在 `index.html` 里，由 `_REF_PATTERNS` 的 `@import` 那条式子接走，
+                # 根本走不到这里。阶段 7 把它连同整个 `<style>` 块搬进了
+                # `static/css/app.css`，CSS 分支这才第一次遇到它——
+                # 若按相对路径解析，会得到 `css/static/vendor/inter/inter.css`，
+                # 于是"被引用的文件不存在"报红，而真实原因只是解析基准错了。
+                queue.append((_ref_to_relpath(ref), relpath))
+                continue
             queue.append((posixpath.normpath(posixpath.join(base, ref)), relpath))
 
     return seen
@@ -329,13 +353,20 @@ class TestReachability:
 
         缺了就说明有人手工塞了个文件进去——那种文件没有来源与版本记录，
         下次谁也不知道能不能覆盖。
+
+        第一方源码是例外，且**只能是显式登记的那几个**（见 `_FIRST_PARTY`）：
+        它们本来就该留在仓库里由人维护，谈不上"来源与版本"。
         """
         declared = {entry["path"] for entry in _entries()}
         undeclared = sorted(
-            path for path in _reachable_assets() if path not in declared
+            path
+            for path in _reachable_assets()
+            if path not in declared and path not in _FIRST_PARTY
         )
         assert not undeclared, (
-            f"这些本地文件被引用了，但 SOURCES.json 里没有登记：{undeclared}。"
+            f"这些本地文件被引用了，但既不在 SOURCES.json 里、"
+            f"也不在 _FIRST_PARTY 名单里：{undeclared}。\n"
+            f"若是第一方源码，请加进 `_FIRST_PARTY` 并说明它的由来。"
         )
 
     def test_nothing_is_downloaded_but_unused(self):
