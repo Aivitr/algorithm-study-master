@@ -137,10 +137,8 @@ class VideoEmotionAnalyzer:
 
         candidates = []
         # 1) 项目内兜底（仓库已内置 xml 时优先可用）
-        #    锚点取自 app/core/paths.py，**不再用 `Path(__file__)`**：阶段 3.3 把
-        #    本文件搬进 app/services/ 之后，`__file__` 的父目录会变成 app/services，
-        #    而 xml 仍在仓库根——这里会找不到，且因为下面有 `except Exception`
-        #    而**不报错**，悄悄退到 OpenCV 自带模型。
+        #    锚点取自 app/core/paths.py，不用 `Path(__file__)` 推导：本文件在
+        #    app/services/ 下，`__file__` 的父目录找不到仓库根的 xml。
         try:
             candidates.append(PROJECT_ROOT / "haarcascade_frontalface_default.xml")
         except Exception:
@@ -428,7 +426,7 @@ class VideoEmotionAnalyzer:
         right_eye_upper = pt(386)
         brow_to_eye = ((left_eye_upper[1] - left_brow[1]) + (right_eye_upper[1] - right_brow[1])) / max(1.0, h)
 
-        # 降低阈值，使检测更敏感
+        # 阈值偏低，使检测更敏感
         if smile_lift > 0.01 and mouth_open < 0.18:  # 笑脸：嘴角上扬且嘴巴不太张开
             return "happy", 0.75
         if mouth_open > 0.15:  # 惊讶：嘴巴张开
@@ -489,7 +487,7 @@ class VideoEmotionAnalyzer:
                 emotion = self._map_ai_label(label)
                 score = float(score or 0.0)
 
-                # 降低置信度阈值从 0.5 到 0.35，让更多情绪能通过
+                # 置信度阈值 0.35，让更多情绪能通过
                 if emotion and score > 0.35:
                     if emotion in ("neutral", "calm") and face_rgb is not None:
                         refined, r_score = self._mediapipe_refine(face_rgb)

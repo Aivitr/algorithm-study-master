@@ -401,7 +401,7 @@ class LLMService:
         current_goals: Optional[List[Dict]] = None,
         student_name: str = "同学",
     ) -> Dict:
-        """高收益优化：一次调用同时返回发言评分和进度分析。"""
+        """一次调用同时返回发言评分和进度分析。"""
         speech_content = self._normalize_text(speech_content, 500)
         topic = self._normalize_text(topic, 120)
         recent_context = self._normalize_text(recent_context, 240)
@@ -1017,7 +1017,7 @@ JSON 结构：
             return f"大家可以讨论一下：关于「{topic}」，还有哪些方面值得深入探讨？"
 
     def ai_tutor(self, question: str):
-        """给 server.py 后续可直接复用的导师接口，避免每次重建 client。"""
+        """AI 导师接口：复用同一个 client，避免每次重建。"""
         question = self._normalize_text(question, 800)
         if not question:
             return "问题不能为空"

@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 """Local voiceprint registration and matching.
 
-The previous implementation stored one embedding per user and compared one
-short test embedding against it. That is fast, but very unstable in a noisy
-classroom: one lucky short window can make a different speaker look similar.
-
-This version keeps the same public API while using:
+Keeps the same public API while using:
 - Resemblyzer preprocessing/VAD before embedding.
 - Multiple enrollment embeddings when the recording is long enough.
 - Multi-window verification with a stability check.
