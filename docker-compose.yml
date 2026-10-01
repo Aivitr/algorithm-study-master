@@ -1,32 +1,40 @@
 # ============================================================================
-# 本地开发编排（阶段 5）。
+# 本地开发编排：一条命令拉起整套系统（含数据库）。
 #
-#   docker compose up --build        起服务，浏览器开 http://localhost:8000
+#   cp .env.dev.example .env.dev
+#   docker compose up --build        浏览器开 http://localhost:8000
 #   docker compose run --rm app python -m pytest      （在容器里跑测试套件）
 #
-# ⚠️ 这个容器的默认配置**连不上生产数据库，这是故意的**，先读下面两节再改。
+# 三个服务：
+#   db       mcr.microsoft.com/mssql/server:2022-latest —— **registry 镜像，单独拉取**，
+#            不打包进 app 镜像；数据落在命名卷 mssql-data 里。约 2.31 GB / 常驻约 2 GB 内存。
+#   db-init  同一个镜像，一次性跑 db/schema.sql，跑完退出。
+#   app      从本仓库 Dockerfile 构建，只负责连过去，镜像里不含任何数据库。
 #
 # ---------------------------------------------------------------------------
-# 一、为什么下面那几个数据库键必须硬写在这里
+# 一、数据库配置按环境分层（不再是"硬写死当安全阀"）
 # ---------------------------------------------------------------------------
 #
-# app/core/config.py 的 _apply_env_file() 用的是 `os.environ.setdefault` 语义：
-# **进程里已有的环境变量赢过 .env 文件**。这条既有语义正好能当安全阀用。
+# 容器的库配置来自 .env.dev（**必填**，见下方 env_file）。六个别名齐全：
+# DATABASE_URL + DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME。
 #
-# 本仓库的 .env 指向**生产 RDS**（tests_safe/README.md 有完整导入链）。而
-# app/core/database.py 在**导入期**就执行 _ensure_transcripts_columns()，
-# 也就是"import 即 DDL"。于是"容器起来时连的是哪个库"直接决定了它会不会
-# 对生产库发 ALTER TABLE。
+# 为什么 6 个都要：ORM 读 DATABASE_URL，而 /api/register 与 /api/login
+# **不走 ORM** —— 它们直接 pymssql.connect(DB_HOST, DB_PORT, ...)，不读
+# DATABASE_URL（见 app/routers/auth.py 的文件头）。只给 DATABASE_URL 的话，
+# 这两条路由会连一个不存在的地方，表现为注册失败（A32 就是这个）。
 #
-# 所以 environment 段显式给出那 6 个键。它们进了进程环境，setdefault 就不再
-# 从 .env 取值 —— 生产值被挡住。**不要删它们，也不要改成空字符串**：
-#   * 删掉 → .env 的生产值原样生效
-#   * 留空 → create_engine("") 直接抛 ArgumentError，应用起不来
+# 为什么用 MSSQL 而不是拿 mysql 镜像顶替：pymssql 说的是 TDS 协议，物理上
+# 连不上 MySQL；且 auth.py 用了 GETDATE() / SELECT TOP 1、database.py 用了
+# 不含 COLUMN 关键字的 ALTER TABLE，全是 T-SQL 方言。
 #
-# 需要**临时**连真实库做联调时，**本仓库刻意不提供现成的叠加文件** ——
-# 那等于把"容器会连生产库"变成一个随手可得的开关。真要做的话步骤记在
-# deploy/docker.md，且要自己写那份叠加文件。**那之后容器会对生产库发 DDL**，
-# 动手前请确认你确实要这个。
+# 历史：这里原先硬写 6 个假值当"安全阀"，因为当时工作区的 .env 装的是生产库，
+# 而 import app.core.database 本身就会发 ALTER TABLE（A13）。分层之后这个
+# 理由消失 —— 开发工作区里**根本不存在**生产库连接信息，安全性由"分层"提供，
+# 比"写死"更强：写死只是挡住，分层是压根没有。改动前那份 .env 已备份。
+#
+# ⚠️ 与分层配套的一条纪律：**本编排里的 ${...} 插值读的是仓库根的 .env**。
+# 所以这里**绝不插值 DB_\* / DATABASE_URL** —— 否则生产凭据会被拉进 compose。
+# .env 只装共享密钥（LLM/OSS/Agora/阿里云），库指向归 .env.dev / .env.prod。
 #
 # ---------------------------------------------------------------------------
 # 二、代码怎么进来的
@@ -36,8 +44,7 @@
 # 空命名卷盖住 —— 那是开发机上的 Windows venv，足足 2.1 GB，容器里既用不了
 # （二进制不兼容）又会让文件监听去遍历它。容器用的是镜像里的 /opt/venv。
 #
-# .env **会**跟着挂进来，这是有意的：LLM/OSS/阿里云那些键正需要它，
-# 而被 environment 段挡住的只有数据库那 6 个。
+# .env **会**跟着挂进来，这是有意的：LLM/OSS/阿里云那些键正需要它。
 # 副作用（与在本机直接跑 uvicorn 时一样）：调 /api/research-runtime 的
 # 配置接口会就地改写 .env 里的 RESEARCH_* 三行。
 # ============================================================================
@@ -45,6 +52,58 @@
 name: algorithm-study-master
 
 services:
+  db:
+    # registry 镜像，单独拉取：docker compose pull db
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      # Developer 版免费且功能齐全，本地开发足够
+      MSSQL_PID: Developer
+    # 口令只有一个来源：.env.dev 里的 MSSQL_SA_PASSWORD。让 db 和 app 读同一份文件，
+    # 好过在编排里再写一遍 —— 两处各写一遍迟早会不一致，而症状是"连不上库"这种
+    # 指不到病因的报错。tests_safe/test_docker_assets.py 里有断言盯着这两个值相等。
+    env_file:
+      - path: .env.dev
+        required: true
+    volumes:
+      - mssql-data:/var/opt/mssql
+    # 刻意**不把 1433 发布到宿主**：app 走 compose 网络连它，不需要宿主端口；
+    # 不发布也就不会和宿主上别的 SQL Server（比如手起的 smartclass-mssql）撞车。
+    # 要用 SSMS/DBeaver 连的话，自己加一行 ports（记得绑 127.0.0.1，别开给全网）：
+    #   ports: ["127.0.0.1:14330:1433"]
+    healthcheck:
+      # $$ 是 compose 的转义，让 $ 原样进容器、由容器内的 sh 展开
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "SELECT 1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 首次启动要初始化 master/tempdb，慢；给足冷启动时间，免得健康检查提前判死
+      start_period: 40s
+
+  db-init:
+    # 一次性建库。MSSQL 官方镜像没有 postgres/mysql 那种
+    # /docker-entrypoint-initdb.d 自动执行目录，所以只能另起一个容器来跑脚本。
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # 同样刻意不用 DB_* 命名：db-init 是运维侧容器，不该读 app 的库配置，
+      # 否则 .env 里那份 DB_* 一旦被挂上来，建库就建到生产去了。
+      MSSQL_HOST: db
+      MSSQL_DB: cscl_db
+    env_file:
+      - path: .env.dev
+        required: true
+    volumes:
+      # 只读挂 db/ —— 跑的是 db/init.sh，灌的是 db/schema.sql
+      - ./db:/db:ro
+    entrypoint: ["/bin/bash", "/db/init.sh"]
+    # 一次性任务：跑完就退出，退出码 0 才算成功（app 在等这个）
+    restart: "no"
+
   app:
     build:
       context: .
@@ -52,28 +111,31 @@ services:
       target: dev
     image: algorithm-study-master:dev
 
+    # 关键：等 db-init **成功退出**再起 app。不这么写的话，app 会先起来连上一个
+    # 还没建表的空库，然后在注册时抛出一个和真实原因毫无关系的错。
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
     ports:
       # 宿主端口取自 .env 的 APP_PORT（没写就是 8000）。
       # 注意右边必须是 8000：server.py 的 __main__ 里是写死的，
       # settings.app.port 目前没有任何调用点。
       - "${APP_PORT:-8000}:8000"
 
-    # .env 里的非数据库配置照常生效；文件不存在也不报错（required: false）。
+    # 顺序有意义：后面的覆盖前面的。
+    #   .env      共享密钥（LLM/OSS/Agora/阿里云），缺了也不报错（required: false）
+    #   .env.dev  **开发库指向**，必填 —— 缺了就让 compose 立刻报错，
+    #             而不是静默回落到 sqlite 再给一个莫名其妙的注册失败
     env_file:
       - path: .env
         required: false
+      - path: .env.dev
+        required: true
 
     environment:
       APP_ENV: dev
       PYTHONIOENCODING: utf-8
-
-      # —— 安全阀：见文件头「一」。删掉任何一行都会让容器连回生产库 ——
-      DATABASE_URL: sqlite:///./storage/app.db
-      DB_HOST: 127.0.0.1
-      DB_PORT: "1433"
-      DB_USER: dev_container
-      DB_PASSWORD: dev_container_local_only
-      DB_NAME: cscl_db
 
       # Windows / macOS 的宿主文件系统不产生 inotify 事件，
       # 不开轮询的话 --reload 永远不触发（表现为"改了代码没反应"）。
@@ -99,5 +161,7 @@ services:
     tty: true
 
 volumes:
+  # SQL Server 的数据目录。**不要**在验证时随手 down -v 把它删了 —— 那等于重建库。
+  mssql-data:
   # 空卷，只为把宿主的 venv/ 遮掉
   container-venv-shadow:
