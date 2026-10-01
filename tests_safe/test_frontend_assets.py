@@ -15,12 +15,13 @@
 
 2. **路径笔误。** `/static/vendor/vue-2.6.14.js` 写成 `vue-2.6.14.js.old`。
    404 是**静默**的：浏览器只在控制台留一行，页面照样出来，只是白屏。
-   → `TestIndexHtmlWiring::test_every_local_reference_resolves_to_a_file`
+   → `TestReachability::test_every_reachable_asset_exists`
 
-3. **下载了没接上 / 接上了没下载。** 两个方向都要挡：
-   清单里有但 `index.html` 没引用 = 白下载一份进仓库；
-   `index.html` 引用了但清单里没有 = 漏下载。
-   → `TestIndexHtmlWiring` 的两条
+3. **下载了没接上 / 接上了没下载。** 两个方向都要挡，且必须**跟着 CSS 的
+   `url()` 走**：Font Awesome 的 webfonts 与 Inter 的 woff2 不在 `index.html`
+   里，只在那两份 CSS 里。只看 `index.html` 会把它们误判成"白下载"。
+   走不到的清单项 = 真白下载；引用到却没登记的 = 来源不明。
+   → `TestReachability` 的后两条
 
 4. **文件被截断。** 下载中途断开，落一个半截的 `vue.js`。
    浏览器报的是 `Unexpected end of input`——**症状离原因很远**。
@@ -34,13 +35,20 @@
 清单只留**一处**（`static/vendor/SOURCES.json`，由生成脚本产出），
 测试只负责核对现实与它是否一致。
 
-对齐 `pytest.ini` 的安全约定：本文件**只读文件**，不起服务、不发请求、不连数据库。
+5. **文件在磁盘上，但没被伺服出去。** 上面四条读的都是文件系统——而磁盘上有文件
+   ≠ 应用会把它送出去。`/static` 挂载的目录参数写错、挂载点被别的路由抢先匹配、
+   或者干脆忘了 `app.mount(...)`，这三种情况下前四条**全部为绿**，
+   而浏览器拿到的是 404。→ `TestServedByApp`
+
+对齐 `pytest.ini` 的安全约定：本文件只读文件；`TestServedByApp` 走的是
+`tests_safe/conftest.py` 的隔离 app（SQLite + 禁网），**不碰任何外部服务**。
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import posixpath
 import re
 from pathlib import Path
 
@@ -80,6 +88,9 @@ _REF_PATTERNS = (
     re.compile(r"""@import\s+url\(\s*['"]?([^'")]+)"""),
     re.compile(r"""<img[^>]*\ssrc=["']([^"']+)["']"""),
 )
+
+# CSS 正文里的 url(...)。与落地脚本用的是同一个形状。
+_CSS_URL_RE = re.compile(r"""url\(\s*(['"]?)([^'")]+)\1\s*\)""")
 
 
 def _index_html() -> str:
@@ -180,6 +191,23 @@ class TestVendoredFilesMatchManifest:
         duplicates = sorted({p for p in paths if paths.count(p) > 1})
         assert not duplicates, f"SOURCES.json 里有重复条目：{duplicates}"
 
+    def test_manifest_is_lf_only(self):
+        """清单必须是纯 LF——它的**自证方式**依赖这一点。
+
+        本仓库用"重跑一次生成脚本，看仓库有没有变"来证明清单是算出来的、不是抄的。
+        而 `Path.write_text` 默认做平台换行转换：在 Windows 上写出的清单是 CRLF，
+        入库时被 `.gitattributes` 的 `* text=auto eol=lf` 归一成 LF，
+        于是**每次在 Windows 上重跑都会留下一条纯换行的假 diff**。
+        假 diff 本身无害，有害的是它让上面那条自证失效，且失效得悄无声息。
+
+        （这个坑是实打实踩到的：第一版清单就是这样进了一次提交。）
+        """
+        raw = MANIFEST.read_bytes()
+        assert b"\r" not in raw, (
+            f"{MANIFEST.name} 里出现了 CR（{raw.count(b'\\r')} 个）。"
+            f"生成脚本的 write_manifest 需要 newline=\"\\n\"。"
+        )
+
     def test_every_entry_has_provenance(self):
         """每个条目都要有来源 URL 与版本——"这个文件是哪来的"必须可回答。
 
@@ -240,47 +268,137 @@ class TestVendoredFilesMatchManifest:
 # --------------------------------------------------------------------------
 
 
-class TestIndexHtmlWiring:
-    def test_every_local_reference_resolves_to_a_file(self):
-        """`index.html` 引用的每个 `/static/...` 都必须真实存在。
+def _reachable_assets() -> dict[str, str]:
+    """从 `index.html` 出发，跟着 CSS 的 `url()` 往下走，返回 {路径: 谁引用的}。
+
+    为什么要跟着走，而不是只看 `index.html`
+    --------------------------------------
+    Font Awesome 的 webfonts 与 Inter 的 woff2 **不在 `index.html` 里**——
+    它们只在那两份 CSS 的 `url()` 里。只看 `index.html` 的话，这 15 个字体
+    会被误判成"下载了没用上"。而它们恰恰是本阶段最容易漏、漏了症状又最隐蔽的
+    那一半：图标静默变空框、字体静默回退到系统字体，页面**照常渲染**。
+
+    （这条模型最初写错了，测试红过一次。红得对——错的是模型。）
+    """
+    queue: list[tuple[str, str]] = [
+        (_ref_to_relpath(ref), "index.html") for ref in _index_local_refs()
+    ]
+    seen: dict[str, str] = {}
+
+    while queue:
+        relpath, source = queue.pop()
+        if relpath in seen:
+            continue
+        seen[relpath] = source
+
+        if not relpath.endswith(".css"):
+            continue
+        css_path = STATIC_DIR / relpath
+        if not css_path.is_file():
+            continue  # 缺失由"必须存在"那条断言报，这里不重复报
+
+        base = posixpath.dirname(relpath)
+        for match in _CSS_URL_RE.finditer(
+            css_path.read_text(encoding="utf-8", errors="replace")
+        ):
+            ref = match.group(2)
+            if ref.startswith(("data:", "http://", "https://", "#")):
+                continue
+            queue.append((posixpath.normpath(posixpath.join(base, ref)), relpath))
+
+    return seen
+
+
+class TestReachability:
+    def test_every_reachable_asset_exists(self):
+        """浏览器会请求的每一个本地文件都必须真实存在。
 
         这条挡的是**路径笔误**：404 是静默的，页面会出来，只是白屏或缺图。
         """
         missing = [
-            ref for ref in sorted(_index_local_refs())
-            if not (STATIC_DIR / _ref_to_relpath(ref)).is_file()
+            path for path in sorted(_reachable_assets())
+            if not (STATIC_DIR / path).is_file()
         ]
         assert not missing, (
-            f"index.html 引用了这些不存在的本地文件：{missing}。\n"
+            f"这些被引用到的本地文件不存在：{missing}。\n"
             f"（相对 {STATIC_DIR} 解析。）"
         )
 
-    def test_manifest_is_fully_referenced(self):
-        """清单里的每个文件都必须被 `index.html` 引用到。
-
-        否则就是白下载一份进了仓库——占体积、还得跟着升版本。
-        （允许显式豁免：条目里写 `"unused": true`。）
-        """
-        referenced = {_ref_to_relpath(ref) for ref in _index_local_refs()}
-        unreferenced = sorted(
-            entry["path"] for entry in _entries()
-            if entry["path"] not in referenced and not entry.get("unused")
-        )
-        assert not unreferenced, (
-            f"这些文件在 SOURCES.json 里，但 index.html 一处都没引用：{unreferenced}。"
-        )
-
-    def test_every_reference_is_declared_in_manifest(self):
-        """反方向：`index.html` 引用的本地文件必须都在清单里。
+    def test_every_reachable_asset_is_declared(self):
+        """反方向：被引用到的文件必须都在清单里。
 
         缺了就说明有人手工塞了个文件进去——那种文件没有来源与版本记录，
         下次谁也不知道能不能覆盖。
         """
         declared = {entry["path"] for entry in _entries()}
         undeclared = sorted(
-            _ref_to_relpath(ref) for ref in _index_local_refs()
-            if _ref_to_relpath(ref) not in declared
+            path for path in _reachable_assets() if path not in declared
         )
         assert not undeclared, (
-            f"index.html 引用了这些本地文件，但 SOURCES.json 里没有登记：{undeclared}。"
+            f"这些本地文件被引用了，但 SOURCES.json 里没有登记：{undeclared}。"
+        )
+
+    def test_nothing_is_downloaded_but_unused(self):
+        """清单里的每一项都必须**可达**。
+
+        否则就是白下载一份进仓库——占体积、还得跟着升版本。
+        "可达"含传递引用（见 `_reachable_assets`），所以字体文件不该在这里出现。
+        （允许显式豁免：条目里写 `"unused": true`。）
+        """
+        reachable = set(_reachable_assets())
+        unreferenced = sorted(
+            entry["path"] for entry in _entries()
+            if entry["path"] not in reachable and not entry.get("unused")
+        )
+        assert not unreferenced, (
+            f"这些文件在 SOURCES.json 里，但从 index.html 出发走不到：{unreferenced}。"
+        )
+
+
+# --------------------------------------------------------------------------
+# 5. 真的经 app 伺服出去了吗
+# --------------------------------------------------------------------------
+
+
+class TestServedByApp:
+    """端到端：从 HTTP 入口拿到的字节，必须与磁盘上那份逐字节相同。
+
+    前面四条全部读文件系统。磁盘上有文件 ≠ 应用会把它送出去：
+    `/static` 挂载的目录参数指错、挂载点被别的路由抢先匹配、或者
+    `app.mount(...)` 被误删——这三种情况下前面**全都为绿**，
+    而浏览器拿到的是 404（正是本文件开头说的那类"有外网就看不出来"）。
+
+    这一条走 `tests_safe/conftest.py` 的隔离 app：SQLite + 禁网，
+    不发真实请求、不连任何外部服务。注意它验证的是**挂载行为**，
+    不是 CDN 是否可达——后者本地无从验证，只能靠 `TestNoExternalReferences`
+    保证页面压根不再去外面要东西。
+    """
+
+    def test_every_manifest_file_is_served_byte_identical(self, client):
+        problems: list[str] = []
+        for entry in _entries():
+            url = f"{URL_PREFIX}/{entry['path']}"
+            response = client.get(url)
+            if response.status_code != 200:
+                problems.append(f"{url}：HTTP {response.status_code}")
+                continue
+            digest = hashlib.sha256(response.content).hexdigest()
+            if digest != entry["sha256"]:
+                problems.append(
+                    f"{url}：送出的内容与磁盘不符"
+                    f"（清单 {entry['sha256'][:12]}，实际 {digest[:12]}）"
+                )
+        assert not problems, (
+            "以下本地资源无法经 /static 正确伺服：\n  "
+            + "\n  ".join(problems)
+            + "\n（文件在磁盘上却发不出去，浏览器只会看到 404 与白屏。）"
+        )
+
+    def test_index_html_is_served(self, client):
+        """`GET /` 就是那份 index.html——上面所有本地路径都挂在它身上。"""
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"/static/" in response.content, (
+            "`GET /` 返回的内容里找不到任何 /static/ 引用。"
+            "要么它是另一份文件，要么本地化没接上。"
         )

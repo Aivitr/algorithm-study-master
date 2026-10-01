@@ -1,0 +1,276 @@
+{
+  "note": "本文件由 tools/vendor_frontend.py 生成，请勿手改。它记录 static/ 下每个本地资源的三件事：从哪来、什么版本、内容对不对（SHA256）。改动资源请改脚本里的清单后重跑。",
+  "files": [
+    {
+      "path": "img/1461749280684-dccba630e2f6__800x420.jpg",
+      "url": "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800&h=420&fit=crop",
+      "version": "1461749280684-dccba630e2f6",
+      "sha256": "d788d033b10e59632e091c367864a7b59d1b135cab223c2ada949b31e954ec3b",
+      "bytes": 71974
+    },
+    {
+      "path": "img/1497633762265-9d179a990aa6__720x1080.jpg",
+      "url": "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=720&h=1080&fit=crop",
+      "version": "1497633762265-9d179a990aa6",
+      "sha256": "65499c65518e1cbf50d752886d1eb428f2e5c47ccf65bf008ca9ff3242a0642b",
+      "bytes": 76531
+    },
+    {
+      "path": "img/1509062522246-3755977927d7__720x900.jpg",
+      "url": "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=720&h=900&fit=crop",
+      "version": "1509062522246-3755977927d7",
+      "sha256": "8aa8cb3c2f878d5081f139b67005379fb1922cf83928d5a18f39883fd32f592b",
+      "bytes": 110141
+    },
+    {
+      "path": "img/1511452885600-a3d2c9148a31__720x980.jpg",
+      "url": "https://images.unsplash.com/photo-1511452885600-a3d2c9148a31?w=720&h=980&fit=crop",
+      "version": "1511452885600-a3d2c9148a31",
+      "sha256": "0c610e3460b6e1a56cc60e85daa425eefdc0b0a2619e4b74a9731b8c823221b2",
+      "bytes": 73626
+    },
+    {
+      "path": "img/1513258496099-48168024aec0__720x980.jpg",
+      "url": "https://images.unsplash.com/photo-1513258496099-48168024aec0?w=720&h=980&fit=crop",
+      "version": "1513258496099-48168024aec0",
+      "sha256": "56ff4c7184b3d2bb5a81da3a4f999c456b19d1d087fa7dc16b1a5f3d6a5f2325",
+      "bytes": 88155
+    },
+    {
+      "path": "img/1516321497487-e288fb19713f__900x560.jpg",
+      "url": "https://images.unsplash.com/photo-1516321497487-e288fb19713f?w=900&h=560&fit=crop",
+      "version": "1516321497487-e288fb19713f",
+      "sha256": "06e030cba1dbd4930e1d76f0e99ef7a5198ce0f1fddd016d2bb4218dfbe53679",
+      "bytes": 123504
+    },
+    {
+      "path": "img/1517048676732-d65bc937f952__1600x900.jpg",
+      "url": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600&h=900&fit=crop",
+      "version": "1517048676732-d65bc937f952",
+      "sha256": "beb51157af307af806d5bd9be50b61922bde2581ec68a1128fbc3444a7dd1815",
+      "bytes": 202814
+    },
+    {
+      "path": "img/1518186285589-2f7649de83e0__800x420.jpg",
+      "url": "https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=800&h=420&fit=crop",
+      "version": "1518186285589-2f7649de83e0",
+      "sha256": "82982901cca9c446856504d27f19ffddd95be6d72d49f119bdf162b93a881f3f",
+      "bytes": 82306
+    },
+    {
+      "path": "img/1522071820081-009f0129c71c__800x1000.jpg",
+      "url": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=1000&fit=crop",
+      "version": "1522071820081-009f0129c71c",
+      "sha256": "82ebf2c3cf9525cd7854c7dacd814075864715010b39246e0cf173cc13ca1102",
+      "bytes": 143532
+    },
+    {
+      "path": "img/1522202176988-66273c2fd55f__1200x760.jpg",
+      "url": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&h=760&fit=crop",
+      "version": "1522202176988-66273c2fd55f",
+      "sha256": "2a323bd5f153286498591573a8ab79fb8926f462b08d0c1199071e5a6a22c120",
+      "bytes": 159145
+    },
+    {
+      "path": "img/1522202176988-66273c2fd55f__800x420.jpg",
+      "url": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=420&fit=crop",
+      "version": "1522202176988-66273c2fd55f",
+      "sha256": "6819ce7ea086af01ad28826fcc80305ef2251acd2c1a73663f96c8dbf79e2f09",
+      "bytes": 74417
+    },
+    {
+      "path": "img/1523240795612-9a054b0db644__800x1000.jpg",
+      "url": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=1000&fit=crop",
+      "version": "1523240795612-9a054b0db644",
+      "sha256": "bbc765ddcdc192811f39c1758d8b5fd99fb762854d1f36b3f6842e7956aa7025",
+      "bytes": 145085
+    },
+    {
+      "path": "img/1523240795612-9a054b0db644__900x560.jpg",
+      "url": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&h=560&fit=crop",
+      "version": "1523240795612-9a054b0db644",
+      "sha256": "01f5e0addfa119f35e40ecf4c2f6f034655416c03fa48290fce3e0c393e9104f",
+      "bytes": 108023
+    },
+    {
+      "path": "img/1524995997946-a1c2e315a42f__720x1080.jpg",
+      "url": "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=720&h=1080&fit=crop",
+      "version": "1524995997946-a1c2e315a42f",
+      "sha256": "6d6aa233919b9517801f0c5fcf2cc7e4f9baaec468b04ffccdb09d29514f86ed",
+      "bytes": 138386
+    },
+    {
+      "path": "img/1588072432836-e10032774350__720x900.jpg",
+      "url": "https://images.unsplash.com/photo-1588072432836-e10032774350?w=720&h=900&fit=crop",
+      "version": "1588072432836-e10032774350",
+      "sha256": "221ca55a9796a2f6d68ce3aea9b321d131c12b69d18ce9e9f233ad74f4d37c4f",
+      "bytes": 105687
+    },
+    {
+      "path": "vendor/agora/AgoraRTC_N-4.22.0.js",
+      "url": "https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js",
+      "version": "4.22.0",
+      "sha256": "141d58d5ba02e08e1879c9fdd9a3b7d1fc125d1e65bb71ba7421a03b7a9e2c8c",
+      "bytes": 1153120
+    },
+    {
+      "path": "vendor/axios-1.20.0.min.js",
+      "url": "https://cdn.jsdelivr.net/npm/axios@1.20.0/dist/axios.min.js",
+      "version": "1.20.0",
+      "sha256": "7c433c881c3b0903317193a0dd5af714ce0f65cf77d5c7f067f18b96f0e8e2c7",
+      "bytes": 68211,
+      "fetched_from": "https://registry.npmmirror.com/axios/1.20.0/files/dist/axios.min.js"
+    },
+    {
+      "path": "vendor/echarts-5.4.0.min.js",
+      "url": "https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js",
+      "version": "5.4.0",
+      "sha256": "c259ce9b4ee3526429a1c5a5dcfb487af1c77645c0862981885e170e816d87a7",
+      "bytes": 1020185,
+      "fetched_from": "https://registry.npmmirror.com/echarts/5.4.0/files/dist/echarts.min.js"
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/css/all.min.css",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css",
+      "version": "6.0.0",
+      "sha256": "8d321d88cb97fdedc3189506c25de9292c6e73a60ebaab496243346c6404480e",
+      "bytes": 89220
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-brands-400.ttf",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-brands-400.ttf",
+      "version": "6.0.0",
+      "sha256": "9e122861bc5f7d6190d580b22acc5b1c3f8cdba9f495593cccd3b47d2cbfa2fd",
+      "bytes": 180148
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-brands-400.woff2",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-brands-400.woff2",
+      "version": "6.0.0",
+      "sha256": "29bc44694c394921d1f00271128a2e4cd8293516216e24eac07a73fa821fc1f5",
+      "bytes": 104544
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-regular-400.ttf",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-regular-400.ttf",
+      "version": "6.0.0",
+      "sha256": "709034805d10429d24862ad685d561808328329debdbca4f70487b508320a3ff",
+      "bytes": 60380
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-regular-400.woff2",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-regular-400.woff2",
+      "version": "6.0.0",
+      "sha256": "fa79fc4f2559112ff3dd27cf5be216d9b5f88066ceef728264f5a3a1a195fc1e",
+      "bytes": 23900
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-solid-900.ttf",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-solid-900.ttf",
+      "version": "6.0.0",
+      "sha256": "1782156bfa2054db429277b42f143298a1ce03437c05e2779ca7875112b19d3c",
+      "bytes": 303480
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-solid-900.woff2",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-solid-900.woff2",
+      "version": "6.0.0",
+      "sha256": "1b099f88c06ed0869872561c157f0ec9cbe133a0939d9ece4ee1e1f54bd4683d",
+      "bytes": 126828
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-v4compatibility.ttf",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-v4compatibility.ttf",
+      "version": "6.0.0",
+      "sha256": "fde941c0964fab984f6af0697b3fec92e7df384eec9941babfd3e4cbbd6211c2",
+      "bytes": 10556
+    },
+    {
+      "path": "vendor/fontawesome/6.0.0/webfonts/fa-v4compatibility.woff2",
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/webfonts/fa-v4compatibility.woff2",
+      "version": "6.0.0",
+      "sha256": "b3abfccce275536beaaeba990e900a0c08ed2fefbabf4a8bcbb2e2ffe3f2431f",
+      "bytes": 4956
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "71d5ee93cc1e9f1d520a3a8b66456de18c7879d8df09d57fcd2eaff75fef0075",
+      "bytes": 18748
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "bytes": 48256
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "1be3448e292fbf05ffe176fe1e43f135013d50b1e7d324ad1a558f623d3bb6f6",
+      "bytes": 18996
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+      "bytes": 85068
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "ca157063339ac4ad418f214f3abfed119b0798ab4d377386ce5c9e5a7a435ebd",
+      "bytes": 25960
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "6e9e020a25f9b56d418f2c085b1d3c09725a4da23fe693a5b463064606732190",
+      "bytes": 11232
+    },
+    {
+      "path": "vendor/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2",
+      "url": "https://fonts.gstatic.cn/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "5c66f9e07e90c6d4ac4922cc68d60de26c17b1858e677fb5e603fce3952b3ff2",
+      "bytes": 10252
+    },
+    {
+      "path": "vendor/inter/inter.css",
+      "url": "https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+      "version": "Inter v20（Google Fonts，2026-10-01 实测）",
+      "sha256": "785d884eb5b7e4e79882b8c2cd85fe53536043cd6145cbc81ab99b043e0cb2b9",
+      "bytes": 11025
+    },
+    {
+      "path": "vendor/marked-15.0.12.min.js",
+      "url": "https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js",
+      "version": "15.0.12",
+      "sha256": "3e7e7d7feb3e5d58cb6c804f68ab5c24cc7e5eb6270fd6e5cbb9124739217d0c",
+      "bytes": 39903,
+      "fetched_from": "https://registry.npmmirror.com/marked/15.0.12/files/marked.min.js"
+    },
+    {
+      "path": "vendor/tailwind-2.2.19.min.css",
+      "url": "https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css",
+      "version": "2.2.19",
+      "sha256": "b6ad97402eddb903e7a5d7a73ee47a679204efbdda4521a391cbad9df509b932",
+      "bytes": 2934019,
+      "fetched_from": "https://registry.npmmirror.com/tailwindcss/2.2.19/files/dist/tailwind.min.css"
+    },
+    {
+      "path": "vendor/vue-2.6.14.js",
+      "url": "https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js",
+      "version": "2.6.14",
+      "sha256": "69b75483b270421e1a89426dd59387ba090772313561c3e9fa415396a78e8936",
+      "bytes": 344009,
+      "fetched_from": "https://registry.npmmirror.com/vue/2.6.14/files/dist/vue.js"
+    }
+  ]
+}

@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <title>智慧协作学习平台 - Smart Collaborative Learning</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/static/vendor/vue-2.6.14.js"></script>
+    <script src="/static/vendor/axios-1.20.0.min.js"></script>
+    <script src="/static/vendor/echarts-5.4.0.min.js"></script>
+    <script src="/static/vendor/marked-15.0.12.min.js"></script>
     <!-- 声网 Agora Web SDK (替代 WebRTC Mesh) -->
-    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="/static/vendor/agora/AgoraRTC_N-4.22.0.js"></script>
+    <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
+    <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         [v-cloak] { display: none !important; }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('/static/vendor/inter/inter.css');
         
         :root {
             /* 🎨 Teal 教务主题色系 */
@@ -2024,15 +2024,15 @@
         </nav>
 
         <section id="home" class="lp-hero">
-            <div class="lp-hero-decor is-tall is-front lp-d-l1"><img src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=720&h=1080&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-wide is-back lp-d-l2"><img src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?w=900&h=560&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-mid is-front lp-d-l3"><img src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=720&h=900&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-tall is-back lp-d-l4"><img src="https://images.unsplash.com/photo-1513258496099-48168024aec0?w=720&h=980&fit=crop" alt="decor"></div>
+            <div class="lp-hero-decor is-tall is-front lp-d-l1"><img src="/static/img/1524995997946-a1c2e315a42f__720x1080.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-wide is-back lp-d-l2"><img src="/static/img/1516321497487-e288fb19713f__900x560.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-mid is-front lp-d-l3"><img src="/static/img/1588072432836-e10032774350__720x900.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-tall is-back lp-d-l4"><img src="/static/img/1513258496099-48168024aec0__720x980.jpg" alt="decor"></div>
 
-            <div class="lp-hero-decor is-tall is-back lp-d-r1"><img src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=720&h=1080&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-wide is-front lp-d-r2"><img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&h=560&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-mid is-back lp-d-r3"><img src="https://images.unsplash.com/photo-1509062522246-3755977927d7?w=720&h=900&fit=crop" alt="decor"></div>
-            <div class="lp-hero-decor is-tall is-front lp-d-r4"><img src="https://images.unsplash.com/photo-1511452885600-a3d2c9148a31?w=720&h=980&fit=crop" alt="decor"></div>
+            <div class="lp-hero-decor is-tall is-back lp-d-r1"><img src="/static/img/1497633762265-9d179a990aa6__720x1080.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-wide is-front lp-d-r2"><img src="/static/img/1523240795612-9a054b0db644__900x560.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-mid is-back lp-d-r3"><img src="/static/img/1509062522246-3755977927d7__720x900.jpg" alt="decor"></div>
+            <div class="lp-hero-decor is-tall is-front lp-d-r4"><img src="/static/img/1511452885600-a3d2c9148a31__720x980.jpg" alt="decor"></div>
 
             <div class="lp-shell relative z-10 lp-reveal">
                 <h1 class="lp-hero-title">
@@ -2053,7 +2053,7 @@
         <section class="lp-section">
             <div class="lp-shell">
                 <div class="lp-focus-banner lp-reveal" data-delay="1">
-                    <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600&h=900&fit=crop" alt="让学习变得更简单高效">
+                    <img src="/static/img/1517048676732-d65bc937f952__1600x900.jpg" alt="让学习变得更简单高效">
                     <div class="lp-focus-overlay">
                         <div>
                             <h3>让学习变得更简单高效</h3>
@@ -2064,17 +2064,17 @@
 
                 <div class="lp-mini-grid lp-reveal" data-delay="2">
                     <article class="lp-mini-card">
-                        <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=420&fit=crop" alt="提升参与度">
+                        <img src="/static/img/1522202176988-66273c2fd55f__800x420.jpg" alt="提升参与度">
                         <h4>提升参与度</h4>
                         <p>实时情绪追踪，为学生提供针对性引导</p>
                     </article>
                     <article class="lp-mini-card">
-                        <img src="https://images.unsplash.com/photo-1518186285589-2f7649de83e0?w=800&h=420&fit=crop" alt="节省时间">
+                        <img src="/static/img/1518186285589-2f7649de83e0__800x420.jpg" alt="节省时间">
                         <h4>节省时间</h4>
                         <p>AI智能报告，帮教师处理繁琐的评估工作</p>
                     </article>
                     <article class="lp-mini-card">
-                        <img src="https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800&h=420&fit=crop" alt="改善成果">
+                        <img src="/static/img/1461749280684-dccba630e2f6__800x420.jpg" alt="改善成果">
                         <h4>改善成果</h4>
                         <p>数据驱动，提升教学策略和学习效果</p>
                     </article>
@@ -2111,7 +2111,7 @@
         <section id="benefits" class="lp-section">
             <div class="lp-shell lp-why lp-reveal" data-delay="1">
                 <div class="lp-why-img">
-                    <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&h=760&fit=crop" alt="协作课堂">
+                    <img src="/static/img/1522202176988-66273c2fd55f__1200x760.jpg" alt="协作课堂">
                 </div>
                 <div>
                     <h3>为什么选择我们?</h3>
@@ -2257,7 +2257,7 @@
             
             <!-- 右侧：美化图片 -->
             <div class="hidden md:block relative overflow-hidden rounded-r-3xl">
-                <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&h=1000&fit=crop" alt="学生协作" class="w-full h-full object-cover">
+                <img src="/static/img/1523240795612-9a054b0db644__800x1000.jpg" alt="学生协作" class="w-full h-full object-cover">
                 <div class="absolute inset-0 opacity-70" style="background: linear-gradient(to top, var(--primary-dark), transparent, transparent);"></div>
                 <div class="absolute bottom-10 left-10 right-10 text-white">
                     <h3 class="text-3xl font-bold mb-3">赋能协作学习</h3>
@@ -2350,7 +2350,7 @@
             
             <!-- 右侧：美化图片 -->
             <div class="hidden md:block relative overflow-hidden rounded-r-3xl">
-                <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&h=1000&fit=crop" alt="团队协作" class="w-full h-full object-cover">
+                <img src="/static/img/1522071820081-009f0129c71c__800x1000.jpg" alt="团队协作" class="w-full h-full object-cover">
                 <div class="absolute inset-0 opacity-70" style="background: linear-gradient(to top, var(--primary-dark), transparent, transparent);"></div>
                 <div class="absolute bottom-10 left-10 right-10 text-white">
                     <h3 class="text-3xl font-bold mb-3">一起成长</h3>
