@@ -75,8 +75,10 @@ BASELINE = Path(__file__).resolve().parent / "baselines" / "frontend_render.json
 EXIT_MISSING_JSDOM = 5
 
 # 基线至少要有这么多状态/接线，否则说明它被清空了或录歪了。
-MIN_STATES = 12
-MIN_CLICKS = 10
+# 这两个下限是**跟着基线一起长**的：加了覆盖面就把它抬上去，否则新加的用例
+# 被悄悄删掉时这里不会响——下限停在旧数字上，测的就不是"覆盖面还在不在"了。
+MIN_STATES = 13
+MIN_CLICKS = 18
 
 TIMEOUT_SECONDS = 180
 

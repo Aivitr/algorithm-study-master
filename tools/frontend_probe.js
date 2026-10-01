@@ -126,6 +126,14 @@ const tick = () => new Promise(resolve => vm.$nextTick(resolve));
 const snapshot = () => doc.getElementById('app').outerHTML;
 const hash = text => crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
 
+// 本探针会动到的根实例字段，挂载后立刻留一份初值。
+// 用途是让 `goto` 能把上一个状态**连点击产生的副作用一起**清掉。
+const TOUCHED = [
+  'currentUser', 'pageState', 'showAITutor', 'showClassModal',
+  'viewingGroupReports', 'activeTab', 'globalModal',
+];
+const INITIAL = Object.fromEntries(TOUCHED.map(key => [key, vm[key]]));
+
 // ---------------------------------------------------------------------------
 // 1. 多状态快照
 // ---------------------------------------------------------------------------
@@ -151,6 +159,10 @@ const STATES = [
   ['注册页', () => { vm.currentUser = null; vm.pageState = 'register'; }],
   ['大厅（学生）', () => { vm.currentUser = asUser('student'); vm.pageState = 'lobby'; }],
   ['大厅（教师）', () => { vm.currentUser = asUser('teacher'); vm.pageState = 'lobby'; }],
+  // 侧栏「个人中心」的真实接线是 `loadVoiceprintStatus()`（触网），所以这一页
+  // 用注入进入；但它**自己**的交互（下面的「开始对话」）照样是点出来的。
+  // 探针里每个状态都要标清"哪一段是注入的、哪一段是点的"，否则覆盖面会自我膨胀。
+  ['个人中心（学生）', () => { vm.currentUser = asUser('student'); vm.pageState = 'lobby'; vm.activeTab = 'profile'; }],
   ['课堂（学生）', () => { vm.currentUser = asUser('student'); vm.pageState = 'classroom'; }],
   ['课堂（教师）', () => { vm.currentUser = asUser('teacher'); vm.pageState = 'classroom'; }],
   ['AI 辅导弹窗', () => { vm.currentUser = asUser('student'); vm.pageState = 'lobby'; vm.showAITutor = true; }],
@@ -195,11 +207,28 @@ const STATE_SETUP = new Map(STATES.map(([name, apply]) => [name, apply]));
 const goto = async name => {
   const apply = STATE_SETUP.get(name);
   if (!apply) throw new Error(`没有名为「${name}」的状态`);
+  // 先归位、再摆前置状态。少了这一步，上一条点击留下的 showClassModal=true
+  // 会让下一条的"遮罩恰好一个"断言报出"实为 2 个"——症状离原因很远。
+  // 注意这不改变 STATES 的语义：每个状态本来就是**从初始实例**摆出来的一个快照。
+  for (const key of TOUCHED) vm[key] = INITIAL[key];
   apply();
   await tick();
 };
 
 const overlay = () => doc.querySelector('.global-modal-overlay');
+
+// 全屏弹窗的遮罩。10 个 `.fixed.inset-0` 里绝大多数挂在 v-if 上、默认不在 DOM 里，
+// 所以"渲染出来的恰好一个"本身就是断言：多于一个说明状态没建干净，宁可报错也不要瞎选第一个。
+const screenOverlay = () => {
+  const all = [...doc.querySelectorAll('#app .fixed.inset-0')];
+  if (all.length !== 1) return { el: null, why: `.fixed.inset-0 应恰好渲染 1 个，实为 ${all.length} 个` };
+  return { el: all[0], why: null };
+};
+
+// 关闭按钮＝遮罩内**文档序第一个**带 .fa-times 的按钮（即弹窗头部的 ×）。
+// 不按文字选：这些按钮里只有一个图标，没有文字。取文档序第一个而不是"唯一一个"——
+// 课堂弹窗选文件后会多出一个删除按钮（index.html:2064），同样带 .fa-times。
+const closeButtonIn = el => [...el.querySelectorAll('button')].find(b => b.querySelector('.fa-times'));
 
 const CLICKS = [
   ['落地页点“登录” → 进登录页', '默认（落地页）', async () => {
@@ -272,6 +301,70 @@ const CLICKS = [
     btn.click(); await tick();
     return settled === false ? null : [`Promise 应兑现为 false，实为 ${JSON.stringify(settled)}`];
   }],
+
+  // 下面这一组补的是探针第一版**最大的假象**：那 4 个弹窗状态全是直接注入
+  // （`vm.showAITutor = true`）摆出来的，于是"点开弹窗"这根接线从来没被验过。
+  // 注入能证明"弹窗渲染得对"，证明不了"点得开"——而拆分模板块要拆坏的，
+  // 恰恰是后者。所以这里一律走真实按钮，注入只用来摆前置状态。
+  //
+  // 另有一条**已知边界**：从大厅切到「个人中心」用的是注入（真实接线会调
+  // loadVoiceprintStatus()，触网），从「个人中心」再点开 AI 弹窗则是真点击。
+  ['大厅（学生）点“加入课堂” → 开进入课堂弹窗', '大厅（学生）', async () => {
+    // 匹配到的是文档序第一个，即侧栏那颗（index.html:210）；大厅首页里还有一颗
+    // （index.html:389）文案相同。两颗都写 `showClassModal = true`，选哪颗都成立。
+    const btn = buttonWith(/加入课堂/);
+    if (!btn) return ['大厅（学生）上找不到“加入课堂”按钮（index.html:210 / 389）'];
+    btn.click(); await tick();
+    return vm.showClassModal === true ? null : [`点了“加入课堂”但 showClassModal 为 ${vm.showClassModal}`];
+  }],
+  ['大厅（教师）点“创建课堂” → 开进入课堂弹窗', '大厅（教师）', async () => {
+    const btn = buttonWith(/创建课堂/);
+    if (!btn) return ['大厅（教师）上找不到“创建课堂”按钮（index.html:210 / 389）'];
+    btn.click(); await tick();
+    return vm.showClassModal === true ? null : [`点了“创建课堂”但 showClassModal 为 ${vm.showClassModal}`];
+  }],
+  ['进入课堂弹窗点“×” → 关', '进入课堂弹窗', async () => {
+    const { el, why } = screenOverlay();
+    if (!el) return [why];
+    const btn = closeButtonIn(el);
+    if (!btn) return ['进入课堂弹窗里找不到带 .fa-times 的按钮（index.html:2017）'];
+    btn.click(); await tick();
+    return vm.showClassModal === false ? null : ['点了弹窗的“×”但 showClassModal 仍为 true'];
+  }],
+  ['进入课堂弹窗点遮罩 → 关', '进入课堂弹窗', async () => {
+    const { el, why } = screenOverlay();
+    if (!el) return [why];
+    el.click(); await tick();   // 目标是遮罩自身，@click.self 才会触发（index.html:2012）
+    return vm.showClassModal === false ? null : ['点了遮罩但进入课堂弹窗没关'];
+  }],
+  ['个人中心点“开始对话” → 开 AI 辅导弹窗', '个人中心（学生）', async () => {
+    const btn = buttonWith(/开始对话/);
+    if (!btn) return ['个人中心上找不到“开始对话”按钮（index.html:1916）'];
+    btn.click(); await tick();
+    return vm.showAITutor === true ? null : [`点了“开始对话”但 showAITutor 为 ${vm.showAITutor}`];
+  }],
+  ['AI 辅导弹窗点“×” → 关', 'AI 辅导弹窗', async () => {
+    const { el, why } = screenOverlay();
+    if (!el) return [why];
+    const btn = closeButtonIn(el);
+    if (!btn) return ['AI 辅导弹窗里找不到带 .fa-times 的按钮（index.html:1957）'];
+    btn.click(); await tick();
+    return vm.showAITutor === false ? null : ['点了弹窗的“×”但 showAITutor 仍为 true'];
+  }],
+  ['AI 辅导弹窗点遮罩 → 关', 'AI 辅导弹窗', async () => {
+    const { el, why } = screenOverlay();
+    if (!el) return [why];
+    el.click(); await tick();   // 同上（index.html:1945）
+    return vm.showAITutor === false ? null : ['点了遮罩但 AI 辅导弹窗没关'];
+  }],
+  // 侧栏里 8 个切页按钮只有 4 个是纯赋值，另外 4 个顺带调了触网方法
+  // （index.html:231 studentReports、247 history、254 report、261 profile）——只取纯的那类。
+  ['大厅（教师）点“设置” → 切到设置页', '大厅（教师）', async () => {
+    const btn = buttonWith(/^设置$/);
+    if (!btn) return ['侧栏上找不到文字恰为“设置”的按钮（index.html:268）'];
+    btn.click(); await tick();
+    return vm.activeTab === 'settings' ? null : [`activeTab 应为 settings，实为 ${vm.activeTab}`];
+  }],
 ];
 
 // ---------------------------------------------------------------------------
@@ -279,10 +372,13 @@ const CLICKS = [
 (async () => {
   const out = { states: {}, clicks: {}, notes: [] };
 
-  for (const [name, apply] of STATES) {
+  for (const [name] of STATES) {
     try {
-      apply();
-      await tick();
+      // 同样走 goto：快照这一轮也必须是"从初始实例摆出来的状态"。
+      // 以前这里直接 apply()，于是第 9 条起 showAITutor 一直粘着，
+      // 「进入课堂弹窗」其实是**两个弹窗叠在一起**的快照——哈希仍然各不相同，
+      // 所以这个错一直没被发现。叠加会同时削弱冻结检测：真冻住了也可能算出旧哈希。
+      await goto(name);
       const text = snapshot();
       out.states[name] = { hash: hash(text), length: text.length };
       // 冻结检测：渲染抛错时 DOM 会保留上一次的成功快照。同一个哈希出现在两个
