@@ -1,7 +1,10 @@
-# 本地开发容器化（阶段 5）
+# 本地开发容器化
 
 > **这份文档只管"本地开发"。线上部署的镜像与指令**尚未编写**——见文末代办。**
 > `deploy/README.md` 里那套 systemd + nginx 的流程仍然有效，没被这份取代。
+>
+> 线上侧唯一需要现在就补的一步是**建库**：拿同一份 `db/schema.sql` 跑一次，
+> 命令见 `deploy/README.md`。本机与线上共用一个脚本，这是刻意的。
 
 ---
 
@@ -18,14 +21,34 @@
 
 ## 一条命令
 
+**先备好两份 `.env`**（两份都必须，见下节），然后：
+
 ```bash
+cp .env.example .env              # 填入密钥；LLM_API_KEY 不能为空
+cp .env.dev.example .env.dev      # 开发库指向，照抄即可，不用改
 docker compose up --build
 ```
 
-然后打开 <http://localhost:8000>。
+打开 <http://localhost:8000>。
 
-首次构建要装一整套 ML 依赖（torch / insightface / pyannote / funasr），**很慢，且镜像很大**。
-之后只要 `requirements.txt` 没变，改代码不会触发重装——依赖分了三层缓存，见 `Dockerfile` 的注释。
+`up` 会按顺序拉起**三个**服务：
+
+```
+db       mcr.microsoft.com/mssql/server:2022-latest   建库用，数据落命名卷 mssql-data
+db-init  同一个镜像，一次性跑 db/schema.sql，跑完退出（退出码 0 才算成功）
+app      自仓库 Dockerfile 构建；镜像里**不含**任何数据库，只负责连过去
+```
+
+`db` 与 `db-init` 用的是 registry 镜像，**不打包进 app 镜像**——所以
+`docker compose pull db db-init` 可以把数据库单独拉下来，不必重开 app。
+
+`app` 的 `depends_on` 写的是 `service_completed_successfully`：**等 `db-init` 成功退出再起**。
+不这么写，app 会连上一个还没建表的空库，"能连上"却是坏的，然后在第一次注册时抛出
+一个和真实原因毫无关系的错——A32 就是这么来的。
+
+首次构建要装一整套 ML 依赖（torch / insightface / pyannote / funasr），**很慢，且镜像很大**；
+`db` 镜像本身另有 2.31 GB。之后只要 `requirements.txt` 没变，改代码不会触发重装——
+依赖分了三层缓存，见 `Dockerfile` 的注释。
 
 ```bash
 docker compose up -d            # 后台跑
@@ -37,9 +60,12 @@ docker compose run --rm app bash                 # 进容器看看
 
 ---
 
-## 起容器之前：`.env` 里必须有 `LLM_API_KEY`
+## 起容器之前：两份 `.env` 都必须备好
 
-这一条是构建时**实测撞出来**的，不是推测：
+**`.env.dev` 必填**——它管数据库指向（见下一节）。compose 里写成 `required: true`，
+少一份就当场报错，不会静默跑到别的库上去。模板在 `.env.dev.example`，照抄即可。
+
+**`.env` 里的 `LLM_API_KEY` 必填**——这一条是构建时**实测撞出来**的，不是推测：
 
 ```
 app/services/llm_service.py:1088   llm = LLMService()      ← 模块级构造
@@ -62,82 +88,94 @@ LLM_API_KEY=dummy-not-a-real-key docker compose up
 
 ---
 
-## 安全设计：容器**默认连不上生产库**
+## 数据库配置按环境分层
 
 这一节请务必读完再改 `docker-compose.yml`。
 
 **背景**：`app/core/database.py` 的 `_ensure_transcripts_columns()` 在**导入期**执行，
-也就是 **`import` 即 DDL**。而工作区的 `.env` 指向**生产 RDS**。
-所以「容器起来时连的是哪个库」不是一个抽象配置问题，它直接决定了
-容器启动时会不会对生产库发 `ALTER TABLE transcripts ADD ...`。
+也就是 **`import` 即 DDL**。所以「容器起来时连的是哪个库」不是一个抽象的配置问题——
+它直接决定了容器启动时会不会对那个库发 `ALTER TABLE transcripts ADD ...`。
 
-**做法**：`app/core/config.py::_apply_env_file` 用的是 `os.environ.setdefault` 语义——
-**进程里已有的环境变量赢过 `.env` 文件**。这条既有语义正好可以当安全阀：
-`docker-compose.yml` 的 `environment:` 段显式给出 6 个数据库键，
-`.env` 里指向生产的同名值就再也盖不过来。
+在此之前，本仓库只有一个 `.env`，而它指向**生产 RDS**。于是当时的做法是：
+compose 的 `environment:` 段**硬写** 6 个数据库键，靠
+`config.py::_apply_env_file` 的 `os.environ.setdefault` 语义
+（**进程里已有的环境变量赢过 `.env` 文件**）把生产值挡在外面。
+那是一次真正的修补，不是多余的设计。
 
-| 键 | 容器里的值 | 为什么是这个值 |
+**现在换成按环境分层**——因为"挡"只在开发机上成立，而线上那台机器要连的正是真实库：
+
+| 文件 | 放什么 | 入库 |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./storage/app.db` | ORM 侧回退到容器内 SQLite |
-| `DB_HOST` | `127.0.0.1` | `/api/register`、`/api/login` 直连用，容器里没人监听 → 立刻连接被拒 |
-| `DB_PORT` | `1433` | 同上 |
-| `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 占位值 | 同上，且一眼能看出不是真的 |
+| `.env` | 共享密钥（LLM / OSS / Agora / 阿里云） | 否 |
+| `.env.dev` | 开发库指向 → compose 里的 `db` 服务 | 否（模板 `.env.dev.example` 入库） |
+| `.env.prod` | 远程库指向 → 生产 RDS | 否（模板 `.env.prod.example` 入库） |
 
-两条**不要做**：
+`APP_ENV` 选哪一层（`dev` / `prod`），`app/core/config.py::_load_dotenv` 本来就支持；
+compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只是把文件摆到位。
 
-- **不要删掉这几行** —— `.env` 的生产值会原样生效。
-- **不要在后面的清单文件里改成空字符串** —— `create_engine("")` 会直接抛
-  `ArgumentError`，应用起不来。「显式赋值为无害值」和「赋空值」是两回事，
-  前者才是安全阀。（`tests_safe/conftest.py` 出于同一理由也是赋值而非 `del`。）
+这么一换，安全性反而**更强**：开发工作区里**根本不存在**生产库连接信息——
+不是"挡住了"，是"压根没有"。原先那 6 行硬写的 safety valve 随之删掉。
 
-这一条由 `tests_safe/test_docker_assets.py::TestComposeNeutralizesProductionDatabase`
-钉住——有人顺手清理掉那几行时，测试会红。
+### 新守卫：问的问题变了
 
-### 那我想连真实库联调怎么办
+`TestComposeNeutralizesProductionDatabase` 已作废，换成
+`TestComposePointsAtTheLocalDatabase` + `TestDevEnvLayer` + `TestNoProductionCredentialsAreTracked`。
+断言不再问"挡住没有"，而问：
 
-仓库**刻意不提供**现成的叠加文件：那等于把"容器会连生产库"变成一个随手可及的开关。
-真要这么做，自己写一份 `docker-compose.realdb.yml`：
+- `db` 是 registry 镜像（无 `build:`）且数据挂**命名卷**——bind mount 在 Windows 上
+  会因不表达 POSIX 权限而起不来
+- `db/schema.sql` 真的幂等——这是"每次 `up` 都会重跑它"的前提
+- `app` 等 `db-init` **成功退出**；app 的库配置只来自 `.env.dev`，且 `required: true`
+- **反向断言**：除 `app` 外，任何 service 都不得在 `environment:` 里定义那 6 个键
+  （防的是 A30 那类"断言写在 A 上、改动发生在 B"）
+- 入库文件里不含生产主机名 / 用户名 / 口令（实测抓到过一次，见 A33）
 
-```yaml
-# 只在明确要连真实库时创建，用完删掉
-services:
-  app:
-    environment:
-      DATABASE_URL: ${DATABASE_URL:?请在 .env 里设置}
-      DB_HOST: ${DB_HOST:?}
-      DB_PORT: ${DB_PORT:-1433}
-      DB_USER: ${DB_USER:?}
-      DB_PASSWORD: ${DB_PASSWORD:?}
-      DB_NAME: ${DB_NAME:?}
-```
+### `db` / `db-init` 刻意**不碰** `DB_*` 命名空间
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.realdb.yml up
-```
+它们用 `MSSQL_HOST` / `MSSQL_DB` / `MSSQL_SA_PASSWORD`。理由是：运维侧的一次性容器
+不该去读 app 的库配置——否则 `.env` 里那份 `DB_*` 有朝一日被挂上来，**建库就建到生产去了**。
 
-`:?` 的作用是"没设就报错停下"，而不是静默连到别处去。
+### 想改指向，改 `.env.dev` 就行
 
-> ⚠️ 这样起来之后，容器**会对生产库发 DDL**。动手前确认你确实要这个。
+不用再写叠加文件。`.env.dev` 就是那个开关，而且它**不在版本库里**，
+于是"容器会连生产库"永远不会变成一个随手可及的仓库内开关。
+
+把它里面的 `DB_HOST` / `DB_PORT` / `DATABASE_URL` 指过去即可，但**三个必须一起改**：
+ORM 走 `DATABASE_URL`，而 `/api/register`、`/api/login` **不走 ORM**，直接读 `DB_*`（A32）。
+只改一个的症状是"注册写 A 库、登录读 B 库"。
+
+> ⚠️ 若指向真实库，容器**会对它发 DDL**（导入期的 `_ensure_transcripts_columns`）。
+> 动手前确认你确实要这个。
 >
-> ⚠️ 变量值里若含 `$`，compose 的插值会吃掉它。密码里有 `$` 时别用这个写法。
+> ⚠️ `docker-compose.yml` 里的 `${...}` 插值读的是**仓库根的 `.env`**，
+> 而不是 `.env.dev`。所以那里**绝不插值** `DB_*` / `DATABASE_URL` ——
+> 否则远程库的口令会被拉进 compose，`docker compose config` 一跑就摊在屏幕上。
 
 ### `.env` 不会进镜像
 
-`Dockerfile` 最后一步是 `COPY . .`，因此 `.dockerignore` 里第一条就是 `.env`。
+`Dockerfile` 最后一步是 `COPY . .`，因此 `.dockerignore` 里第一条就是
+`.env` + `.env.*`（放行 `!.env.example` 与 `!.env.*.example`）。
 镜像层只增不减，**一旦把生产口令打进层里，事后改 `.dockerignore` 也抹不掉**。
 这道防线同样由 `tests_safe/test_docker_assets.py` 断言。
+
+容器运行期之所以还能看到 `.env` / `.env.dev`，是因为仓库目录**挂载**了进去
+（`.:/app`）——挂载发生在运行期，与镜像层无关。换句话说：**镜像里没有凭据，
+容器里才有**，这两件事不矛盾。
 
 ---
 
 ## 容器里的配置来自哪
 
-`.env` **会**跟着仓库目录挂进容器（`/app/.env`），这是有意的：
-LLM / OSS / 阿里云那些键正需要它，被 `environment:` 挡住的**只有数据库那 6 个**。
-优先级是「`environment:` > `.env`」，两处都写了的以 `environment:` 为准。
+`.env` 与 `.env.dev` **都会**跟着仓库目录挂进容器（`/app/.env`、`/app/.env.dev`）。
+`environment:` 段现在只剩三项：`APP_ENV=dev`、`PYTHONIOENCODING=utf-8`、
+`WATCHFILES_FORCE_POLLING=true`——数据库那 6 个键已经交给 `.env.dev` 了。
 
 一个副作用（与在本机直接跑 `uvicorn` 时**完全一样**）：
-调 `/api/research-runtime` 的配置接口会就地改写 `.env` 里的 `RESEARCH_*` 三行，
-而这个 `.env` 就是宿主上那个文件。
+调 `/api/research-runtime` 的配置接口会就地改写**活动 env 文件**里的 `RESEARCH_*` 三行。
+容器里 `APP_ENV=dev`，所以活动文件是 `.env.dev`；宿主上直接跑时默认也是 `dev`。
+两侧都落在宿主的 `.env.dev` 上，不会去动 `.env`。
+
+> 这正是 `.env.dev` 必须进 `.gitignore` 的原因之一：**它会被程序写入**。
 
 ---
 
@@ -145,10 +183,11 @@ LLM / OSS / 阿里云那些键正需要它，被 `environment:` 挡住的**只�
 
 ```bash
 docker compose run --rm --no-deps app python -m pytest -q
-# → 1 failed, 276 passed, 2 skipped
+# → 1 failed, 343 passed, 9 skipped
 ```
 
 失败的是 `test_route_baseline`，只涉及 59 条路由里的 **2 条**。
+（另比宿主多 7 个 skip：那是容器里没有 `node` 导致的前端渲染探针跳过，见 `tests_safe/`。）
 两条都**不是**容器化引入的回归——代码是同一份（宿主目录挂进去的），
 差异全部来自"Windows 宿主 vs Linux"这个平台事实。**线上那台 Linux 服务器
 也会有同样的两条差异**，只是那里不跑这个测试。
@@ -163,7 +202,7 @@ docker compose run --rm --no-deps app python -m pytest -q
 | 宿主 | `D:\algorithm-study-master` | 25 |
 | 容器 | `/app` | 4 |
 
-路径在响应里出现多次，累计差 665 字节（基线 14388 → 容器 13723）。
+路径在响应里出现多次，累计差 665 字节（基线 14392 → 容器 13727）。
 
 ### 2. `GET /api/download-exercises/1` —— **换行符**
 

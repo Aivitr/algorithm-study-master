@@ -134,8 +134,8 @@ sudo nano /etc/smartclass1/smartclass1.env
 **必须配置的项目:**
 
 ```bash
-# 数据库连接 (修改为你的实际数据库信息)
-DATABASE_URL=mysql+pymysql://username:password@host:port/database?charset=utf8mb4
+# 数据库连接 (修改为你的实际数据库信息 —— 注意是 MSSQL，不是 MySQL)
+DATABASE_URL=mssql+pymssql://username:password@host:1433/database?charset=utf8
 
 # DeepSeek API 密钥
 LLM_API_KEY=sk-your-deepseek-api-key
@@ -157,6 +157,21 @@ OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 ```bash
 sudo chmod 600 /etc/smartclass1/smartclass1.env
 ```
+
+**初始化数据库（生产侧，用统一的建库脚本）:**
+
+```bash
+# 与本地开发用的是同一份 db/schema.sql —— 这是刻意的，两边不会漂移。
+# 脚本**可重复执行**：每条 CREATE 都有 IF 守卫并自带 USE，对已有库是无操作。
+sqlcmd -S <RDS主机> -U <用户> -P '<口令>' -d master -C -b -f 65001 -i db/schema.sql
+```
+
+`-C` 表示信任服务器证书，`-b` 让出错时返回非零退出码，`-f 65001` 指定输入为 UTF-8
+（脚本里有中文字符串，不加会乱码）。库名与排序规则由脚本头部决定；
+若目标库已存在且排序规则不是 `Chinese_PRC_CI_AS`，脚本不会改它 —— 需要人工确认。
+
+> 该脚本是生产结构的**冻结快照**，模型改了它不会自己跟。重新生成的方法见
+> `docs/待验收事项.md` 的 A33。
 
 ### 6. 配置 Systemd 服务
 

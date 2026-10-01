@@ -1,8 +1,33 @@
 # 智能协作学习系统
 
-# 项目安装包
+## 快速开始（容器，一条命令）
 
-## 运行
+```bash
+cp .env.example .env              # 填入密钥，见下方"必填项"
+cp .env.dev.example .env.dev      # 开发库指向，照抄即可，不用改
+docker compose up --build
+```
+
+打开 <http://127.0.0.1:8000>。
+
+`up` 会按顺序拉起三个服务：`db`（SQL Server 2022，数据落命名卷）、
+`db-init`（一次性跑 `db/schema.sql` 建库，跑完退出）、`app`。
+
+**必填项**——只有这两处，其余 50 个键都有默认值：
+
+| 位置 | 键 | 不填会怎样 |
+|---|---|---|
+| `.env` | `LLM_API_KEY` | `import server` 直接抛 `OpenAIError`，容器起不来。只想看看页面可以给假值 |
+| `.env.dev` | 整份 | compose 里是 `required: true`，缺了当场报错。`cp .env.dev.example .env.dev` 即可 |
+
+数据库指向**按环境分层**：`.env.dev` 连本机容器（`dev`），`.env.prod` 连线上 RDS（`prod`），
+由 `APP_ENV` 选择。两份都**不进版本库**，仓库里只有它们的 `.example` 模板。
+细节（含"为什么不用 MySQL 顶替"）见 `deploy/docker.md`。
+
+> 代价：`db` 镜像 2.31 GB，常驻约 2 GB 内存。不用时 `docker compose stop db`。
+
+## 运行（不用容器，手工装环境）
+
 ```bash
 python -m venv venv
 venv\Scripts\activate
@@ -14,7 +39,7 @@ python server.py
 
 ## 配置
 - 复制 `.env.example` 为 `.env`
-- 默认使用本地 `SQLite`
+- 数据库指向放在 `.env.dev`（本机）或 `.env.prod`（线上），见上方快速开始
 - 需要线上 AI / 阿里云 / OSS 时再填写对应环境变量
 
 ## 可选依赖

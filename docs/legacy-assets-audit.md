@@ -25,7 +25,7 @@ tests/test_api_endpoints.py:2   from server import app
 实测（不连库，仅读配置）：未隔离时 `config.settings.db.url` 解析为
 
 ```
-mssql+pymssql://***REMOVED-USER***:***@***REMOVED-HOST***:3433/cscl_db
+mssql+pymssql://<生产库用户>:***@<生产 RDS 主机名>:3433/cscl_db
 ```
 
 `_ensure_transcripts_columns()` 会对 `transcripts` 执行 inspect，缺列时发

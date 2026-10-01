@@ -22,9 +22,13 @@
 
 **为什么"零变化"是本步的硬要求**
 --------------------------------
-本仓库当前只有一个 `.env`，且它指向生产 RDS。所以本步必须做到：
+阶段 4 做这步时，本仓库只有一个 `.env`，且它指向生产 RDS。所以当时必须做到：
 **不存在覆盖层文件时，行为与改前逐位相同**。下面 `test_no_overlay_is_bit_identical`
 就是钉这一条——否则这次"配置改造"本身就成了新的事故来源。
+
+（阶段 8 起仓库里**确实有了**覆盖层：`.env.dev` / `.env.prod` 做环境分层。
+上面那条 `tmp_path` 造的假目录仍全部成立，它测的是**加载机制**，
+与仓库里实际有没有覆盖层无关。）
 
 测试怎么做到不碰真实 `.env`
 ---------------------------
@@ -213,19 +217,34 @@ def test_writer_targets_the_active_file_not_always_dot_env(tmp_path):
 
 # ---------------------------------------------------------------- 现状核对
 
-def test_repo_has_no_overlay_files_today():
-    """登记现状：本仓库目前**没有**任何 `.env.<env>` 覆盖层。
+def test_repo_has_exactly_the_expected_overlay_files():
+    """登记现状：本仓库**有了**覆盖层，且就是这几份，没有多出来的。
 
-    这不是断言"永远不该有"，而是把"今天等于单文件配置"写成可执行的事实：
-    一旦有人真的加了覆盖层，这条会失败，提醒同步检查生产部署说明
-    （`DEPLOYMENT.md` / `deploy/`）——那些文档目前只描述单 `.env` 的做法。
+    这一条是从 `test_repo_has_no_overlay_files_today` 演化来的 —— 它当时断言
+    "一份覆盖层都没有"，并在文档里写明那是**现状登记而非永久断言**：
+    "一旦有人真的加了覆盖层，这条会失败，提醒同步检查生产部署说明"。
+    阶段 8 正是那个时刻（引入 `.env.dev` / `.env.prod` 做环境分层），
+    于是按它自己写下的指示，把它换成这个后继版本。
+
+    它现在防的东西变了：不再是"有没有分层"，而是**分层有没有失控** ——
+    多出一份没人知道来历的 `.env.staging`，就意味着有一台机器在用一套
+    谁也没测过的配置。多出来的那份必须在这里登记、并想清楚它由谁消费。
     """
     from app.core.paths import PROJECT_ROOT
 
-    overlays = sorted(p.name for p in PROJECT_ROOT.glob(".env.*") if p.name != ".env.example")
-    assert overlays == [], (
-        f"仓库里出现了 env 覆盖层文件：{overlays}。\n"
-        f"若这是有意的，请同步更新部署文档与本测试的说明。"
+    expected = {
+        ".env.dev.example",    # 开发库指向（模板，入库）
+        ".env.prod.example",   # 线上库指向（模板，含占位符，入库）
+        ".env.dev",            # 开发层实体（gitignore）
+        ".env.prod",           # 线上层实体（含生产凭据，gitignore）
+    }
+    found = {p.name for p in PROJECT_ROOT.glob(".env.*") if p.name != ".env.example"}
+
+    unexpected = sorted(found - expected)
+    assert not unexpected, (
+        f"仓库里出现了预期之外的 env 覆盖层：{unexpected}。\n"
+        f"多一份覆盖层 = 有一台机器在用一套谁也没测过的配置。\n"
+        f"若确实需要，请把它加进本测试的 expected 集合，并说明它由谁消费。"
     )
 
 
@@ -259,9 +278,13 @@ def test_env_examples_are_not_gitignored():
     """示例文件必须**不被**忽略——它是给人照抄的模板，得进仓库。
 
     这条与上一条是一对：防的是"为了盖住 .env.prod 而顺手写成 `.env*`"，
-    那会把 `.env.example` 也一起挡在仓库外，模板随之消失。
+    那会把示例文件也一起挡在仓库外，模板随之消失 —— 而模板一消失，
+    新开发者就不知道开发库该指向哪里，只能靠猜。
+
+    阶段 8 加了 `.env.dev.example` / `.env.prod.example` 之后，
+    这条从"只有 .env.example"扩成逐个点名：**每一个**模板都要能进仓库。
     """
-    for name in (".env.example",):
+    for name in (".env.example", ".env.dev.example", ".env.prod.example"):
         result = subprocess.run(
             ["git", "check-ignore", "-q", name],
             cwd=str(PROJECT_ROOT), capture_output=True,

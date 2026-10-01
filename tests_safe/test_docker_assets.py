@@ -11,15 +11,17 @@
    同理，`python server.py` 的**导入期**会执行 `_ensure_transcripts_columns()`，
    于是"容器起来时连的是哪个库"直接决定它会不会对生产库发 DDL。
 
-2. **容器默认连生产库。**
-   `app/core/config.py::_apply_env_file` 用 `setdefault` 语义——**进程环境变量优先**。
-   这既有的语义正好可以拿来当安全阀：只要 compose 在 `environment:` 里显式给出
-   那 6 个数据库键，`.env` 里指向生产的同名声就永远盖不过来。
-   本条断言那 6 个键**确实在**——有人"顺手清理"掉它们时，测试会红，
-   而不是等到某次 `docker compose up` 静默对生产库发了 ALTER TABLE。
+2. **容器连错库 / 压根连不上。**
+   这一条换过形态。原先是"写死当安全阀"：compose 的 `environment:` 里显式给出
+   那 6 个数据库键，把 `.env` 里指向生产的值盖住（`setdefault` 语义下进程环境变量优先）。
+   那时工作区的 `.env` 装的就是生产库，只能这么挡。
 
-   （为什么是赋值而不是 `del`：`_apply_env_file` 对"不存在的键"会补上文件里的值。
-   `del` 掉等于把生产值请回来。见 `tests_safe/conftest.py` 同款理由。）
+   改成**按环境分层**后，开发侧指向生产的键根本不在 `.env` 里
+   （它们在 gitignore 的 `.env.prod`），于是断言也跟着换了对象：
+   不再问"盖住了没有"，而问 **"库指向是不是只有一个来源、且那个来源指向本机容器"**。
+   具体在 `TestComposePointsAtTheLocalDatabase`（编排形状）、
+   `TestDevEnvLayer`（开发层内容）与 `TestNoProductionCredentialsAreTracked`
+   （凭据没被提交）三处。
 
 3. **requirements.txt 被切成两份时的静默遗漏。**
    镜像分两层装依赖（torch 三件套走 PyTorch CPU 索引，其余走 PyPI）。
@@ -164,6 +166,33 @@ def _compose() -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def _env_file_entries(service: dict) -> list[tuple[str, bool]]:
+    """把一个 service 的 `env_file` 归一成 [(路径, 是否必填)]。
+
+    compose 允许两种写法：裸字符串（默认 required: false）与
+    `{path: ..., required: ...}`。两种都得认，否则换个写法守卫就静默失效。
+    """
+    out = []
+    for entry in service.get("env_file") or []:
+        if isinstance(entry, str):
+            out.append((entry, False))
+        elif isinstance(entry, dict):
+            out.append((str(entry.get("path")), bool(entry.get("required", False))))
+    return out
+
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    """读一个 .env 形态的文件成字典。只认 `KEY=VALUE`，跳过注释与空行。"""
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    return values
+
+
 # --------------------------------------------------------------------------
 # 1. 构建上下文不得含凭据与体积大户
 # --------------------------------------------------------------------------
@@ -243,39 +272,325 @@ def test_pattern_hits_matches_expectation(entry, patterns, expected):
 
 
 # --------------------------------------------------------------------------
-# 2. 容器默认不得连生产库
+# 2. 容器不得连生产库（安全阀换了形态：写死 → 分层）
+# --------------------------------------------------------------------------
+#
+# 上一版的两条断言（`environment` 里必须写死那 6 个键、且 DATABASE_URL 必须是
+# 无害的 sqlite 回退）已经**随设计一起作废**：那时工作区的 `.env` 装的就是
+# 生产库，只能靠"进程环境变量优先"把它盖住。
+#
+# 现在改成按环境分层 —— 开发工作区里指向生产的那 6 个键**根本不在 `.env` 里**
+# （它们在 `.env.prod`，而 `.env.prod` 被 gitignore）。安全性由"压根没有"提供，
+# 比"写死挡住"更强。于是守卫要跟着换：不再问"盖住了没有"，而要问
+# **"库指向是不是只有一个来源，且那个来源指向本机容器"**。
+
+
+class TestComposePointsAtTheLocalDatabase:
+    def test_db_is_a_registry_image_with_a_named_volume(self):
+        """db 必须是**单独拉取**的 registry 镜像，且数据落命名卷。
+
+        - 不能有 `build:`：那意味着数据库被打包进本仓库构建的镜像，与
+          "组件镜像单独拉取、服务只负责连过去"的约定相反。
+        - 数据目录必须挂**命名卷**（不是 bind mount）：bind mount 在
+          Windows/macOS 上会因宿主文件系统不表达 POSIX 权限而起不来。
+        """
+        db = (_compose().get("services") or {}).get("db")
+        assert db is not None, "docker-compose.yml 里没有 db 服务"
+
+        assert db.get("build") is None, (
+            "db 声明了 build —— 数据库应当用 registry 镜像单独拉取，"
+            "而不是由本仓库构建。"
+        )
+        image = str(db.get("image", ""))
+        assert image.startswith("mcr.microsoft.com/mssql/server"), (
+            f"db 用的不是 MSSQL 官方镜像，而是 {image!r}。\n"
+            f"pymssql 说的是 TDS 协议，换成 MySQL 镜像后 /api/register、"
+            f"/api/login 依然是死的（只是从「连接被拒」变成「语法错误」）。"
+        )
+
+        mounts = [str(v) for v in (db.get("volumes") or [])]
+        data_mounts = [m for m in mounts if m.endswith(":/var/opt/mssql")]
+        assert data_mounts, (
+            f"db 的数据目录没有挂卷：{mounts}。\n"
+            f"不挂卷的话数据落在容器的可写层，容器一删库就没了"
+            f"（此前那个手起的 smartclass-mssql 就是这么丢了数据的）。"
+        )
+        for mount in data_mounts:
+            assert not mount.startswith((".", "/", "~", "\\")), (
+                f"db 数据卷应当是**命名卷**而不是 bind mount，实际是 {mount!r}。"
+            )
+
+    def test_db_init_runs_the_schema_script(self):
+        """一次性建库服务的三个要件：脚本在、目录挂了、服务确实引用了它。"""
+        for name in ("db/schema.sql", "db/init.sh"):
+            path = REPO_ROOT / name
+            assert path.is_file(), (
+                f"{name} 不存在。"
+                f"MSSQL 镜像没有 postgres/mysql 那样的 /docker-entrypoint-initdb.d，"
+                f"建库只能靠 db-init 服务跑这个脚本。"
+            )
+            assert path.read_text(encoding="utf-8").strip(), f"{name} 是空的"
+
+        init = (_compose().get("services") or {}).get("db-init")
+        assert init is not None, "docker-compose.yml 里没有 db-init 服务"
+
+        mounts = [str(v) for v in (init.get("volumes") or [])]
+        assert any("/db" in m for m in mounts), (
+            f"db-init 没有挂载 db/ 目录：{mounts}，它读不到 schema.sql"
+        )
+
+    def test_schema_sql_is_idempotent(self):
+        """建库脚本必须**重复执行无副作用** —— 这是"生产开发通用"的前提。
+
+        判据是每条 CREATE 都被 IF ... IS NULL / IF NOT EXISTS 包住。
+        `docker compose up` 每次都会重跑 db-init；不幂等的话第二次就报错，
+        而那个报错发生在一个人毫不知情的时候（他只是重启了一下服务）。
+        """
+        sql = (REPO_ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+        # 逐条 CREATE TABLE 都要有 OBJECT_ID 守卫
+        tables = [ln for ln in sql.splitlines() if ln.startswith("CREATE TABLE ")]
+        guards = [ln for ln in sql.splitlines() if "OBJECT_ID(N'dbo." in ln and "IS NULL" in ln]
+        assert tables, "schema.sql 里一条 CREATE TABLE 都没有"
+        assert len(guards) >= len(tables), (
+            f"{len(tables)} 张表但只有 {len(guards)} 条 OBJECT_ID 守卫 —— "
+            f"有表没被 IF ... IS NULL 包住，重复执行会报 'already exists'。"
+        )
+        # 索引与外键同理
+        for stmt in ("CREATE NONCLUSTERED INDEX", "CREATE UNIQUE NONCLUSTERED INDEX"):
+            made = [ln for ln in sql.splitlines() if ln.startswith(stmt)]
+            if made:
+                assert "IF NOT EXISTS (SELECT 1 FROM sys.indexes" in sql, (
+                    f"有 {stmt} 但没有对应的 IF NOT EXISTS 守卫"
+                )
+        assert "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys" in sql or \
+               "ADD CONSTRAINT" not in sql, (
+            "有外键约束但没有 IF NOT EXISTS 守卫，重复执行会撞名"
+        )
+
+    def test_app_waits_for_db_init(self):
+        """app 必须等 db-init **成功退出**，否则会连上一个还没建表的空库，
+        然后在注册时抛出一个和真实原因毫无关系的错。"""
+        app = _compose()["services"]["app"]
+        depends = app.get("depends_on") or {}
+        assert isinstance(depends, dict), (
+            "app 的 depends_on 写成了短格式（列表）—— 那种写法不支持 condition，"
+            "等价于只保证容器启动顺序，不保证 db-init 跑完。"
+        )
+        condition = (depends.get("db-init") or {}).get("condition")
+        assert condition == "service_completed_successfully", (
+            f"app 对 db-init 的 condition 是 {condition!r}，"
+            f"应为 'service_completed_successfully'。"
+        )
+
+    def test_app_takes_db_config_from_the_env_layer(self):
+        """app 的库指向只能来自 `.env.dev`，不能又写死在 environment 里。"""
+        app = _compose()["services"]["app"]
+
+        entries = dict(_env_file_entries(app))
+        assert ".env.dev" in entries, (
+            "app 没有读 .env.dev —— 库指向就没来源了"
+        )
+        assert entries[".env.dev"] is True, (
+            ".env.dev 必须写成 required: true。\n"
+            "缺了它的正确表现是 compose 立刻报错；写成 required: false 的话，"
+            "容器会带着空的 DB_* 起来，然后在注册时给一个莫名其妙的失败。"
+        )
+
+        hardcoded = sorted(set(_PROD_DB_KEYS) & set(app.get("environment") or {}))
+        assert not hardcoded, (
+            f"app 的 environment 里又写死了 DB 键：{hardcoded}。\n"
+            f"库指向应当由 .env.dev 单独提供 —— 两个来源一旦不一致，"
+            f"症状是「连不上库」这种指不到病因的报错。"
+        )
+
+    def test_no_other_service_defines_db_keys(self):
+        """反向断言：**除 app 外**任何 service 都不得在 environment 里定义那 6 个键。
+
+        为什么要反向断言：上面那条只管得住 app。若将来新加的服务（或有人
+        "顺手"给 db/db-init 补上）也能设置这些键，配置就有了第二个入口 ——
+        A30 记的正是这类"守卫拦不住"的失效：断言写在 A 上，改动却发生在 B。
+        """
+        offenders = {}
+        for name, service in (_compose().get("services") or {}).items():
+            if name == "app":
+                continue
+            hit = sorted(set(_PROD_DB_KEYS) & set(service.get("environment") or {}))
+            if hit:
+                offenders[name] = hit
+        assert not offenders, (
+            f"这些服务在 environment 里定义了库配置键：{offenders}。\n"
+            f"库指向只应有 app 一个消费者；运维侧容器（db/db-init）用的是"
+            f"MSSQL_* 自己那套命名。"
+        )
+
+
+# --------------------------------------------------------------------------
+# 2b. 开发库那层本身：指向哪里、口令是不是只有一个来源
 # --------------------------------------------------------------------------
 
 
-class TestComposeNeutralizesProductionDatabase:
-    def test_app_service_environment_overrides_all_db_keys(self):
-        services = _compose().get("services") or {}
-        assert services, "docker-compose.yml 里没有任何 service"
+class TestDevEnvLayer:
+    @pytest.fixture()
+    def example(self) -> dict[str, str]:
+        path = REPO_ROOT / ".env.dev.example"
+        assert path.is_file(), (
+            f"{path.name} 不存在。它是给人照抄的模板（cp .env.dev.example .env.dev），"
+            f"必须入库。"
+        )
+        return _parse_env_file(path)
 
-        # 取各 service 里唯一那个跑应用的（本阶段的编排只有它一个）
-        env = {}
-        for service in services.values():
-            env.update(service.get("environment") or {})
+    def test_declares_every_db_key(self, example):
+        """6 个键 + sa 口令，一个都不能少 —— 它们对应**读不同变量**的代码路径。
 
-        missing = [key for key in _PROD_DB_KEYS if key not in env]
+        注意这里刻意用变量下标而不是字面量 `example.get("MSSQL_SA_PASSWORD")`：
+        `tests_safe/test_env_docs.py` 把任何 `get("大写串")` 都当作"代码读取了
+        这个环境变量"，字面量写法会让 MSSQL_SA_PASSWORD 被误判成 app 的配置项，
+        进而要求它出现在 `.env.example` 里 —— 而它其实是 db 容器与 init.sh 的，
+        归属 `.env.dev.example`。
+        """
+        required = ["MSSQL_SA_PASSWORD"] + list(_PROD_DB_KEYS)
+        missing = [k for k in required if not example.get(k)]
         assert not missing, (
-            f"docker-compose.yml 的 environment 没有覆盖这些键：{missing}。\n"
-            f"原因：app/core/config.py 用 os.environ.setdefault 语义加载 .env，"
-            f"**进程环境变量优先**。这里显式给出即可挡住 .env 里的生产值；"
-            f"一个都不给，容器起来就会连上生产 RDS，并在**导入期**执行"
-            f"_ensure_transcripts_columns()。\n"
-            f"（不要改成 del/留空字符串：前者等于把生产值请回来，"
-            f"后者会让 create_engine('') 直接抛异常。）"
+            f".env.dev.example 缺少这些键：{missing}。\n"
+            f"ORM 读 DATABASE_URL，而 /api/register、/api/login **不走 ORM**，"
+            f"直接读 DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME。"
+            f"少任何一个，那条路径就连不上（A32 就是这个）。"
         )
 
-    def test_default_database_url_is_local_sqlite(self):
-        services = _compose()["services"]
-        env = {}
-        for service in services.values():
-            env.update(service.get("environment") or {})
-        assert str(env["DATABASE_URL"]).startswith("sqlite:"), (
-            "默认 DATABASE_URL 应当指向容器内的 SQLite（无害回退），"
-            f"实际是 {env['DATABASE_URL']!r}。"
+    def test_points_at_the_compose_db_service(self, example):
+        """宿主名必须是服务名 `db`，端口必须是**容器内**的 1433。
+
+        这条防的是最常见的手误：照着本机联调的习惯写成 localhost:1433。
+        容器里的 localhost 是容器自己，没有任何东西监听。
+        """
+        assert example["DB_HOST"] == "db", (
+            f"DB_HOST 是 {example['DB_HOST']!r}，应为 'db'（compose 网络里的服务名）。\n"
+            f"写 localhost 的话，容器里的 localhost 是它自己 —— 这正是 A32 的成因。"
+        )
+        assert example["DB_PORT"] == "1433", (
+            f"DB_PORT 是 {example['DB_PORT']!r}，应为容器内的 1433。"
+        )
+        assert example["DB_NAME"] == "cscl_db", (
+            f"DB_NAME 是 {example['DB_NAME']!r}，应与 db/schema.sql 建的库同名。"
+        )
+
+    def test_password_has_exactly_one_source(self, example):
+        """`MSSQL_SA_PASSWORD`、`DB_PASSWORD` 与 `DATABASE_URL` 里嵌的口令必须一致。
+
+        这三个值语义上是**同一个口令**：第一个是 db 容器初始化 sa 时设的，
+        后两个是 app 连它时提供的。改一个忘另两个的症状是"连不上库"，
+        而报错信息完全指不出病因。所以这里把"它们相等"从约定变成断言。
+        """
+        from urllib.parse import unquote, urlsplit
+
+        sa = example["MSSQL_SA_PASSWORD"]
+        assert example["DB_PASSWORD"] == sa, (
+            f"DB_PASSWORD 与 MSSQL_SA_PASSWORD 不一致 —— app 会用错口令连 db"
+        )
+        url = urlsplit(example["DATABASE_URL"])
+        assert unquote(url.password or "") == sa, (
+            f"DATABASE_URL 里嵌的口令与 MSSQL_SA_PASSWORD 不一致 —— "
+            f"ORM 那条路径会连不上（而注册/登录用的却是另一个口令，两边表现不一致，更难查）"
+        )
+
+    def test_database_url_matches_the_same_target(self, example):
+        """DATABASE_URL 的方言、主机、端口、库名要与 DB_* 一致。"""
+        from urllib.parse import urlsplit
+
+        url = urlsplit(example["DATABASE_URL"])
+        assert url.scheme == "mssql+pymssql", (
+            f"DATABASE_URL 的方言是 {url.scheme!r}，应为 mssql+pymssql"
+        )
+        assert url.hostname == example["DB_HOST"], "DATABASE_URL 的主机与 DB_HOST 不一致"
+        assert str(url.port) == example["DB_PORT"], "DATABASE_URL 的端口与 DB_PORT 不一致"
+        assert url.path.lstrip("/") == example["DB_NAME"], "DATABASE_URL 的库名与 DB_NAME 不一致"
+
+
+# --------------------------------------------------------------------------
+# 2c. 入库文件不得含生产凭据
+# --------------------------------------------------------------------------
+
+
+class TestNoProductionCredentialsAreTracked:
+    """把"生产主机名/口令没被提交"从一次人工核对变成可重复的断言。
+
+    为什么现在才需要它：分层之前，生产凭据集中在**一个** gitignore 的 `.env` 里，
+    只要那条 gitignore 规则在就不会漏。分层之后，凭据散在 `.env.prod`、
+    模板、文档、部署脚本若干处 —— 少写一个占位符、文档里顺手贴一段真实连接串，
+    都能把生产主机名带进仓库。实测已经发现过一次（见 A33）。
+
+    跳过而不是失败：新克隆的仓库里本来就没有 `.env.prod`（它不入库），
+    这时没有真相可比，没得测。
+    """
+
+    def test_tracked_files_contain_no_prod_db_values(self):
+        import subprocess
+
+        prod = REPO_ROOT / ".env.prod"
+        if not prod.is_file():
+            pytest.skip(".env.prod 不存在（新克隆的仓库里本来就没有）—— 无真相可比")
+
+        # 只查**真正敏感**的三个。DB_PORT / DB_NAME 不是秘密：3433 是阿里云 RDS
+        # 的常见端口，cscl_db 在 db/schema.sql 与编排文件里到处都要出现。
+        # 把它们扫进来只会得到假红 —— 而假红会让人把这个守卫整个关掉。
+        env = _parse_env_file(prod)
+        values = {k: env.get(k, "") for k in ("DB_HOST", "DB_USER", "DB_PASSWORD")}
+        # 太短的值（比如 1~3 个字符）当子串搜会匹配到无关内容，同样是假红来源
+        values = {k: v for k, v in values.items() if len(v) >= 4}
+        assert values, f"{prod} 里没有可查的敏感值（DB_HOST/DB_USER/DB_PASSWORD），测试无意义"
+
+        leaked = {}
+        for key, value in values.items():
+            result = subprocess.run(
+                ["git", "grep", "-lF", "--", value],
+                cwd=str(REPO_ROOT), capture_output=True, text=True,
+            )
+            if result.stdout.strip():
+                leaked[key] = result.stdout.strip().splitlines()
+
+        assert not leaked, (
+            f"入库文件里出现了生产库的值：{leaked}\n"
+            f"生产凭据只应存在于 .env.prod（已被 gitignore）。"
+            f"文档里请写占位符，例如 <生产 RDS 主机名>。"
+        )
+
+
+class TestGeneratedSchemaCarriesNoSourceHost:
+    """比上一条**更早生效**的守卫：不依赖 `.env.prod` 是否存在。
+
+    上一条在新克隆的仓库里会 skip（那里没有 `.env.prod` 当真相），于是最需要它
+    的时候恰好不在。这一条不问"值泄没泄"，只问"产物里有没有写出源主机的位置"——
+    与真值无关，任何克隆都跑。
+
+    实测经过：`db/schema.sql` 的自动生成头部原本写的是
+    `来源：cscl_db @ <真实主机>`，随第一次提交入了库，随后才被上一条抓住（见 A33）。
+    所以这里再钉一道，并且钉在**产物形状**上——生成器改回去就会立刻红。
+    """
+
+    def test_schema_sql_source_line_has_no_host(self):
+        text = (REPO_ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+        offenders = [ln for ln in text.splitlines() if "来源：" in ln and "@" in ln]
+        assert not offenders, (
+            "db/schema.sql 的「来源」行里嵌了主机名 —— 这个文件是入库的：\n  "
+            + "\n  ".join(offenders)
+            + "\n主机名只应存在于 .env.prod（已 gitignore）。"
+            "产物里别写它，或改写 <生产 RDS 主机名>。"
+        )
+
+    def test_exporter_header_does_not_interpolate_the_host(self):
+        """生成器本身也不许把 host 插进「来源」行——否则重新生成就会复发。
+
+        改产物是治标：`db/schema.sql` 是**生成物**，跑一次
+        `python tools/export_prod_schema.py --yes` 就带回来了。真正的修处在模板。
+        """
+        lines = (REPO_ROOT / "tools" / "export_prod_schema.py").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        offenders = [ln.strip() for ln in lines if "来源：" in ln and "{host}" in ln]
+        assert not offenders, (
+            "生成器的头部模板又把源主机名插回去了：\n  "
+            + "\n  ".join(offenders)
+            + "\n改这里才治本 —— db/schema.sql 是生成物。"
         )
 
 

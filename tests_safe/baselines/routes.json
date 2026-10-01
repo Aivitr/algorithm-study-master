@@ -359,8 +359,8 @@
   },
   "GET /api/research-runtime": {
     "content_type": "application/json",
-    "digest": "c27373003d05d5a8",
-    "length": 14388,
+    "digest": "2cccae6918f0c0f9",
+    "length": 14392,
     "shape": {
       "config": {
         "cache_root": "str",
