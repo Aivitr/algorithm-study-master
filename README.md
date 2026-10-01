@@ -356,7 +356,7 @@ algorithm-study-master/
 | 为什么这么搭、怎么跑起来 | `deploy/docker.md` |
 | 上线部署 | `deploy/README.md` |
 | 接口清单 + 测试基线覆盖 | `docs/route-inventory.md` |
-| 重构期间发现的问题与**待你定夺**的事项 | `docs/待验收事项.md` |
+| 重构期间发现的问题与**待决定**的事项 | `docs/待验收事项.md` |
 | 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
 | 功能层面（面向使用者） | `docs/功能介绍文档.md` |
 | 从零装环境 | `docs/安装及使用.md` |
