@@ -26,6 +26,30 @@ docker compose up --build
 
 > 代价：`db` 镜像 2.31 GB，常驻约 2 GB 内存。不用时 `docker compose stop db`。
 
+### 本地开发怎么干活
+
+**仓库目录整份挂进了容器，改代码即时生效**——在宿主机上用你惯用的编辑器改
+`app/` 或 `server.py`，容器里的 uvicorn 会自动重载（Windows 上靠
+`WATCHFILES_FORCE_POLLING` 轮询，否则 `--reload` 收不到事件）。不用重建镜像，
+也不用进容器编辑。
+
+常用命令：
+
+```bash
+docker compose logs -f app                        # 看日志（含重载）
+docker compose exec app bash                      # 进容器（建表、查数据、跑脚本）
+docker compose exec app python -m pytest          # 在容器里跑测试
+```
+
+对着本地库查数据（`bash -c` 不能省——`$MSSQL_SA_PASSWORD` 只在**容器内**有值，
+宿主 shell 里是空的，省掉就会拿着空口令去连）：
+
+```bash
+docker compose exec -T db bash -c \
+  '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" \
+   -C -b -d cscl_db -Q "SELECT COUNT(*) FROM users"'
+```
+
 ## 运行（不用容器，手工装环境）
 
 ```bash
@@ -37,12 +61,9 @@ python server.py
 
 打开 `http://127.0.0.1:8000`
 
-> ⚠️ **这条路没有数据库可连，是刻意的**（2026-10-01 定）。`.env.dev` 里的
-> `DB_HOST=db` 是 compose 网络里的服务名，只在容器内可解析——宿主上跑 `server.py`，
-> 注册 / 登录会直接连不上，ORM 侧则回落本地 SQLite。
->
-> 要用数据库就走上面的容器方式；需要在容器里做事（建表、查数据、跑脚本）用
-> `docker compose exec app bash`，它天然在 compose 网络里。
+> ⚠️ 这条路**没有数据库可连**。`.env.dev` 里的 `DB_HOST=db` 是 compose 网络里的
+> 服务名，只在容器内可解析——宿主上跑 `server.py`，注册 / 登录会连不上，
+> ORM 侧回落本地 SQLite。要用数据库请走上面的容器方式。
 >
 > **宿主上跑测试是例外，照常可用**——`./venv/Scripts/python.exe -m pytest` 走的是
 > 测试隔离闸门（sqlite + `127.0.0.1:1`），与真实库无关。见 `docs/待验收事项.md` A33 §9。
