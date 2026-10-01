@@ -5,6 +5,7 @@
 """
 
 import os
+import re
 
 
 MSSQL_PREFIX = "mssql"
@@ -71,14 +72,21 @@ def test_dangerous_legacy_suite_is_not_collected():
 # DATABASE_URL**。仅隔离 DATABASE_URL 对这两条路由无效。
 # ---------------------------------------------------------------------------
 
-PRODUCTION_HOST_MARKERS = ("rds.aliyuncs.com", "***REMOVED-RDS-INSTANCE***")
+# 判据是**形状**，不是某一个具体主机名：写死生产实例标识等于把生产地址
+# 连同这份测试一起提交进公开仓库，所以只按形状匹配。
+#   * 阿里云 RDS 域：任何 `<实例>.rds.aliyuncs.com`；
+#   * 阿里云 RDS 实例标识：`rm-` 后接一长串小写字母数字。
+PRODUCTION_HOST_PATTERNS = (
+    re.compile(r"rds\.aliyuncs\.com"),
+    re.compile(r"\brm-[a-z0-9]{12,}\b"),
+)
 
 
 def test_db_star_vars_do_not_point_at_production():
     """DB_* 变量不得指向生产服务器——它们是直连路由的唯一数据源。"""
     for key in ("DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"):
         value = os.environ.get(key, "")
-        assert not any(m in value for m in PRODUCTION_HOST_MARKERS), (
+        assert not any(p.search(value) for p in PRODUCTION_HOST_PATTERNS), (
             f"{key} 仍指向生产环境：{value}"
         )
     assert os.environ["DB_HOST"] == "127.0.0.1"
@@ -104,6 +112,29 @@ def test_no_production_address_reachable_from_env():
     for key, value in os.environ.items():
         if not isinstance(value, str):
             continue
-        if any(m in value for m in PRODUCTION_HOST_MARKERS):
+        if any(p.search(value) for p in PRODUCTION_HOST_PATTERNS):
             leaks.append(f"{key}={value}")
     assert not leaks, f"环境变量中残留生产地址：{leaks}"
+
+
+def test_production_host_patterns_catch_the_production_shapes():
+    """反向自检：这两条形状规则确实能抓住生产地址。
+
+    没有这条，正则写错（比如少写了转义点）就会让上面几条断言永远通过，
+    隔离悄悄失效却毫无迹象——这正是本文件一直在防的那类静默失败。
+    """
+    production_like = [
+        "rm-abcdefghijklmnop.sqlserver.rds.aliyuncs.com",
+        "rm-0123456789abcdef",
+        "mssql+pymssql://user:pw@rm-abcdefghijklmnop.rds.aliyuncs.com:1433/db",
+    ]
+    for value in production_like:
+        assert any(p.search(value) for p in PRODUCTION_HOST_PATTERNS), (
+            f"没抓住这个生产形状：{value}"
+        )
+
+    harmless = ["127.0.0.1", "db", "1433", "cscl_db", "localhost"]
+    for value in harmless:
+        assert not any(p.search(value) for p in PRODUCTION_HOST_PATTERNS), (
+            f"误报了无害值：{value}"
+        )
