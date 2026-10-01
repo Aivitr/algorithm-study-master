@@ -85,6 +85,18 @@ _FORBIDDEN_IN_CONTEXT = (
     # 文件从根目录搬走、模式还是裸文件名，规则就悄悄失效（现已改成 `**/`）。
     # 那是靠人看注释守的，别指望这条断言。
     "CDN本地化命令.txt",
+    # 2026-10-02 加。归档的死代码与旧运维脚本不进镜像层。理由不是体积
+    # （整棵 archive/ 才 1.1 MB），而是那份层的性质：Dockerfile 末行 `COPY . .`
+    # 会把它烘进镜像，而镜像层只增不减。archive/ 里躺着 `ops-scripts/`
+    # 那批碰生产库的脚本与 prototypes/ 里的半成品，它们**没有任何 import 指向**
+    # （运行链路不读 archive/），烘进可推送的层是纯负担。
+    #
+    # 注意这条**在开发容器里看不出来**：docker-compose.yml 把仓库 bind-mount 到
+    # `/app`，运行时是宿主那份，archive/ 照旧在。这条只管烘进镜像的那一份——
+    # 也就是真正会被 push、被线上拉起的那一份。同理，容器内跑测试也不受影响：
+    # 它读的是挂载进来的宿主 archive/，`test_legacy_isolation.py` 要求的
+    # `archive/legacy-tests/` 仍然在。
+    "archive",
 )
 
 # 反过来：必须**留在**构建上下文里的运行时资产。
