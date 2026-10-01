@@ -31,6 +31,7 @@
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # 本脚本用绝对路径被调用，而 `config` / `database` 在**当前工作目录**下。
@@ -61,7 +62,14 @@ def _import_compat(name: str):
 # 必须在导入 database 之前设定：app/core/database.py 在导入期就用它建 engine。
 # 指向 sqlite 同时意味着 _ensure_transcripts_columns() 找不到 transcripts 表、
 # 直接 return——不会对任何真实库发 DDL。
-os.environ["DATABASE_URL"] = "sqlite:///./__schema_dump__.db"
+#
+# 位置用**系统临时目录**，不用相对 cwd 的写法。本文件的用法要求"在被快照的
+# checkout 根目录下运行"（见文件头），两件事一合，相对路径的产物必然落在仓库根：
+# 实测就是如此——仓库根长期躺着一个 0 字节的同名文件，没人清理。
+# 这与本仓库另外两处「脚本往工作目录吐东西」同类（`_header*.py` 被误提交、
+# `/api/research-runtime` 就地把 RESEARCH_* 写回活动 env 文件）。见 A35。
+_dump_path = Path(tempfile.gettempdir()) / "__schema_dump__.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{_dump_path.as_posix()}"
 
 config = _import_compat("config")  # 先加载 .env，与原逻辑一致
 database = _import_compat("database")

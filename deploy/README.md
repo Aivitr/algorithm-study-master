@@ -507,8 +507,8 @@ sudo tar -czf /opt/backup/storage_$(date +%Y%m%d).tar.gz /opt/smartclass1/storag
 ## 📚 相关文档
 
 - [项目 README](../README.md)
-- [原部署文档](../DEPLOYMENT.md)
-- [功能介绍](../功能介绍文档.md)
+- [原部署文档](../docs/DEPLOYMENT.md)
+- [功能介绍](../docs/功能介绍文档.md)
 
 ---
 
