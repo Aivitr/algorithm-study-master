@@ -56,7 +56,12 @@ _tmp_agora_token_builder/
 
 # ===== 桌面端脚本：只在开发和部署机上跑，容器里没用 =====
 *.ps1
-CDN本地化命令.txt
+# 2026-10-01 的根目录整理把它移到了 archive/dev-docs/（见 A35）。
+# 必须加 `**/` 前缀：Docker 的匹配是拿「相对上下文根的整条路径」去比模式，
+# 裸文件名只匹配根目录下的同名文件——文件一搬，这条规则就**悄悄失效**，
+# 而它是"该排除"清单里唯一一条没有任何断言盯着的（见 test_docker_assets.py
+# 的 _FORBIDDEN_IN_CONTEXT，里面没有它）。所以这里宁可写宽一点。
+**/CDN本地化命令.txt
 
 # 注意：index.html、pcm-processor.js、app/、tests_safe/、tools/、deploy/
 # 都**要**保留——前者是运行时真的会读的文件（app/routers/pages.py 的 `GET /`），
