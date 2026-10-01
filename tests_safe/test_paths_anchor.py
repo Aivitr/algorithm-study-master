@@ -352,12 +352,12 @@ def test_server_syspath_additions_are_known_and_present():
 # `__schema_dump__.db`——它是残留物，不是资产，却没有任何东西盯着。
 #
 # 这与本仓库另外两处「脚本往工作目录吐东西」同类：`_header*.py` 被误提交、
-# `/api/research-runtime` 就地把 RESEARCH_* 写回活动 env 文件。见 A35。
+# `/api/research-runtime` 就地把 RESEARCH_* 写回活动 env 文件。
 
 # `sqlite:///` 后面直接跟 `./`：地址相对**进程的工作目录**，而不是仓库根。
 _CWD_RELATIVE_SQLITE = "sqlite:///./"
 
-# 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（同 A11 的策略）。
+# 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（与设计文档 §4.3 的归档策略一致）。
 _ANCHOR_SKIP_DIRS = {
     "venv", "archive", "__pycache__", ".git", ".codegraph", ".pytest_cache",
     "_tmp_agora_token_builder", "node_modules",

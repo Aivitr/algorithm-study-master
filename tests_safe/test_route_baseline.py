@@ -9,11 +9,11 @@
   - **写操作路由也不在此列**：它们会改变库状态，不属于"行为不变"的验证对象，
     且顺序耦合会让基线不稳定
   - `/api/register`、`/api/login` 为**覆盖盲区**：它们绕过 ORM 直连 MSSQL，
-    无法在本地库上运行（见设计文档 §3.12 与待验收事项 A7）
+    无法在本地库上运行（见设计文档 §3.12）
   - **唯一的例外**：`GET /api/download-exercises/1` 会往 `storage/exercises/`
     落一个文件（见 `WRITES_A_FILE`）。它**不写库**，所以签名稳定、可以进基线；
     但"只读"这个说法对它不准确。基线遍历结束后会把**本次新产生的**删掉。
-    2026-10-01 之前这件事没做，该目录已经攒了 200 多个文件（A24 发现二）。
+    2026-10-01 之前这件事没做，该目录已经攒了 200 多个文件。
 
 记录：`pytest --record-baseline` 重新录制；默认与已录基线比对。
 """
@@ -169,7 +169,7 @@ def test_baseline_run_leaves_no_export_files_behind(raw_responses):
 
     依赖 `raw_responses` 只为保证顺序——得等那次遍历跑完再看。
 
-    背景（A24 发现二）：`GET /api/download-exercises/1` 每次调用都往
+    背景：`GET /api/download-exercises/1` 每次调用都往
     `storage/exercises/` 落一个文件且从不清理，而它被列在 `READ_ONLY_ROUTES`
     里。2026-10-01 之前这件事没人管，该目录攒了 234 个文件（几乎全由测试产生，
     当天一天就长了约 200 个）。现在遍历结束即收尾，由本断言盯着收尾是否生效。

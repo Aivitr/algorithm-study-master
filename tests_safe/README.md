@@ -79,8 +79,8 @@ tests/test_api_endpoints.py:2   from server import app
 ## 已知盲区
 
 - `/api/register`、`/api/login` 绕过 ORM 直连 pymssql，**无法在本地库上测试**，
-  永久排除在自动化之外（`docs/待验收事项.md` A7）
-- `/voiceprint_register` 是死路由，指向的文件全仓不存在（A4）
+  永久排除在自动化之外
+- `/voiceprint_register` 是死路由，指向的文件全仓不存在
 - 外部服务（阿里云 NLS / DeepSeek / Agora）只能 mock，mock 的契约未必等于现实
 - 测试直连 ASGI，**不经过 nginx**，因此反代层问题（如 `/ws/` 前缀不匹配）
   测试永远发现不了，需另加部署形态验证（设计文档 §7.4）

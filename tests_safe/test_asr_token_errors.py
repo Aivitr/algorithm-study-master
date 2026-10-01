@@ -1,6 +1,6 @@
 """阿里云 NLS Token 拿不到时，必须把接口给出的**拒绝原因**打印出来。
 
-背景（见 `docs/待验收事项.md` A34）：`refresh_aliyun_token()` 原来只写了成功
+背景：`refresh_aliyun_token()` 原来只写了成功
 分支（`if 'Token' in d:`）。阿里云对 CreateToken 的拒绝是 HTTP 4xx 且**不带
 Token 字段**的，于是函数静默落到末尾返回 None，调用方
 `RealtimeTranscriber.start()` 只能报一句"无法获取阿里云Token"——

@@ -3,7 +3,7 @@
 **生产隔离不在这里**——它在仓库根的 `conftest.py`。原先它写在本文件里，
 但那只能覆盖「按默认方式运行 pytest」（`pytest.ini` 的 `testpaths = tests_safe`）；
 一旦显式给出路径参数，`testpaths` 就被覆盖，本文件根本不会加载。详见根
-`conftest.py` 的文件头与 `docs/待验收事项.md` A13。
+`conftest.py` 的文件头。
 
 本文件保留了「隔离是否已生效」的断言（见下），根 conftest 若被删除或改名，
 这里会立刻失败，而不是静默地退回生产配置。

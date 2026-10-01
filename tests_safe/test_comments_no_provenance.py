@@ -1,7 +1,7 @@
 """守卫：活文件里的注释与文档字符串不许再出现「开发过程的来历」。
 
 来历指这些东西：重构的阶段编号（`阶段 5`）、设计文档的小节号（`设计文档 §4.1`）、
-搬迁时的行号锚（`原 server.py:3019`）、待验收事项的编号（`A37`）、以及
+搬迁时的行号锚（`原 server.py:3019`）、外部账目编号（`A37` 这类）、以及
 `迁至 …` 这类搬迁叙述。它们在重构当时有用，现在只剩误导——文件早就移位了。
 
 **判据是「形状」而不是「关键词」。** 这个仓库里有几类词是正当的，必须在
@@ -41,7 +41,7 @@ _PROVENANCE = (
     ("设计文档式小节号 §N.M", re.compile(r"§\s*[0-9]+\.[0-9]+")),
     ("server.py 的行号锚", re.compile(r"server\.py\s*:\s*[0-9]+")),
     ("迁至（搬迁叙述）", re.compile(r"迁至")),
-    ("待验收事项编号 A NN", re.compile(r"(?<![A-Za-z0-9])A[0-9]{2}(?![0-9])")),
+    ("外部账目编号 A NN（如 A37）", re.compile(r"(?<![A-Za-z0-9])A[0-9]{2}(?![0-9])")),
 )
 
 
@@ -99,7 +99,7 @@ def test_no_live_source_keeps_the_refactor_notes():
                 )
     assert offenders == [], (
         "活文件的注释里又出现了开发过程的来历。注释只留操作须知，"
-        "来历请写进 docs/待验收事项.md：\n  " + "\n  ".join(offenders)
+        "来历就地在注释里写清楚，别引用外部编号：\n  " + "\n  ".join(offenders)
     )
 
 
@@ -128,7 +128,7 @@ def test_the_guard_catches_an_offender_and_spares_a_lookalike():
         "§3.1 的失效模式正是静默。": "设计文档式小节号 §N.M",
         "常量原在 server.py:3019-3049。": "server.py 的行号锚",
         "阶段 5 迁至 app/core/oss.py。": "迁至（搬迁叙述）",
-        "账目见 A37。": "待验收事项编号 A NN",
+        "账目见 A37。": "外部账目编号 A NN（如 A37）",
     }
     for text, label in should_flag.items():
         assert label in _provenance_in(text), f"漏报了 {label}：{text!r}"
