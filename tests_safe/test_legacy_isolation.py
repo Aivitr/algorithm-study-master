@@ -77,7 +77,8 @@ def test_root_conftest_gate_exists():
     """仓库根的 `conftest.py` 必须存在——它是唯一覆盖所有调用方式的闸门。
 
     单独断言它的存在，因为它的缺失**不会有任何症状**：测试照跑、照通过，
-    只是隔离没了。真实事故就是这样发生的（见 `docs/待验收事项.md` A13）。
+    只是隔离没了。真实事故就是这样发生的（回归测试见
+    `test_archived_explicit_path_is_refused`）。
     """
     root_conftest = REPO_ROOT / "conftest.py"
     assert root_conftest.is_file(), (
@@ -110,7 +111,7 @@ def test_legacy_test_modules_are_not_imported():
 def test_archived_explicit_path_is_refused():
     """事故回归测试：**显式点名**归档测试文件，必须被拒绝收集。
 
-    这正是发生过的真实事故（`docs/待验收事项.md` A13）：
+    这正是发生过的真实事故：
 
         $ pytest archive/legacy-tests/tests-dir/test_api_endpoints.py --collect-only
         3 tests collected in 3.59s        ← 真实 import 了 server/database

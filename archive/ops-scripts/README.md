@@ -25,9 +25,9 @@ ops-scripts/
 模块导入期执行 `database.py:243` 的 `_ensure_transcripts_columns()`，必要时对
 `DATABASE_URL` 指向的库执行 `ALTER TABLE`。
 
-### `_prod_guard.py`：A7 约定的「非阻塞警示」
+### `_prod_guard.py`：「非阻塞警示」
 
-`docs/待验收事项.md` 的 A7 约定给 `check_*.py` / `init_db.py` 加非阻塞警示。
+归档时的约定是给 `check_*.py` / `init_db.py` 加非阻塞警示。
 实现见 `_prod_guard.py`，行为是：
 
 | 目标 | 行为 |
@@ -37,14 +37,14 @@ ops-scripts/
 
 确认方式：命令行加 `--yes`，或设环境变量 `OPS_SCRIPT_CONFIRM=1`。
 
-> **这是对 A7 的一处强化，记录在此以免误以为是原约定的全部**：A7 说的是
+> **这是对原约定的一处强化，记录在此以免误以为是原约定的全部**：原约定说的是
 > 「非阻塞警示」。纯粹打印的警示在这里几乎无用——脚本打印完下一行就开始执行
 > DDL，操作者看到时事情已经发生。因此**仅对远程目标**加了一道确认，
 > 本地目标仍是非阻塞的。
 
 **一处必须守住的细节**：`DATABASE_URL` 形如
 `mssql+pymssql://user:password@host:port/db`，**整串里含明文口令**。
-`_prod_guard` 打印前一律脱敏（`user:***@host`）。这与 A8 记录的问题同源——
+`_prod_guard` 打印前一律脱敏（`user:***@host`）。这与另一处已暴露的问题同源——
 那次是「响应里夹带 `.env` 凭据」，这里是「日志里夹带」。
 
 已实测：远程+无确认 → 退出码 2 且输出不含口令原文；远程+确认 → 继续；
@@ -130,7 +130,7 @@ ops-scripts/
 
 ## 查阅指引
 
-- 想知道**数据源锚点**为何重要 → `docs/待验收事项.md` A11、A12，以及
-  `app/core/paths.py` 的模块文档
+- 想知道**数据源锚点**为何重要 → `app/core/paths.py` 的模块文档，以及
+  `tests_safe/test_paths_anchor.py`
 - 想知道生产库上有哪些表/列**不在 ORM 里** → `DATABASE_AUDIT_REPORT.md`
   （已归档到 `../dev-docs/`）

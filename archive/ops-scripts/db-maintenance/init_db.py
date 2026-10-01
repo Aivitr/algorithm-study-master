@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """初始化数据库表结构"""
 import os
-# --- 归档防护：见 archive/ops-scripts/README.md 与 docs/待验收事项.md A7 ---
+# --- 归档防护：见 archive/ops-scripts/README.md ---
 # 三个动作合一：定位 _prod_guard、挂上仓库根（使下方 import config 仍可用）、
 # 在执行任何数据库操作前先打印实际目标并（仅对远程库）要求确认。
 import pathlib as _pathlib

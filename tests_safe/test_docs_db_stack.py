@@ -1,4 +1,4 @@
-"""不许再教人用 MySQL 时代的数据库栈（A37，2026-10-01）。
+"""不许再教人用 MySQL 时代的数据库栈（2026-10-01 订正）。
 
 本系统早已从 MySQL 迁到 **SQL Server 2022**：`app/` 里没有一处 pymysql，
 `requirements.txt` 装的是 `pymssql`（走 TDS）。但仓库里还留着几处**照做就错**的

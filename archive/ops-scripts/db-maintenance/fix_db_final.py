@@ -3,7 +3,7 @@ import os
 import config  # 先加载 .env，确保 os.getenv 能读到 DATABASE_URL
 from sqlalchemy import create_engine, text
 
-# --- 归档防护：见 archive/ops-scripts/README.md 与 docs/待验收事项.md A7 ---
+# --- 归档防护：见 archive/ops-scripts/README.md ---
 import pathlib as _pathlib
 import sys as _sys
 for _p in _pathlib.Path(__file__).resolve().parents:

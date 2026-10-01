@@ -87,7 +87,7 @@ _FORBIDDEN_HOSTS = (
 # 会立刻要求给它编一个 url 与 version）。
 #
 # 这里**显式列出**，而不是把断言放宽成"只查 vendor/"：显式名单能让
-# "新增了一个第一方文件却忘了登记"在评审里看得见。详见 `docs/待验收事项.md` A27。
+# "新增了一个第一方文件却忘了登记"在评审里看得见。
 _FIRST_PARTY = {
     "css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
     "js/app.js",    # index.html 原 <script> 块（阶段 7 外移）

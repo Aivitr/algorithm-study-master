@@ -37,17 +37,17 @@ _msg*.txt
 # 抽取脚手架的输入文件（tools/extract_route_group.py --header、
 # tools/move_block.py --header）。它们是**一次性**的：头的内容当下就写进了
 # app/routers/<模块>.py 与 app/realtime/<模块>.py，留在这里没有用途。
-# 曾经有 4 个（_header_auth/pages/research_runtime/votes）被误提交，
-# 见 docs/待验收事项.md。它们还会被 tests_safe/test_module_moves.py 的
-# rglob("*.py") 枚举成一个多余的参数，把测试数量搅浑。
+# 曾经有 4 个（_header_auth/pages/research_runtime/votes）被误提交。
+# 它们还会被 tests_safe/test_module_moves.py 的 rglob("*.py") 枚举成一个
+# 多余的参数，把测试数量搅浑。
 _header*.py
 _before_*.py
 
 # 本机联调用的 compose 叠加文件 —— 它通常会带本机 SA 口令。
 #
-# A32 时代确实有过一份 `docker-compose.local-mssql.yml`（把 app 指到那个手起的
+# 曾经确实有过一份 `docker-compose.local-mssql.yml`（把 app 指到那个手起的
 # MSSQL 容器）。那条通路已随该容器一起退役：现在「本机库指向」这件事由
-# `.env.dev` 承担，而 `.env.*` 上面已经有规则管住了（见 A33 §8）。
+# `.env.dev` 承担，而 `.env.*` 上面已经有规则管住了。
 # 规则留着不是因为还有文件，而是因为**这一类文件带凭据**——
 # 将来真有人再写一份本机叠加文件，它不该有进仓库的默认路径。
 docker-compose.local-mssql.yml

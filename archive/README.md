@@ -14,8 +14,7 @@ archive/
 └── unsorted/        未归类备用（**有意为空**）
 ```
 
-逐文件的映射依据、以及设计文档未覆盖的几处决定，记在
-`docs/待验收事项.md` **A11**。
+逐文件的映射依据、以及设计文档未覆盖的几处决定，各子目录的 README 里逐条写明。
 
 ---
 
@@ -62,7 +61,7 @@ archive/
 | `ops-scripts/` | 会连库的运维脚本，含 `_prod_guard` 防护 | `ops-scripts/README.md` |
 | `dev-docs/` | 9 份开发过程文档。注意 `PROJECT_STATUS_REPORT.json` 是**另一台机器**的旧快照 | `dev-docs/README.md` |
 | `vendors/` | 有意为空——唯一候选被 gitignore 且是运行期条件引用，移走会静默失效 | `vendors/README.md` |
-| `unsorted/` | 有意为空——A11 登记的"未归类备用"落点 | `unsorted/README.md` |
+| `unsorted/` | 有意为空——已登记的"未归类备用"落点 | `unsorted/README.md` |
 
 ---
 

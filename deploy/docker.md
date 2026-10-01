@@ -44,7 +44,7 @@ app      自仓库 Dockerfile 构建；镜像里**不含**任何数据库，只�
 
 `app` 的 `depends_on` 写的是 `service_completed_successfully`：**等 `db-init` 成功退出再起**。
 不这么写，app 会连上一个还没建表的空库，"能连上"却是坏的，然后在第一次注册时抛出
-一个和真实原因毫无关系的错——A32 就是这么来的。
+一个和真实原因毫无关系的错。
 
 首次构建要装一整套 ML 依赖（torch / insightface / pyannote / funasr），**很慢，且镜像很大**；
 `db` 镜像本身另有 2.31 GB。之后只要 `requirements.txt` 没变，改代码不会触发重装——
@@ -170,8 +170,8 @@ compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只�
 - `db/schema.sql` 真的幂等——这是"每次 `up` 都会重跑它"的前提
 - `app` 等 `db-init` **成功退出**；app 的库配置只来自 `.env.dev`，且 `required: true`
 - **反向断言**：除 `app` 外，任何 service 都不得在 `environment:` 里定义那 6 个键
-  （防的是 A30 那类"断言写在 A 上、改动发生在 B"）
-- 入库文件里不含生产主机名 / 用户名 / 口令（实测抓到过一次，见 A33）
+  （防的是"断言写在 A 上、改动发生在 B"那类失效）
+- 入库文件里不含生产主机名 / 用户名 / 口令（实测抓到过一次）
 
 ### `db` / `db-init` 刻意**不碰** `DB_*` 命名空间
 
@@ -184,7 +184,7 @@ compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只�
 于是"容器会连生产库"永远不会变成一个随手可及的仓库内开关。
 
 把它里面的 `DB_HOST` / `DB_PORT` / `DATABASE_URL` 指过去即可，但**三个必须一起改**：
-ORM 走 `DATABASE_URL`，而 `/api/register`、`/api/login` **不走 ORM**，直接读 `DB_*`（A32）。
+ORM 走 `DATABASE_URL`，而 `/api/register`、`/api/login` **不走 ORM**，直接读 `DB_*`。
 只改一个的症状是"注册写 A 库、登录读 B 库"。
 
 > ⚠️ 若指向真实库，容器**会对它发 DDL**（导入期的 `_ensure_transcripts_columns`）。
@@ -267,7 +267,7 @@ docker compose run --rm --no-deps app python -m pytest -q
 `tests_safe/baselines/routes.json` 是"重构不改变行为"这条承诺的唯一自动证据。
 **为了让一个新环境变绿而去改金标准，正好会掩盖它本该抓到的回归。**
 所以这里只记录现象、不改基线；要不要让它变成跨平台可比（例如签名前统一
-换行、把仓库根替换成占位符），留给你定 —— 见 A24。
+换行、把仓库根替换成占位符），留给你定。
 
 在此之前，在容器里跑测试请按这一条已知差异来看结果。
 
@@ -288,7 +288,6 @@ docker compose run --rm --no-deps app python -m pytest -q
 > `storage/exercises/` 写一个文件（`app/routers/quiz.py`）。
 > 它不写库，所以基线本身仍然稳定；但"只读"这个说法不准确，
 > 且跑一遍全量测试就会留下一个文件——实测该目录里已经攒了约 170 个。
-> 见 A24。
 
 ---
 

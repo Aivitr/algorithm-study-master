@@ -74,7 +74,7 @@ _FORBIDDEN_IN_CONTEXT = (
     "storage",
     "uploads",
     "voiceprints.json",
-    # 2026-10-01 加（A35）。加它不是为了好看：它是这份清单里**唯一一条此前
+    # 2026-10-01 加。加它不是为了好看：它是这份清单里**唯一一条此前
     # 没有任何断言盯着**的排除项——`.dockerignore` 里写着它，但名单里没有它，
     # 于是"删掉那一行"不会有任何测试变红。
     #
@@ -82,7 +82,7 @@ _FORBIDDEN_IN_CONTEXT = (
     # （去尾 `/`、去头部 `*` 与 `/`），`CDN本地化命令.txt` 与 `**/CDN本地化命令.txt`
     # 归一到同一个串，两者都算通过。所以它只保证"名字还在清单里"，
     # **不保证模式在 Docker 的路径语义下真的匹配得到**。真正的坑正是后者：
-    # 文件从根目录搬走、模式还是裸文件名，规则就悄悄失效（A35 已改成 `**/`）。
+    # 文件从根目录搬走、模式还是裸文件名，规则就悄悄失效（现已改成 `**/`）。
     # 那是靠人看注释守的，别指望这条断言。
     "CDN本地化命令.txt",
 )
@@ -423,7 +423,7 @@ class TestComposePointsAtTheLocalDatabase:
 
         为什么要反向断言：上面那条只管得住 app。若将来新加的服务（或有人
         "顺手"给 db/db-init 补上）也能设置这些键，配置就有了第二个入口 ——
-        A30 记的正是这类"守卫拦不住"的失效：断言写在 A 上，改动却发生在 B。
+        这正是"守卫拦不住"的失效的典型：断言写在 A 上，改动却发生在 B。
         """
         offenders = {}
         for name, service in (_compose().get("services") or {}).items():
@@ -469,7 +469,7 @@ class TestDevEnvLayer:
             f".env.dev.example 缺少这些键：{missing}。\n"
             f"ORM 读 DATABASE_URL，而 /api/register、/api/login **不走 ORM**，"
             f"直接读 DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME。"
-            f"少任何一个，那条路径就连不上（A32 就是这个）。"
+            f"少任何一个，那条路径就连不上。"
         )
 
     def test_points_at_the_compose_db_service(self, example):
@@ -480,7 +480,7 @@ class TestDevEnvLayer:
         """
         assert example["DB_HOST"] == "db", (
             f"DB_HOST 是 {example['DB_HOST']!r}，应为 'db'（compose 网络里的服务名）。\n"
-            f"写 localhost 的话，容器里的 localhost 是它自己 —— 这正是 A32 的成因。"
+            f"写 localhost 的话，容器里的 localhost 是它自己。"
         )
         assert example["DB_PORT"] == "1433", (
             f"DB_PORT 是 {example['DB_PORT']!r}，应为容器内的 1433。"
@@ -532,7 +532,7 @@ class TestNoProductionCredentialsAreTracked:
     为什么现在才需要它：分层之前，生产凭据集中在**一个** gitignore 的 `.env` 里，
     只要那条 gitignore 规则在就不会漏。分层之后，凭据散在 `.env.prod`、
     模板、文档、部署脚本若干处 —— 少写一个占位符、文档里顺手贴一段真实连接串，
-    都能把生产主机名带进仓库。实测已经发现过一次（见 A33）。
+    都能把生产主机名带进仓库。实测已经发现过一次。
 
     跳过而不是失败：新克隆的仓库里本来就没有 `.env.prod`（它不入库），
     这时没有真相可比，没得测。
@@ -578,7 +578,7 @@ class TestGeneratedSchemaCarriesNoSourceHost:
     与真值无关，任何克隆都跑。
 
     实测经过：`db/schema.sql` 的自动生成头部原本写的是
-    `来源：cscl_db @ <真实主机>`，随第一次提交入了库，随后才被上一条抓住（见 A33）。
+    `来源：cscl_db @ <真实主机>`，随第一次提交入了库，随后才被上一条抓住。
     所以这里再钉一道，并且钉在**产物形状**上——生成器改回去就会立刻红。
     """
 

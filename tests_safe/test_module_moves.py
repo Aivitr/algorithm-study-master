@@ -60,7 +60,7 @@ MOVED_MODULES: dict[str, str] = {
 # 扫描时跳过的目录，每一个都有明确理由：
 #   venv                     第三方代码，不是本仓库的
 #   archive                  冻结的历史记录——里面本来就写着搬迁前的旧名字，
-#                            改它反而失真（设计文档的归档策略见 A11）
+#                            改它反而失真（归档策略见设计文档 §4.3）
 #   _tmp_agora_token_builder 独立小工具，由 server.py 单独加进 sys.path，
 #                            与 app/ 的导入体系无关
 #   __pycache__              字节码，不是源码
