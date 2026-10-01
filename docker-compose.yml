@@ -44,9 +44,11 @@
 # 空命名卷盖住 —— 那是开发机上的 Windows venv，足足 2.1 GB，容器里既用不了
 # （二进制不兼容）又会让文件监听去遍历它。容器用的是镜像里的 /opt/venv。
 #
-# .env **会**跟着挂进来，这是有意的：LLM/OSS/阿里云那些键正需要它。
-# 副作用（与在本机直接跑 uvicorn 时一样）：调 /api/research-runtime 的
-# 配置接口会就地改写 .env 里的 RESEARCH_* 三行。
+# .env 与 .env.dev **都会**跟着挂进来，这是有意的：LLM/OSS/阿里云那些键正需要它，
+# 库指向则由 .env.dev 提供。
+# 副作用（与在本机直接跑 uvicorn 时一样）：调 /api/research-runtime 的配置接口会
+# 就地改写**活动 env 文件**里的 RESEARCH_* 三行。容器里 APP_ENV=dev，所以写的是
+# 宿主的 .env.dev，不会动 .env。
 # ============================================================================
 
 name: algorithm-study-master
@@ -67,10 +69,10 @@ services:
         required: true
     volumes:
       - mssql-data:/var/opt/mssql
-    # 刻意**不把 1433 发布到宿主**：app 走 compose 网络连它，不需要宿主端口；
-    # 不发布也就不会和宿主上别的 SQL Server（比如手起的 smartclass-mssql）撞车。
+    # 刻意**不把 1433 发布到宿主**：app 走 compose 网络连它，不需要宿主端口。
     # 要用 SSMS/DBeaver 连的话，自己加一行 ports（记得绑 127.0.0.1，别开给全网）：
     #   ports: ["127.0.0.1:14330:1433"]
+    # 不发布也不影响开发：进容器查库用 `docker compose exec db ...sqlcmd`。见 README。
     healthcheck:
       # $$ 是 compose 的转义，让 $ 原样进容器、由容器内的 sh 展开
       test:
