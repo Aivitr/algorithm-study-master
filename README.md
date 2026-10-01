@@ -66,33 +66,6 @@ docker compose exec app python -m pytest   # 容器里跑
 容器内跑法下按 `deploy/docker.md` 有 1 条既知基线失败，**不要重录基线**。
 细节见 `tests_safe/README.md`。
 
-## 运行（不用容器，手工装环境）
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python server.py
-```
-
-打开 `http://127.0.0.1:8000`
-
-> ⚠️ 这条路**没有数据库可连**。`.env.dev` 里的 `DB_HOST=db` 是 compose 网络里的
-> 服务名，只在容器内可解析——宿主上跑 `server.py`，注册 / 登录会连不上，
-> ORM 侧回落本地 SQLite。要用数据库请走上面的容器方式。
->
-> **宿主上跑测试是例外，照常可用**——`./venv/Scripts/python.exe -m pytest` 走的是
-> 测试隔离闸门（sqlite + `127.0.0.1:1`），与真实库无关。见 `docs/待验收事项.md` A33 §9。
-
-## 配置
-- 复制 `.env.example` 为 `.env`
-- 数据库指向放在 `.env.dev`（本机）或 `.env.prod`（线上），见上方快速开始
-- 需要线上 AI / 阿里云 / OSS / Agora 时再填写对应环境变量
-
-按 `APP_ENV` 分层加载，优先级是**进程环境变量 > `.env.<APP_ENV>` > `.env`**
-（逐层 `setdefault`，所以外层显式给出的值永远赢）。实现在
-`app/core/config.py::_load_dotenv`。
-
 ## 可选依赖
 - 阿里本地语音识别 `requirements_funasr.txt`
 - 性能优化/GPU加速 `requirements_enhanced_runtime.txt`
