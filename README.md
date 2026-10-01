@@ -181,8 +181,13 @@ algorithm-study-master/
 ```
 
 > 根目录那几样"看着该挪走"的东西**动不得**：`download_enhanced_open_models.py`、
-> 三个 `.ps1`、`enhanced_bridge_templates/` 的路径由 `GET /api/research-runtime`
-> 原样返回给调用方，`tests_safe/test_research_assets.py` 断言它们就在仓库根。
+> `requirements_enhanced_runtime.txt`、四个 `.ps1`、`enhanced_bridge_templates/`。
+> `GET /api/research-runtime` 把其中 5 条路径**原样返回**给调用方（三个 `.ps1`：
+> `prepare_enhanced_model_layout` / `setup_enhanced_runtime` / `check_enhanced_runtime`，
+> 外加那个 `.py` 与 `.txt`），`tests_safe/test_research_assets.py` 断言它们就在仓库根。
+> 剩下的 `install_enhanced_models_from_local.ps1` 与 `enhanced_bridge_templates/`
+> 虽不进该接口，但后者被 `download_enhanced_open_models.py` 按**仓库根相对路径**引用
+> （`repo_root / "enhanced_bridge_templates" / …`），同样挪不得。
 
 ## 数据库表结构
 
