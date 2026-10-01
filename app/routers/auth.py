@@ -1,4 +1,4 @@
-"""认证与注册域的路由（阶段 5 从 server.py 拆出）。
+"""认证与注册域的路由。
 
 本组共 3 条：
 
@@ -12,10 +12,6 @@
 `pymssql.connect(server=os.getenv("DB_HOST"), ...)` 连库，**不读 `DATABASE_URL`**，
 因此配置里 `DB_*` 与 `DATABASE_URL` 必须两套都给（见 .env.example 的说明）。
 `/login` 则走 ORM（`get_db` / `Session`）。
-
-拆出本组时**没有**改动这两条路径中的任何一行——它们逐字节保持原样。
-把两者放在同一个模块里是为了让这个差异**看得见**：它们是同一件事的两种实现，
-分开摆放反而容易让人以为只有一条路径。
 """
 
 import json
@@ -162,7 +158,7 @@ async def login(
     material_file: UploadFile = File(None),  # 上传文件
     material_url: str = Form(None),  # 材料URL
     template_path: str = Form(None),  # 模板路径
-    student_id: str = Form(None),  # 新增：用student_id查找用户，避免中文编码问题
+    student_id: str = Form(None),  # 用 student_id 查找用户，避免中文编码问题
     db: Session = Depends(get_db)
 ):
     """

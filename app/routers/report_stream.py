@@ -1,14 +1,12 @@
-"""报告流式生成域的路由（阶段 5 从 server.py 拆出）。
+"""报告流式生成域的路由。
 
-本组 2 条，在 server.py 里本来就是相邻的一段：
+本组 2 条：
 
     GET  /api/exercises/{report_id}      取某份报告生成出来的随堂练习
-    POST /api/generate-report-stream     以 SSE 流式生成学习报告（216 行）
+    POST /api/generate-report-stream     以 SSE 流式生成学习报告
 
 两条放在同一个模块，是因为 `/api/exercises` 读的正是报告产出物
-（`Exercise.report_id`），且它们在源文件里连续——按业务域切分时不必为了
-"名字更纯"把它硬塞给别的模块。若以后 `reports.py` 那三条也搬进同一个包，
-可再合并，那时是纯文件整理，不涉及行为。
+（`Exercise.report_id`）。
 
 本组只依赖 import 能解决的名字（无 server.py 内部辅助、不碰模块级可变状态），
 唯一的"实时"味道是 SSE 本身——它不读任何进程内共享状态。

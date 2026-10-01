@@ -1,4 +1,4 @@
-"""课堂进行中的教师操作域（阶段 5 从 server.py 拆出）。
+"""课堂进行中的教师操作域。
 
 本组 5 条，都是"一堂课进行中教师端要触发的动作"：
 
@@ -8,18 +8,15 @@
     POST /api/quick-decompose      一键分解：跳过聚类投票直接生成子任务
     POST /api/cluster-viewpoints   聚类学生观点
 
-**本组带走了 Agora 那一小块配件**（原 server.py:3019-3049）：常量
-`DEFAULT_AGORA_APP_ID` 与 `_normalize_agora_auth_mode` / `_get_agora_rtc_config`
-两个私有辅助。它们只服务 `/api/agora-token` 一条路由，且不能留在 server.py
-让新模块 `from server import ...` 去取（那在 `python server.py` 下会二次执行
-整个文件，见 `app/routers/__init__.py`），所以用 `--also` 一并搬走。
+本组带走 Agora 那一小块配件：常量 `DEFAULT_AGORA_APP_ID` 与
+`_normalize_agora_auth_mode` / `_get_agora_rtc_config` 两个私有辅助，它们只服务
+`/api/agora-token` 一条路由。
 
 `manager` 取自 `app.realtime.registry`（与 `server.manager` 是同一个对象）；
 `NO_CACHE_HEADERS` 取自 `app.core.http`（令牌类响应必须每次现取）。
 
-注意 `/api/agora-token` 的响应取决于 `.env` 里的 `AGORA_*`：本机缺
-`AGORA_APP_CERTIFICATE` 时它显得"确定"，但配置齐全后会返回带时效的 Token。
-因此它**刻意不在**行为基线的覆盖范围内，见 `docs/route-inventory.md`。
+`/api/agora-token` 的响应随 `.env` 里的 `AGORA_*` 变化，**不在**行为基线的
+覆盖范围内——见 `docs/route-inventory.md`。
 """
 
 import os

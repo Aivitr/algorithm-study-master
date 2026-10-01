@@ -1,4 +1,4 @@
-"""实时链路的路由（阶段 5 从 server.py 拆出）。
+"""实时链路的路由。
 
 本组 8 条，即实时域的全部入口——三条 WebSocket 加五条 POST：
 
@@ -11,23 +11,19 @@
     /api/check-quiet-members             找出沉默成员
     /api/ai-tutor-stream                 AI 助教（流式 SSE）
 
-它们与 server.py 里其余路由的区别是**不碰数据库查询**，只做转发与判定；但会用到
-实时链路那几块进程内共享状态（ASR 自我语音门禁的阈值、连接管理器、ASR 会话单例）。
+它们与其余路由的区别是**不碰数据库查询**，只做转发与判定；但会用到实时链路那
+几块进程内共享状态（ASR 自我语音门禁的阈值、连接管理器、ASR 会话单例）。
 
 ## 三条 WebSocket 的装配
 
 `APIRouter` 支持 `.websocket()`，`include_router` 会把它们一并加进路由表，
-地址与签名不变。真正需要留意的是**注册顺序**：搬出去之后这 8 条从"写在文件最前面"
-变成"装配段最后 include"，因此排在其它路由之后。本仓库没有 `/{...}` 形式的
-catch-all 路由，且三条 ws 路径与既有路径的段数都不同，匹配结果不变
-（`tests_safe/test_route_baseline.py` 逐条比对 59 条路由的地址与输入输出）。
+地址与签名不变。**注册顺序**：本组在装配段最后 include，因此排在其它路由之后；
+本仓库没有 `/{...}` 形式的 catch-all 路由，且三条 ws 路径与既有路径的段数都不同，
+匹配结果不变。
 
-## 为什么不能从 server 取这些名字
-
-在 `python server.py` 启动时那会让 server.py 二次执行，见 `app/routers/__init__.py`。
-所以 `asr_manager` / `manager` / `signal_manager` 都从它们的真实出处
-（`app.realtime.asr_manager` / `app.realtime.registry`）取——是同一批对象，
-不是副本。
+`asr_manager` / `manager` / `signal_manager` 从它们的真实出处
+（`app.realtime.asr_manager` / `app.realtime.registry`）取——是同一批对象，不是副本。
+不能 `from server import`，见 `app/routers/__init__.py`。
 """
 
 import asyncio
@@ -106,7 +102,7 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                 key = (int(meeting_id), username)
                 asr_manager._append_pcm_buffer(meeting_id, username, data)
 
-                # 阿里云会话收到音频后立即启动；当前实时转文字不再使用声纹门控。
+                # 阿里云会话收到音频后立即启动；实时转文字不使用声纹门控。
                 if not session_started:
                     print(f"[ASR] 启动阿里云实时会话，声纹门控已关闭: {username}")
                     success = await asr_manager.start_session(username, meeting_id, websocket)

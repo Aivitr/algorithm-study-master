@@ -1,12 +1,12 @@
-"""静态页面与小型静态资源路由（阶段 5 从 server.py 拆出）。
+"""静态页面与小型静态资源路由。
 
     /                 首页，返回 index.html
     /pcm-processor.js 前端录音用的 AudioWorklet 脚本
 
-两条都不是 nginx 反代前缀下的 API，但同样是 C3 冻结的 59 条接口之一
-（tests_safe/test_route_contract.py 的"顶层路由"断言盯着它们）。
+两条都不是 nginx 反代前缀下的 API，但同样是冻结的 59 条接口之一
+（`tests_safe/test_route_contract.py` 的"顶层路由"断言盯着它们）。
 
-`NO_CACHE_HEADERS` 取自 app/core/http.py——页面内容必须每次现取，不能吃缓存。
+`NO_CACHE_HEADERS` 取自 `app/core/http.py`——页面内容必须每次现取，不能吃缓存。
 """
 
 import os

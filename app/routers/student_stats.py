@@ -1,4 +1,4 @@
-"""学生与班级统计域的路由（阶段 5 从 server.py 拆出）。
+"""学生与班级统计域的路由。
 
 本组 3 条，都是"按 user_id / teacher_id 汇总历史数据"这一族：
 
@@ -7,9 +7,8 @@
     GET /api/active-groups/{teacher_id}     某教师名下仍在进行的分组
 
 它们共用 `_build_meeting_window_map`——该辅助**也**被教师域的
-`/api/teacher-classes` 使用，因此已迁到中立的 `app/services/meeting_metrics.py`，
-本模块从那里导入（不能 `from server import`：在 `python server.py` 下会让
-server.py 二次执行，见 `app/routers/__init__.py`）。
+`/api/teacher-classes` 使用，因此住在中立的 `app/services/meeting_metrics.py`，
+本模块从那里导入（不能 `from server import`，见 `app/routers/__init__.py`）。
 """
 
 from fastapi import APIRouter, Depends

@@ -1,23 +1,22 @@
-"""教师端域的路由（阶段 5 从 server.py 拆出）。
+"""教师端域的路由。
 
 本组 6 条，是"教师视角的班级/报告/模板"这一族：
 
     GET    /api/teacher-templates/{teacher_id}        报告模板列表
     DELETE /api/delete-template/{template_id}         删模板
-    GET    /api/teacher-stats/{teacher_id}            教师统计（52 行）
-    GET    /api/teacher-classes/{teacher_id}          教师带过的课堂（60 行）
-    GET    /api/class-groups/{meeting_id}             某节课的分组（72 行）
-    GET    /api/all-student-reports/{teacher_id}      全班报告汇总（67 行）
+    GET    /api/teacher-stats/{teacher_id}            教师统计
+    GET    /api/teacher-classes/{teacher_id}          教师带过的课堂
+    GET    /api/class-groups/{meeting_id}             某节课的分组
+    GET    /api/all-student-reports/{teacher_id}      全班报告汇总
 
 `_build_meeting_window_map` / `_build_meeting_activity_map` 取自
-`app/services/meeting_metrics.py`——它们同时服务学生统计域（`/api/student-home-stats`），
-因此住在中立的服务模块里，而不是跟着本组走。不能 `from server import ...`：
-在 `python server.py` 下那会让 server.py 二次执行，见 `app/routers/__init__.py`。
+`app/services/meeting_metrics.py`——它们同时服务学生统计域
+（`/api/student-home-stats`），因此住在中立的服务模块里（不能 `from server import`，
+见 `app/routers/__init__.py`）。
 
-`sa_func`（`sqlalchemy.func` 的别名）是**落地前自检**报出来的遗漏：这几条路由里
-有聚合查询用到它，而它在 server.py 是模块级别名。这类漏 import 不会导入失败，
-只会执行到那条路由时 NameError，再被处理器的 try/except 吞成 200 的错误响应——
-正是 `tests_safe/test_module_free_names.py` 与抽取器自检要拦的东西。
+`sa_func`（`sqlalchemy.func` 的别名）是模块级别名，本组有聚合查询用到它。
+漏掉这个导入不会导入失败，只会执行到那条路由时 NameError，再被处理器的
+try/except 吞成 200 的错误响应——`tests_safe/test_module_free_names.py` 拦这个。
 """
 
 import os
