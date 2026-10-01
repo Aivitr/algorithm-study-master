@@ -342,3 +342,136 @@ def test_server_syspath_additions_are_known_and_present():
         f"以下 sys.path 追加项目录已不存在：{sorted(missing)}\n"
         f"若这是归档 `1/` 造成的，请同步移除 server.py 中对应的 append。"
     )
+
+
+# ---- 脚本不得把自己的产物写进仓库 ------------------------------------------
+#
+# `tools/schema_snapshot.py` 曾用 `DATABASE_URL = "sqlite:///./__schema_dump__.db"`
+# 把临时库落在**当前工作目录**，而该工具的用法明确要求"在被快照的 checkout 根
+# 目录下运行"（见其文件头）。两件事一合，结果是仓库根长期躺着一个 0 字节的
+# `__schema_dump__.db`——它是残留物，不是资产，却没有任何东西盯着。
+#
+# 这与本仓库另外两处「脚本往工作目录吐东西」同类：`_header*.py` 被误提交、
+# `/api/research-runtime` 就地把 RESEARCH_* 写回活动 env 文件。见 A35。
+
+# `sqlite:///` 后面直接跟 `./`：地址相对**进程的工作目录**，而不是仓库根。
+_CWD_RELATIVE_SQLITE = "sqlite:///./"
+
+# 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（同 A11 的策略）。
+_ANCHOR_SKIP_DIRS = {
+    "venv", "archive", "__pycache__", ".git", ".codegraph", ".pytest_cache",
+    "_tmp_agora_token_builder", "node_modules",
+}
+
+
+def _is_environ_database_url(target) -> bool:
+    """判断赋值目标是不是 `os.environ["DATABASE_URL"]` 这个**下标**。
+
+    这里必须写得比"目标名里含 DATABASE_URL"严格。`app/core/database.py:9` 有
+    这么一行：
+
+        SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./storage/app.db")
+
+    变量名 `SQLALCHEMY_DATABASE_URL` 是 `DATABASE_URL` 的**子串**，用子串匹配就会
+    把它当成违规——而它是有意的（`getenv` 的默认值，落在已忽略的 `storage/` 下）。
+    一个会对正确代码报错的守卫很快会被 `# noqa` 掉或被删掉，那比没有守卫更糟。
+    """
+    import ast
+
+    return (
+        isinstance(target, ast.Subscript)
+        and isinstance(target.value, ast.Attribute)
+        and target.value.attr == "environ"
+        and isinstance(target.slice, ast.Constant)
+        and target.slice.value == "DATABASE_URL"
+    )
+
+
+def _cwd_relative_sqlite_assignments(source: str) -> list[tuple[int, str]]:
+    """返回「把 os.environ['DATABASE_URL'] 赋成相对 cwd 的 sqlite」的位置。
+
+    为什么用 AST 而不是文本匹配：本文件上面已经吃过一次亏（见 `_path_file_uses`
+    的说明）——文本匹配会把**注释里的讲解**当成违规。把旧写法写进注释解释
+    "为什么不能这么写"，本身就会让守卫报红。AST 只看得见真正执行的赋值语句，
+    注释不是语法树的一部分。
+    """
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # 语法错误的文件不在这里报错（另有测试负责整体可导入性），
+        # 让本函数的失败原因保持单一。
+        return []
+
+    hits = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(_is_environ_database_url(t) for t in node.targets):
+            continue
+        rendered = ast.unparse(node.value)
+        if _CWD_RELATIVE_SQLITE in rendered:
+            hits.append((node.lineno, rendered))
+    return hits
+
+
+def test_no_script_points_database_url_at_a_cwd_relative_sqlite():
+    """不得把 `os.environ["DATABASE_URL"]` 赋成相对 cwd 的 sqlite。
+
+    这类地址落在**进程的工作目录**里；本仓库的脚本都约定从仓库根运行，
+    于是产物就留在了仓库里。改用 tempfile 之类的绝对路径。
+    """
+    offenders = []
+    for path in REPO_ROOT.rglob("*.py"):
+        if _ANCHOR_SKIP_DIRS & set(path.relative_to(REPO_ROOT).parts):
+            continue
+        source = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, rendered in _cwd_relative_sqlite_assignments(source):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            offenders.append(f"{rel}:{lineno}: {rendered}")
+
+    assert not offenders, (
+        "以下赋值把 DATABASE_URL 指向了相对当前工作目录的 sqlite：\n  "
+        + "\n  ".join(offenders)
+        + "\n这类路径的产物会落在仓库里（本仓库的脚本都从仓库根运行）。"
+    )
+
+
+def test_the_guard_itself_catches_an_offender_and_spares_a_lookalike():
+    """守卫自己的守卫：该报的报，不该报的不报。
+
+    上面那条断言的全部力量都在 `_is_environ_database_url` 上——它要是被"简化"
+    成子串匹配，`app/core/database.py:9` 那行就会开始误报，而**没有人会发现**
+    它同时也不再能挡住真正的违规。两个方向都点一次名。
+    """
+    # 该报：这正是当初那个写法
+    caught = _cwd_relative_sqlite_assignments(
+        'os.environ["DATABASE_URL"] = "sqlite:///./__schema_dump__.db"\n'
+    )
+    assert caught, "真实的违规写法没有被抓住"
+
+    # 不该报：变量名含 DATABASE_URL，但它是 getenv 的默认值，不是给 os.environ 赋值
+    spared = _cwd_relative_sqlite_assignments(
+        'SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./storage/app.db")\n'
+    )
+    assert not spared, f"误报了 database.py 那种默认值写法：{spared}"
+
+    # 不该报：绝对路径的临时库（修复后的写法）
+    spared2 = _cwd_relative_sqlite_assignments(
+        'os.environ["DATABASE_URL"] = f"sqlite:///{_dump_path.as_posix()}"\n'
+    )
+    assert not spared2, f"误报了修复后的写法：{spared2}"
+
+
+def test_no_schema_dump_left_over_in_the_repo():
+    """`tools/schema_snapshot.py` 的临时库不得残留在仓库根。
+
+    与上面那条互补：那条防"再写出来"，这条防"已经写出来还没清"。
+    """
+    dump = REPO_ROOT / "__schema_dump__.db"
+    assert not dump.exists(), (
+        f"仓库根残留了 {dump.name}\n"
+        f"它是 tools/schema_snapshot.py 的临时库（已改为落在系统临时目录）。"
+        f"删掉即可；若它反复出现，说明上一条断言的修复被回退了。"
+    )
