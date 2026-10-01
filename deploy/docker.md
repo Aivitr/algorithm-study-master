@@ -60,6 +60,49 @@ docker compose run --rm app bash                 # 进容器看看
 
 ---
 
+## 增强版：GPU 直通是一个**叠加文件**
+
+`docker-compose.yml` 里**故意没有**设备预留。`deploy.resources.reservations.devices`
+在 compose 里是硬要求：宿主没有能看见 GPU 的容器运行时（Linux 的
+nvidia-container-toolkit / Windows 的 WSL2 后端）时，compose 会在起 `app`
+**之前**就报 `could not select device driver "" with capabilities: [[gpu]]`。
+写进主文件等于要求每个跑标准版的人都有 NVIDIA 显卡——而标准版的前提是
+"宿主只需 Docker"，这正是它敢说自己"一条命令"的依据。
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
+`docker-compose.gpu.yml` 只叠加两样：`app` 的设备预留，和把 `TORCH_INDEX_URL`
+这个构建参数接出来。后者不是顺手加的，因为**光直通设备不够**：
+
+`Dockerfile` 里 `TORCH_INDEX_URL` 默认指向 `download.pytorch.org/whl/cpu`
+（CPU 版轮子小得多，这是把镜像压到可接受体积的关键）。CPU 版 torch 的
+`torch.cuda.is_available()` **永远是 False**——设备已经交到容器里了，轮子用不了它。
+要用上 GPU，把索引一起换掉：
+
+```bash
+TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
+  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
+`cu118` / `cu121` / `cu124` 对应不同 CUDA 版本，按宿主驱动能支持的挑；代价是镜像
+大出好几 GB。叠加文件里那个 ARG 的**默认值就是 CPU 索引**，所以不设这个环境变量时，
+加不加该文件在构建上没有任何区别——它不会偷偷改变标准版。
+
+宿主侧两个前提：`nvidia-smi` 能打出版卡信息；容器运行时装好了 GPU 支持。
+容器里是否真的看得见 GPU：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec app \
+  python -c "import torch; print(torch.cuda.is_available())"
+```
+
+守卫在 `tests_safe/test_docker_assets.py::TestGpuOverrideStaysAnOverride`，
+五条断言里最要紧的一条是**主文件里不许出现设备预留**——那一条红了，标准版就废了。
+
+---
+
 ## 起容器之前：两份 `.env` 都必须备好
 
 **`.env.dev` 必填**——它管数据库指向（见下一节）。compose 里写成 `required: true`，
