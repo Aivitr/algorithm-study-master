@@ -174,6 +174,13 @@ def test_route_baseline(request, current_baseline):
         BASELINE_FILE.write_text(
             json.dumps(current_baseline, ensure_ascii=False, indent=2, sort_keys=True),
             encoding="utf-8",
+            # 必须是纯 LF。`Path.write_text` 默认做平台换行转换，在 Windows 上写出
+            # 的就是 CRLF；入库时被 `.gitattributes` 归一成 LF，于是**每次在
+            # Windows 上重录都会留下一条纯换行的假 diff**。
+            # 假 diff 本身无害，有害的是它让"重录一次、看仓库有没有变"这个自证
+            # 手法失效，而且失效得悄无声息。`static/vendor/SOURCES.json` 吃过
+            # 同一个亏（见 test_frontend_assets.py::test_manifest_is_lf_only）。
+            newline="\n",
         )
         pytest.skip(f"已重新录制基线：{BASELINE_FILE}")
 
@@ -197,4 +204,24 @@ def test_route_baseline(request, current_baseline):
     }
     assert not diffs, "路由行为与基线不一致：\n" + json.dumps(
         diffs, ensure_ascii=False, indent=2
+    )
+
+
+def test_baseline_is_lf_only():
+    """基线必须是纯 LF —— 它的**自证方式**依赖这一点。
+
+    本仓库用"重录一次，看仓库有没有变"来证明基线是算出来的、不是手抄的。
+    而 `Path.write_text` 默认做平台换行转换：在 Windows 上录出的是 CRLF，
+    入库时被 `.gitattributes` 的 `* text=auto eol=lf` 归一成 LF，于是
+    **每次在 Windows 上重录都会留下一条纯换行的假 diff**。
+
+    假 diff 本身无害，有害的是它让上面那个自证手法失效，且失效得悄无声息。
+    `static/vendor/SOURCES.json` 已经吃过一次这个亏
+    （见 `test_frontend_assets.py::test_manifest_is_lf_only`），这里是同一个坑的
+    第二处——2026-10 做 ②b 组件拆分时重录 `GET /` 才被 CRLF 警告带出来。
+    """
+    raw = BASELINE_FILE.read_bytes()
+    assert b"\r" not in raw, (
+        f"{BASELINE_FILE.name} 里出现了 CR（{raw.count(b'\\r')} 个）。"
+        f"录制处的 write_text 需要 newline=\"\\n\"。"
     )
