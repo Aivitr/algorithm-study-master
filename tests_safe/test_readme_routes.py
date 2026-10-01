@@ -1,23 +1,25 @@
-"""README 的接口清单不许和代码漂移（2026-10-01 加）。
+"""路由清单只许有一份，且必须是机器枚举的那一份（2026-10-01 起）。
 
-README 里那张按域分组的接口表是**人手写的第二份路由清单**——本仓库已经有一份
-机器枚举的 `docs/route-inventory.md`（从运行中的 app 枚举 `app.routes`，不是读源码
-手抄）。两份同时存在就有漂移风险，而 README 恰恰是**外人最先读到的那一份**：
-它一旦落后，读到的人按它去调接口，拿到的是 404。
+README 曾经手抄过一整份按域分组的路由表，和机器枚举的 `docs/route-inventory.md`
+并存——两份真相，迟早漂移，而 README 恰恰是**外人最先读到的那一份**：它一旦落后，
+读到的人按它去调接口，拿到的是 404。
+
+2026-10-02 起 README 不再自持清单，只声明**总数**并指向 `docs/route-inventory.md`。
+本文件随之换成新的契约，四条一起守：
+
+  1. README 里**不许再出现路由表行**（`_README_ROUTE_ROW`）——手抄清单回流就报红；
+  2. README 声明总数的那句话（"共 N 个"）必须等于源码里的实际条数；
+  3. README 必须真的指向 `docs/route-inventory.md`（指路断了，读者就无处可去）；
+  4. `docs/route-inventory.md` 与源码逐条一致。
+
+第 2 条是这一组里最要紧的：它把 README 与 59 条路由之间那条**唯一的**契约钉死。
+也因此它的解析必须能证明自己没空转——正则匹配不到数量时返回 None，断言直接失败，
+而不是拿 0 去比。
 
 "文档悄悄腐化"在本仓库不是假想敌：
   * README 的项目结构树整棵是错的（列的七个文件全都早已不在根目录）；
   * `.env` 的说明与 `.env.example` 对不上（`test_env_docs.py` 就是为此而生）；
-  * 本文件左侧那条链——`.dockerignore` 的裸文件名模式在文件搬家后悄然失效。
-
-所以这次不靠自觉：README 与源码之间的相等关系由本文件钉住。
-
-判据两头都不能空
-----------------
-源侧抽不到路由（正则被改坏、装饰器换了写法如 `@router.api_route`）与 README 侧
-抽不到表（表格被删或格式改了）都会让"集合相等"**平凡成立**——空集等于空集。
-本仓库在"空输入 == 通过"上栽过不止一次（`tools/schema_snapshot.py` 的文件头
-专门写着"务必先确认两份都非空"），故两侧各有一条下限断言。
+  * `.dockerignore` 的裸文件名模式在文件搬家后悄然失效。
 
 源码侧为什么用 AST 而不是正则
 ------------------------------
@@ -56,11 +58,15 @@ _ROUTE_DECORATORS = frozenset(
     {"get", "post", "put", "delete", "patch", "websocket", "api_route"}
 )
 
-# README 表格行：`| `GET` | `/api/x` | 说明 |`（方法列的反引号可有可无）
-_README_ROW = re.compile(
+# README 里**不该再有**的路由表行：`| `GET` | `/api/x` | 说明 |`。
+# 用它做反向断言——手抄清单一旦回流，这里先红。
+_README_ROUTE_ROW = re.compile(
     r"^\|\s*`?(GET|POST|PUT|DELETE|PATCH|WS)`?\s*\|\s*`([^`]+)`\s*\|",
     re.MULTILINE,
 )
+
+# README 里那句数量声明：`**共 59 个**：GET 28 / POST 26 …`
+_README_COUNT = re.compile(r"\*\*共\s*(\d+)\s*个\*\*")
 
 # 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与设计文档
 # 冻结的"59 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
@@ -110,51 +116,71 @@ def _routes_in_source() -> set[tuple[str, str]]:
     return found
 
 
-def _routes_in_readme() -> set[tuple[str, str]]:
-    if not README.is_file():
-        return set()
-    return {_normalize(m, p) for m, p in _README_ROW.findall(
-        README.read_text(encoding="utf-8"))}
-
-
 def test_the_source_side_actually_found_routes():
-    """`test_the_readme_lists_every_route` 的反向断言（见模块 docstring 末段）。"""
+    """`test_readme_states_the_route_count_correctly` 的保底：源码侧不许抽空。
+
+    抽取逻辑一旦整体失效（装饰器换了写法、`_ROUTE_OWNERS` / `_ROUTE_DECORATORS`
+    没跟上），数量断言会拿"实际 0 条"去比，从而**平凡通过**。所以先在这里拦一道。
+    """
     found = _routes_in_source()
     assert len(found) >= _MIN_EXPECTED_ROUTES, (
         f"只从源码里抽出 {len(found)} 条路由（预期 ≥ {_MIN_EXPECTED_ROUTES}）。"
         f"多半是装饰器的写法变了（`_ROUTE_OWNERS` / `_ROUTE_DECORATORS` 没跟上）——"
-        f"此时那条相等断言会**平凡通过**，所以在这里先拦一道。"
+        f"此时下游的数量断言会**平凡通过**，所以在这里先拦一道。"
     )
 
 
-def test_the_readme_side_actually_found_routes():
-    """同上，另一头：表格被删掉也会让相等断言平凡通过。"""
-    found = _routes_in_readme()
-    assert len(found) >= _MIN_EXPECTED_ROUTES, (
-        f"README 里只解析出 {len(found)} 条接口。表格是不是被删了，"
-        f"或格式不再是 `| `方法` | `/路径` |` ？"
-    )
+def test_readme_does_not_hand_copy_the_route_list():
+    """README 里不许再出现路由表行——清单只在 `docs/route-inventory.md` 一份。
 
-
-def test_the_readme_lists_every_route():
-    """README 的接口表与源码逐条一致——一个不多、一个不少。
-
-    多一个同样报红：README 里写着一条实际不存在的接口，读到的人会拿到 404，
-    而那比"少写一条"更伤人。
+    这是一条**反向**断言：它把"README 不再自持清单"这个决定钉住，防止哪天有人
+    "顺手把表补回来"。真要补，得先删掉这条断言——而那正是这个决定该被重新
+    审视的时刻，不该悄悄地发生。
     """
-    source = _routes_in_source()
-    readme = _routes_in_readme()
+    text = README.read_text(encoding="utf-8") if README.is_file() else ""
+    rows = _README_ROUTE_ROW.findall(text)
+    assert not rows, (
+        f"README 里又出现了 {len(rows)} 行手抄的路由表（例：{rows[:3]}）。\n"
+        f"路由清单只留 docs/route-inventory.md 一份——那是从运行中的 app 枚举"
+        f"出来的，不会腐化；README 里再抄一份就是第二个真相。"
+    )
 
-    missing = sorted(source - readme)
-    extra = sorted(readme - source)
 
-    assert not missing and not extra, (
-        f"README 的接口表和源码对不上。\n"
-        f"  源码里有、README 没写（{len(missing)} 条）：{missing}\n"
-        f"  README 写了、源码里没有（{len(extra)} 条）：{extra}\n"
-        f"  共 源码 {len(source)} 条 / README {len(readme)} 条。\n"
-        f"改完接口记得同步 README 那张按域分组的表；"
-        f"分类与基线覆盖见 docs/route-inventory.md。"
+def test_readme_states_the_route_count_correctly():
+    """README 那句「共 N 个」必须等于源码里的实际条数。
+
+    清单搬走之后，这句数量声明就是 README 与 59 条路由之间**唯一**的契约。
+    """
+    if not README.is_file():
+        pytest.skip("README.md 不存在")
+
+    m = _README_COUNT.search(README.read_text(encoding="utf-8"))
+    assert m, (
+        "README 里找不到「**共 N 个**」这句数量声明。清单搬去 "
+        "docs/route-inventory.md 之后，这句是 README 与源码之间唯一的接口契约。"
+    )
+    stated = int(m.group(1))
+
+    actual = len(_routes_in_source())
+    assert actual >= _MIN_EXPECTED_ROUTES, (
+        f"源码侧只抽出 {actual} 条路由，抽取逻辑可能坏了——先修那个，别比数字。"
+    )
+    assert stated == actual, (
+        f"README 说「共 {stated} 个」，源码里实际 {actual} 条。\n"
+        f"路由是冻结的（设计文档 C5），两边不一致多半是加了/删了接口没同步这两处。"
+    )
+
+
+def test_readme_points_at_the_machine_enumerated_inventory():
+    """README 必须真的指向那份唯一的清单，否则读者无处可去。"""
+    if not README.is_file():
+        pytest.skip("README.md 不存在")
+    assert "docs/route-inventory.md" in README.read_text(encoding="utf-8"), (
+        "README 没提到 docs/route-inventory.md。清单搬到那边之后，这句指路就是"
+        "读者找到它的唯一入口。"
+    )
+    assert (REPO_ROOT / "docs" / "route-inventory.md").is_file(), (
+        "README 指向了 docs/route-inventory.md，但那个文件不在。"
     )
 
 

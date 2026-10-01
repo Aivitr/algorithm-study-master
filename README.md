@@ -233,116 +233,14 @@ algorithm-study-master/
 （设计文档 C5），改动会让 `tests_safe/test_route_contract.py` 与
 `tests_safe/baselines/routes.json` 报红。
 
-> 下表与 `docs/route-inventory.md`（从运行中的 app 机器枚举，另含"能否纳入测试基线"
-> 的分类）是同一个真相的两个投影，由 `tests_safe/test_readme_routes.py` 钉住三者一致。
+逐条清单不在这里——在 `docs/route-inventory.md`。那一份是从**运行中的 app 枚举
+`app.routes`** 得到的（不是手抄），另含「能否纳入测试基线」的分类。README 里再抄
+一份就等于凭空多出一个真相，两份迟早漂移；所以这里只留数量声明，
+`tests_safe/test_readme_routes.py` 盯着它与源码一致。
 
-### 页面与静态资源
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/` | 主界面（`index.html`） |
-| `GET` | `/pcm-processor.js` | 前端音频采集脚本 |
-| `GET` | `/voiceprint_register` | 声纹注册页 |
-
-> `GET /voiceprint_register` 是**既知死路由**——它 `FileResponse` 的
+> `GET /voiceprint_register` 是**既知死路由**：它 `FileResponse` 的
 > `voiceprint_register.html` 全仓不存在，任何调用都会抛 `RuntimeError`。
 > 按约定保持原样——补上那个文件等于新增功能，不在"不改行为"的重构范围里。
-
-### 登录相关
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/register` | 注册新用户 |
-| `POST` | `/api/login` | 登录 |
-| `POST` | `/login` | 统一登录：学生端加入课堂 / 教师端创建课堂 |
-
-### 课堂与实时
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/summary` | 课堂总结（查询参数 `meeting_id`） |
-| `GET` | `/api/meeting/{meeting_id}` | 课堂详情 |
-| `GET` | `/api/transcripts/{meeting_id}` | 对话记录 |
-| `GET` | `/api/knowledge-graph/{meeting_id}` | 知识图谱 |
-| `GET` | `/api/snapshot/{meeting_id}` | 课堂快照 |
-| `GET` | `/api/get-video-context` | 视频上下文 |
-| `GET` | `/api/agora-token` | Agora 频道 Token |
-| `POST` | `/api/end-class` | 结束课堂 |
-| `POST` | `/api/suggest-topic` | 建议讨论话题 |
-| `POST` | `/api/quick-decompose` | 课题快速拆解 |
-| `POST` | `/api/cluster-viewpoints` | 观点聚类 |
-| `POST` | `/api/ai-tutor` | AI 辅导 |
-| `POST` | `/api/ai-tutor-stream` | AI 辅导（流式） |
-| `POST` | `/api/check-silence` | 冷场检测 |
-| `POST` | `/api/check-quiet-members` | 沉默成员检测 |
-| `POST` | `/api/browser-asr-final` | 浏览器端语音识别的最终结果回传 |
-
-### 统计与情绪
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/api/realtime-stats/{meeting_id}` | 实时统计 |
-| `GET` | `/api/emotion-details/{meeting_id}` | 情绪明细 |
-| `GET` | `/api/class-history/{user_id}` | 上课历史 |
-| `GET` | `/api/student-home-stats/{user_id}` | 学生首页统计 |
-| `GET` | `/api/active-groups/{teacher_id}` | 活跃小组 |
-| `GET` | `/api/teacher-templates/{teacher_id}` | 教师的模板 |
-| `DELETE` | `/api/delete-template/{template_id}` | 删除模板 |
-| `GET` | `/api/teacher-stats/{teacher_id}` | 教师统计 |
-| `GET` | `/api/teacher-classes/{teacher_id}` | 教师名下课堂 |
-| `GET` | `/api/class-groups/{meeting_id}` | 课堂分组 |
-| `GET` | `/api/all-student-reports/{teacher_id}` | 全班学习报告 |
-
-### 报告与习题
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/generate-report` | 生成学习报告 |
-| `POST` | `/api/generate-report-stream` | 生成学习报告（流式） |
-| `GET` | `/api/reports/{user_id}` | 用户的所有报告 |
-| `GET` | `/api/meeting-reports/{meeting_id}` | 课堂的报告 |
-| `GET` | `/api/exercises/{report_id}` | 报告对应的习题 |
-| `GET` | `/api/download-exercises/{report_id}` | 下载习题 |
-| `POST` | `/api/generate-pdf-report` | 生成 PDF 报告 |
-| `POST` | `/api/quiz-error-analysis` | 错题分析 |
-| `POST` | `/api/grade-short-answer` | 简答题批改 |
-| `POST` | `/api/submit-answer` | 提交作答 |
-| `GET` | `/api/student-quiz-history/{user_id}` | 答题历史 |
-
-### 观点投票
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/cast-vote` | 投票 |
-| `POST` | `/api/close-vote` | 结束投票 |
-| `POST` | `/api/confirm-vote` | 确认投票结果 |
-
-### 声纹
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/api/voiceprint/register` | 注册声纹 |
-| `POST` | `/api/voiceprint/verify` | 校验声纹 |
-| `POST` | `/api/voiceprint/identify` | 声纹识别（说话人是谁） |
-| `GET` | `/api/voiceprint/status/{username}` | 某人的声纹状态 |
-| `DELETE` | `/api/voiceprint/unregister/{username}` | 注销声纹 |
-| `GET` | `/api/voiceprint/users` | 已注册声纹的用户 |
-
-### 运维 / 研究运行时
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/api/research-runtime` | 运行时状态 |
-| `POST` | `/api/research-runtime/config` | 改运行时配置 |
-| `POST` | `/api/research-runtime/prepare-layout` | 准备模型目录布局 |
-
-### WebSocket
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `WS` | `/ws/{username}/{meeting_id}` | 课堂主链路 |
-| `WS` | `/ws-signal/{username}/{meeting_id}` | 信令 |
-| `WS` | `/ws-asr/{username}/{meeting_id}` | 实时语音转写 |
 
 ## 文档在哪
 
