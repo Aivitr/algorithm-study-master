@@ -160,13 +160,12 @@ pytest archive/legacy-tests/tests-dir/test_api_endpoints.py --collect-only
 而生产应用已长期运行、该功能早已上线，那五列（`binding_source`、`binding_confidence`、
 `identity_review_status`、`identity_review_note`、`cross_modal_consistency`）
 极可能早已存在，`ddl_list` 因而为空。
-但这是推断，不是证据。验证方式与后续处置记在 `docs/待验收事项.md` A13。
+但这是推断，不是证据。
 
 ---
 
 ## 查阅指引
 
 - 闸门为什么这么写、哪些做法被实测否定 → 本目录 `conftest.py`
-- 事故的记录与待办 → `docs/待验收事项.md` A13
 - 同一批脚本的较新一支 → `../ops-scripts/README.md`
 - 声纹相关的模块与验证 → `../speech-stages/`

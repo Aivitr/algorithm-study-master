@@ -52,7 +52,7 @@
 `pytest archive/legacy-tests/tests-dir/test_api_endpoints.py --collect-only` 确实
 收集了 3 个测试（3.59s，一次真实的 `import server` → `import database`）。
 当时输出被 `tail -4` 截断，**因此无法确认 `ALTER TABLE` 是否真的执行过**。
-此事作为 A13 记入 `docs/待验收事项.md`。
+此事在本目录 `README.md` 的「事故记录」一节里如实记着。
 """
 
 from pathlib import Path

@@ -54,14 +54,14 @@ D:\\study system\\change\\algorithm-study-master\\...
 前二份与 `COMPLETE_SOLUTION_SUMMARY.md` / `README_OPTIMIZATION.md` 描述的正是
 `../speech-stages/` 那条工作线——那 7 个模块为什么会被取代，这两套文档是背景。
 
-### 关于 `DATABASE_AUDIT_REPORT.md` 的一处**空白**（与 A13 相关）
+### 关于 `DATABASE_AUDIT_REPORT.md` 的一处**空白**
 
 该报告是**生产库结构的权威记录**之一（`../ops-scripts/README.md` 也指向它）。
 但实测：它**未提及** `transcripts` 表上那五个研究列——
 `binding_source`、`binding_confidence`、`identity_review_status`、
 `identity_review_note`、`cross_modal_consistency`。
 
-这直接影响 `docs/待验收事项.md` A13 的核验判断：**这份审计报告不能用来证明
+这影响一次具体的核验判断：**这份审计报告不能用来证明
 那五列在生产库中存在或不存在**，它两侧都没有覆盖。
 
 ---
