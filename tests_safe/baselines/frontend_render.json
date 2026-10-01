@@ -20,6 +20,10 @@
       "hash": "ec5cbf86bed4015a",
       "length": 7008
     },
+    "个人中心（学生）": {
+      "hash": "849c8d01a0b46248",
+      "length": 10438
+    },
     "课堂（学生）": {
       "hash": "1a09cbc701eecae1",
       "length": 8110
@@ -33,20 +37,20 @@
       "length": 7223
     },
     "进入课堂弹窗": {
-      "hash": "8a9f66af04898d68",
-      "length": 11998
+      "hash": "f8e0ba089d3b0463",
+      "length": 10256
     },
     "小组报告弹窗": {
-      "hash": "d5724f188e1eec67",
-      "length": 12782
+      "hash": "743dbe8c11098275",
+      "length": 7810
     },
     "通用弹窗": {
-      "hash": "024a004e2394a2fe",
-      "length": 9521
+      "hash": "186c2f4c2c76bc95",
+      "length": 5806
     },
     "通用弹窗（确认）": {
-      "hash": "9bcf3a9a6e6addee",
-      "length": 9568
+      "hash": "842a0e3541f2f818",
+      "length": 5853
     }
   },
   "clicks": {
@@ -78,6 +82,30 @@
       "ok": true
     },
     "showConfirm 的 Promise 被“取消”兑现为 false": {
+      "ok": true
+    },
+    "大厅（学生）点“加入课堂” → 开进入课堂弹窗": {
+      "ok": true
+    },
+    "大厅（教师）点“创建课堂” → 开进入课堂弹窗": {
+      "ok": true
+    },
+    "进入课堂弹窗点“×” → 关": {
+      "ok": true
+    },
+    "进入课堂弹窗点遮罩 → 关": {
+      "ok": true
+    },
+    "个人中心点“开始对话” → 开 AI 辅导弹窗": {
+      "ok": true
+    },
+    "AI 辅导弹窗点“×” → 关": {
+      "ok": true
+    },
+    "AI 辅导弹窗点遮罩 → 关": {
+      "ok": true
+    },
+    "大厅（教师）点“设置” → 切到设置页": {
       "ok": true
     }
   },
