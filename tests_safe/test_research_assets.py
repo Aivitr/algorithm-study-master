@@ -23,21 +23,18 @@ def _setup_scripts_summary(self) -> Dict:
 - 改为 `from app.core.paths import PROJECT_ROOT` 后重新变绿
   （同时见 `test_paths_anchor.py` 里那条静态的 `Path(__file__)` 扫描）。
 
-保留这两条断言的理由不变：**光把当前值改对没有用**，得让"下次再有人这么写"
+保留这些断言的理由不变：**光把当前值改对没有用**，得让"下次再有人这么写"
 同样会变红。
 
-已知缺陷：`check_runtime` 本来就是缺的
+`check_runtime` 这一条曾经是反向断言
 ------------------------------------
-`docs/待验收事项.md` A12 发现二记录：`check_enhanced_runtime.ps1` **从未存在于
-仓库根**（实际在 `test/check_enhanced_runtime.ps1`，现已归档到
-`archive/legacy-tests/test-dir/`）。即这一条路径**已经**指空。
+`check_enhanced_runtime.ps1` 一度只存在于 `test/` 下（后归档到
+`archive/legacy-tests/test-dir/`），仓库根那份是缺的，于是本文件对
+`check_runtime` 写的是「必须**仍然**是缺的」这条**反向断言**——把已知缺陷
+钉成可执行的事实，修好了就变红，提醒同步更新。
 
-那是**与本次重构无关的既有缺陷**，且修它要改动该接口的响应内容，
-而 C3 冻结了 59 个接口的输出——故不修，只在此登记。
-
-因此本测试对 `check_runtime` 采用**反向断言**：它必须**仍然**是缺的。
-将来若有人修好了它，这个断言会失败并要求同步更新——这是有意的，
-免得"已知缺陷清单"变成一句没人维护的注释。
+现在它已经补回仓库根（`setup_enhanced_runtime.ps1` 末尾本来就叫用户去跑它，
+接口又把它承诺在 `setup_scripts` 里），所以反向断言换成普通的存在断言。
 """
 
 from pathlib import Path
@@ -52,9 +49,6 @@ EXPECTED_KEYS = {
     "check_runtime",
     "requirements_file",
 }
-
-# A12 发现二：既有缺陷，本次不修。见本文件头部。
-KNOWN_MISSING = {"check_runtime"}
 
 
 def _summary() -> dict:
@@ -90,25 +84,15 @@ def test_paths_are_anchored_to_project_root_not_module_dir():
 
 
 def test_expected_assets_actually_exist():
-    """除已知缺陷外，其余 4 条路径必须指向真实文件。"""
-    for key, path in _summary().items():
-        if key in KNOWN_MISSING:
-            continue
-        assert Path(path).exists(), (
-            f"{key} 指向的文件不存在：{path}\n"
-            f"该路径由 /api/research-runtime 返回，指空即为接口层面的静默失效。"
-        )
+    """5 条路径必须全部指向真实文件。
 
-
-def test_known_missing_check_runtime_is_still_missing():
-    """已知缺陷登记：`check_runtime` 目前是缺的。
-
-    这条**反向断言**的意义在于把「已知缺陷」写死成可执行的事实。
-    若哪天它被修复（文件补上了），本测试失败，提醒同步更新 A12 与本文件——
-    避免这份清单悄悄过期。
+    每一条都由 `/api/research-runtime` 返回给调用方；指空即为接口层面的静默失效
+    ——请求成功、字段齐全，指向的却是空气。
     """
-    missing = Path(_summary()["check_runtime"])
-    assert not missing.exists(), (
-        f"`check_runtime` 指向的文件出现了：{missing}\n"
-        f"若这是有意的修复，请同步更新本文件与 docs/待验收事项.md A12 发现二。"
+    missing = {
+        key: path for key, path in _summary().items() if not Path(path).exists()
+    }
+    assert not missing, (
+        f"这些路径由 /api/research-runtime 返回却指向不存在的文件：{missing}\n"
+        f"要么补上文件，要么别在接口里承诺它。"
     )
