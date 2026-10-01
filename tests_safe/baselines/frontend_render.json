@@ -43,6 +43,10 @@
     "通用弹窗": {
       "hash": "024a004e2394a2fe",
       "length": 9521
+    },
+    "通用弹窗（确认）": {
+      "hash": "9bcf3a9a6e6addee",
+      "length": 9568
     }
   },
   "clicks": {
@@ -56,6 +60,24 @@
       "ok": true
     },
     "注册页点“返回首页” → 回落地页": {
+      "ok": true
+    },
+    "通用弹窗点“确定” → 关闭": {
+      "ok": true
+    },
+    "通用弹窗（确认）点“取消” → 关闭": {
+      "ok": true
+    },
+    "提示型弹窗点遮罩 → 关闭": {
+      "ok": true
+    },
+    "确认型弹窗点遮罩 → 不关闭": {
+      "ok": true
+    },
+    "showConfirm 的 Promise 被“确定”兑现为 true": {
+      "ok": true
+    },
+    "showConfirm 的 Promise 被“取消”兑现为 false": {
       "ok": true
     }
   },

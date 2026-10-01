@@ -160,6 +160,11 @@ const STATES = [
     vm.currentUser = asUser('student'); vm.pageState = 'lobby';
     vm.globalModal = { ...vm.globalModal, show: true, type: 'alert', title: 'T', message: 'M' };
   }],
+  // 确认型弹窗与提示型的分支不同：多一个「取消」按钮，且点遮罩**不**关闭。
+  ['通用弹窗（确认）', () => {
+    vm.currentUser = asUser('student'); vm.pageState = 'lobby';
+    vm.globalModal = { ...vm.globalModal, show: true, type: 'confirm', title: 'T', message: 'M' };
+  }],
 ];
 
 // ---------------------------------------------------------------------------
@@ -183,32 +188,89 @@ const STATES = [
 const buttonWith = re =>
   [...doc.querySelectorAll('button')].find(el => re.test(el.textContent.trim()));
 
-const goto = async state => { vm.pageState = state; await tick(); };
+const STATE_SETUP = new Map(STATES.map(([name, apply]) => [name, apply]));
+
+// 前置状态一律**按上面 STATES 里的名字**取，不另写一套：
+// 两处各写一份，就会出现"测试用的登录态"和"快照用的登录态"悄悄分叉。
+const goto = async name => {
+  const apply = STATE_SETUP.get(name);
+  if (!apply) throw new Error(`没有名为「${name}」的状态`);
+  apply();
+  await tick();
+};
+
+const overlay = () => doc.querySelector('.global-modal-overlay');
 
 const CLICKS = [
-  ['落地页点“登录” → 进登录页', 'landing', async () => {
+  ['落地页点“登录” → 进登录页', '默认（落地页）', async () => {
     const btn = buttonWith(/^登录$/);
     if (!btn) return ['落地页上找不到文字为“登录”的按钮（index.html:35）'];
     btn.click(); await tick();
     return vm.pageState === 'login' ? null : [`pageState 应为 login，实为 ${vm.pageState}`];
   }],
-  ['落地页点“注册” → 进注册页', 'landing', async () => {
+  ['落地页点“注册” → 进注册页', '默认（落地页）', async () => {
     const btn = buttonWith(/注册/);
     if (!btn) return ['落地页上找不到去注册的按钮（index.html:36）'];
     btn.click(); await tick();
     return vm.pageState === 'register' ? null : [`pageState 应为 register，实为 ${vm.pageState}`];
   }],
-  ['登录页点“返回首页” → 回落地页', 'login', async () => {
+  ['登录页点“返回首页” → 回落地页', '登录页', async () => {
     const btn = buttonWith(/返回首页/);
     if (!btn) return ['登录页上找不到“返回首页”（index.html:228）'];
     btn.click(); await tick();
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
   }],
-  ['注册页点“返回首页” → 回落地页', 'register', async () => {
+  ['注册页点“返回首页” → 回落地页', '注册页', async () => {
     const btn = buttonWith(/返回首页/);
     if (!btn) return ['注册页上找不到“返回首页”（index.html:288）'];
     btn.click(); await tick();
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
+  }],
+
+  // 通用弹窗：全应用约 40 处调用 showAlert/showConfirm，靠的是"弹窗把 Promise
+  // 兑现掉"这个契约。契约断了，那些调用点不会报错——它们只是永远 await 下去。
+  ['通用弹窗点“确定” → 关闭', '通用弹窗', async () => {
+    const btn = buttonWith(/确定/);
+    if (!btn) return ['提示型弹窗上找不到“确定”按钮'];
+    btn.click(); await tick();
+    return vm.globalModal.show === false ? null : ['点了“确定”但 globalModal.show 仍为 true'];
+  }],
+  ['通用弹窗（确认）点“取消” → 关闭', '通用弹窗（确认）', async () => {
+    const btn = buttonWith(/取消/);
+    if (!btn) return ['确认型弹窗上找不到“取消”按钮'];
+    btn.click(); await tick();
+    return vm.globalModal.show === false ? null : ['点了“取消”但 globalModal.show 仍为 true'];
+  }],
+  ['提示型弹窗点遮罩 → 关闭', '通用弹窗', async () => {
+    const el = overlay();
+    if (!el) return ['找不到 .global-modal-overlay'];
+    el.click(); await tick();   // 事件目标是遮罩本身，@click.self 才会触发
+    return vm.globalModal.show === false ? null : ['点了遮罩但提示型弹窗没关'];
+  }],
+  ['确认型弹窗点遮罩 → 不关闭', '通用弹窗（确认）', async () => {
+    const el = overlay();
+    if (!el) return ['找不到 .global-modal-overlay'];
+    el.click(); await tick();
+    return vm.globalModal.show === true ? null : ['确认型弹窗被遮罩点掉了（模板里应当排除 confirm）'];
+  }],
+  ['showConfirm 的 Promise 被“确定”兑现为 true', '通用弹窗（确认）', async () => {
+    let settled;
+    // 走真实入口，而不是直接改 globalModal —— 要验的正是这个契约本身。
+    Promise.resolve(vm.showConfirm('探针')).then(value => { settled = value; });
+    await tick();
+    const btn = buttonWith(/确定/);
+    if (!btn) return ['确认型弹窗上找不到“确定”按钮'];
+    btn.click(); await tick();
+    return settled === true ? null : [`Promise 应兑现为 true，实为 ${JSON.stringify(settled)}`];
+  }],
+  ['showConfirm 的 Promise 被“取消”兑现为 false', '通用弹窗（确认）', async () => {
+    let settled;
+    Promise.resolve(vm.showConfirm('探针')).then(value => { settled = value; });
+    await tick();
+    const btn = buttonWith(/取消/);
+    if (!btn) return ['确认型弹窗上找不到“取消”按钮'];
+    btn.click(); await tick();
+    return settled === false ? null : [`Promise 应兑现为 false，实为 ${JSON.stringify(settled)}`];
   }],
 ];
 

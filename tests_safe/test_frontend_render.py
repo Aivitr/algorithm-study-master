@@ -75,8 +75,8 @@ BASELINE = Path(__file__).resolve().parent / "baselines" / "frontend_render.json
 EXIT_MISSING_JSDOM = 5
 
 # 基线至少要有这么多状态/接线，否则说明它被清空了或录歪了。
-MIN_STATES = 11
-MIN_CLICKS = 4
+MIN_STATES = 12
+MIN_CLICKS = 10
 
 TIMEOUT_SECONDS = 180
 

@@ -66,8 +66,70 @@ VENDOR_SCRIPTS = (
 
 _SCRIPT_SRC_RE = re.compile(r"""<script[^>]*\bsrc=["']([^"']+)["']""")
 
-# 带内容的内联 `<script>`（即没有 src 的那种）。`<script src=...></script>` 不算。
-_INLINE_SCRIPT_RE = re.compile(r"""<script(?![^>]*\bsrc=)[^>]*>""")
+_SCRIPT_TAG_RE = re.compile(r"""<script\b[^>]*>""", re.IGNORECASE)
+_SCRIPT_TYPE_RE = re.compile(r"""\btype\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
+
+# 浏览器**会执行**的 script 类型。缺省即 text/javascript。
+_EXECUTABLE_SCRIPT_TYPES = ("", "text/javascript", "application/javascript", "module")
+
+# 根元素 `#app` 的开标签。用它算出根实例编译的范围（见 `_app_root_span`）。
+_APP_ROOT_RE = re.compile(r"""<div\b[^>]*\bid\s*=\s*["']app["'][^>]*>""", re.IGNORECASE)
+
+
+def _inline_executable_scripts(html: str) -> list[str]:
+    """带内容、且**会被浏览器执行**的 `<script>` 标签，按出现顺序。
+
+    判据是 `type` 属性，不是"有没有 src"。这个区分是 ②b 组件拆分提出来的要求：
+
+    * 没有 `type`、或 `type` 是 `text/javascript` / `module` → 会执行。阶段 7
+      已经把它们全部外移，这里一个都不该再有。
+    * `type="text/x-template"` → **惰性文本**，浏览器只当一段字符串存着，不解析、
+      不执行，由 Vue 取去做组件模板。它承载的是**标记**，性质与 `<template>`
+      元素同类，与本阶段要禁的"内联源码"不是一回事。
+
+    把两者混为一谈的后果很实际：一条措辞正确的守卫会把一个正确的改动判红，
+    然后被人顺手放宽成 `if 'x-template' not in ...` 之类的补丁。
+    所以这里按语义判定，并把理由留在注释里。
+    """
+    found: list[str] = []
+    for tag in _SCRIPT_TAG_RE.findall(html):
+        if re.search(r"""\bsrc\s*=""", tag, re.IGNORECASE):
+            continue  # 外链，不是内联
+        match = _SCRIPT_TYPE_RE.search(tag)
+        script_type = (match.group(1) if match else "").strip().lower()
+        if script_type in _EXECUTABLE_SCRIPT_TYPES:
+            found.append(tag)
+    return found
+
+
+def _app_root_span(html: str) -> tuple[int, int]:
+    """`#app` 那棵子树在 `html` 里的 `[起, 止)` 偏移。
+
+    `#app` 的标签上挂着一堆属性，靠正则去配对首尾是不稳的；这里用**深度**数
+    `<div` 与 `</div>`，与 `_root_option_keys` 数花括号是同一个思路——
+    结构事实用结构性手段判定，缩进与属性顺序都只是约定。
+    """
+    root = _APP_ROOT_RE.search(html)
+    assert root, "index.html 里找不到 `#app` 的根 <div>"
+    depth = 1
+    cursor = root.end()
+    opener = re.compile(r"""<div\b[^>]*>""", re.IGNORECASE)
+    closer = re.compile(r"""</div\s*>""", re.IGNORECASE)
+    while cursor < len(html) and depth:
+        nxt = min(
+            (m.start() for m in (opener.search(html, cursor), closer.search(html, cursor))
+             if m is not None),
+            default=-1,
+        )
+        assert nxt >= 0, "`#app` 的 <div> 没有配平的收尾"
+        if opener.match(html, nxt):
+            depth += 1
+            cursor = opener.match(html, nxt).end()
+        else:
+            depth -= 1
+            cursor = closer.match(html, nxt).end()
+    assert depth == 0, "`#app` 的 <div> 深度没有回到 0"
+    return root.end(), cursor
 
 _KEY_RE = re.compile(r"([A-Za-z_$][\w$]*)\s*(?=[:(])")
 
@@ -212,12 +274,17 @@ class TestNoInlineSource:
         )
 
     def test_index_html_has_no_inline_script_block(self):
-        """允许 `<script src=...></script>`，不允许带内容的 `<script>`。"""
+        """允许 `<script src=...></script>` 与惰性的 `text/x-template`，不允许会执行的内联脚本。
+
+        判据为什么是 `type` 而不是"有没有内容"：见 `_inline_executable_scripts`。
+        """
         html = _index_html()
-        found = _INLINE_SCRIPT_RE.search(html)
-        assert found is None, (
-            f"`index.html` 里还有内联 `<script>`（{found.group(0)!r} 起）。"
-            f"阶段 7 已把它整块外移为 `{URL_PREFIX}/{APP_JS_REL}`。"
+        found = _inline_executable_scripts(html)
+        assert not found, (
+            f"`index.html` 里还有会被浏览器执行的内联 `<script>`：{found[:3]}。\n"
+            f"阶段 7 已把整块源码外移为 `{URL_PREFIX}/{APP_JS_REL}`。\n"
+            f"（若它其实是 `type=\"text/x-template\"` 这类惰性模板块，"
+            f"不会落到这条断言上——本断言只挑会执行的类型。）"
         )
 
     def test_index_html_points_at_the_extracted_files(self):
@@ -231,7 +298,45 @@ class TestNoInlineSource:
 
 
 # --------------------------------------------------------------------------
-# 2. 外移出来的两份文件，两端都在（截断守卫）
+# 2. ②b 拆出来的组件模板
+# --------------------------------------------------------------------------
+
+
+class TestComponentTemplates:
+    """②b 的组件模板块（`text/x-template`）必须待在 `#app` **之外**。
+
+    根实例编译的是 `#app` 的整棵子树。模板块一旦落进去，就会被当成一块普通
+    标记参与渲染——页面上凭空多出一段弹窗结构，同时组件那边取不到模板、
+    弹窗永远不出现。症状（页面多了块东西）离原因（块的位置）很远，
+    所以在这里钉住。
+
+    顺带记一条：这条断言**不能**写成"`global-modal-overlay` 这个 class
+    必须从 index.html 里消失"。用 `text/x-template` 承载模板时，标记本来就
+    还留在 index.html 里，只是变成了惰性文本——那条写法会把一个正确的改动判红。
+    真正证明"拆分没改行为"的是 `test_frontend_render.py` 里那 12 个状态
+    的快照与 10 条接线，不是这里的文本检查。
+    """
+
+    def test_global_modal_template_block_exists(self):
+        assert 'id="global-modal-tpl"' in _index_html(), (
+            "找不到通用弹窗组件的模板块。app.js 里的 "
+            "`Vue.component('global-modal', ...)` 通过 `#global-modal-tpl` 引用它。"
+        )
+
+    def test_component_template_sits_outside_app_root(self):
+        html = _index_html()
+        _, app_end = _app_root_span(html)
+        offset = html.find('id="global-modal-tpl"')
+        assert offset > app_end, (
+            f"组件模板块位于 `#app` 子树之内（模板在偏移 {offset}，"
+            f"`#app` 结束于 {app_end}）。\n"
+            f"必须挪到 `#app` 外面：否则根实例会把它当普通标记渲染出来，"
+            f"而组件取不到模板。"
+        )
+
+
+# --------------------------------------------------------------------------
+# 3. 外移出来的两份文件，两端都在（截断守卫）
 # --------------------------------------------------------------------------
 
 
@@ -279,7 +384,7 @@ class TestExtractedFiles:
 
 
 # --------------------------------------------------------------------------
-# 3. 加载顺序
+# 4. 加载顺序
 # --------------------------------------------------------------------------
 
 
@@ -307,7 +412,7 @@ class TestLoadOrder:
 
 
 # --------------------------------------------------------------------------
-# 4. 真的经 app 伺服出去了吗
+# 5. 真的经 app 伺服出去了吗
 # --------------------------------------------------------------------------
 
 
