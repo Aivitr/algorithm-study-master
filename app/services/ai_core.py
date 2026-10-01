@@ -54,6 +54,19 @@ def refresh_aliyun_token():
                 _shared_token_expire = d['Token']['ExpireTime']
                 print("[OK] 阿里云Token刷新成功")
                 return _shared_token
+            # 失败分支（A34）。阿里云对 CreateToken 的拒绝是 HTTP 4xx 且**不带
+            # Token 字段**的，原来只有上面那一支，于是走到这里静默落到函数末尾
+            # 返回 None —— 调用方只能报一句与病因无关的"无法获取阿里云Token"。
+            # 第一次踩到时接口回的明明是 InvalidAccessKeyId.Inactive
+            # 「Specified access key is disabled.」，日志里一个字都没有。
+            # 这里只补日志，不动控制流。
+            else:
+                code = d.get("Code") if isinstance(d, dict) else None
+                message = d.get("Message") if isinstance(d, dict) else None
+                print(
+                    "[ERROR] 阿里云Token接口未返回Token："
+                    f"HTTP={resp.status_code} Code={code or '?'} Message={message or '?'}"
+                )
         except Exception as e:
             print(f"[ERROR] Token刷新失败: {e}")
         return _shared_token
