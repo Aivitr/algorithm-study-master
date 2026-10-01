@@ -63,6 +63,18 @@ _tmp_agora_token_builder/
 # 的 _FORBIDDEN_IN_CONTEXT，里面没有它）。所以这里宁可写宽一点。
 **/CDN本地化命令.txt
 
+# ===== 归档区：死代码与旧运维脚本，不烘进镜像层 =====
+# Dockerfile 末行 `COPY . .` 会把整棵 archive/ 打进镜像。它没有任何被 import
+# 的模块，也不会被线上拉起；烘进去只是让可推送的那一层多背 1.1 MB 死代码
+# （含 archive/ops-scripts/ 那批碰生产库的旧脚本）。
+# 运行时不缺它：开发容器把仓库 bind-mount 到 /app（docker-compose.yml），
+# 读写的是宿主那份——这也是容器内 `test_legacy_isolation.py` 仍然看得到
+# archive/legacy-tests/ 的原因。
+# 由 tests_safe/test_docker_assets.py 的 _FORBIDDEN_IN_CONTEXT 断言。
+# （上面那条 `**/CDN本地化命令.txt` 已被本规则覆盖，但**保留不删**：
+#  钉它的那条断言问的是"名字还在清单里"，删掉它等于往回走。）
+archive/
+
 # 注意：index.html、pcm-processor.js、app/、tests_safe/、tools/、deploy/
 # 都**要**保留——前者是运行时真的会读的文件（app/routers/pages.py 的 `GET /`），
 # 后几个是容器里要跑测试和运维脚本用的。
