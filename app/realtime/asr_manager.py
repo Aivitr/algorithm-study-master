@@ -1,21 +1,18 @@
-"""阿里云 NLS 实时转写会话管理（阶段 5 从 server.py 拆出）。
+"""阿里云 NLS 实时转写会话管理。
 
 `ASRSessionManager` 为每个用户维护一条实时转写会话：PCM 音频从前端流入，
-识别结果广播给课堂所有成员。除会话本身外，它还持有若干**进程内**的判定状态
-（声纹身份缓存、自我语音门禁状态、句子级音量竞争、句子合并缓冲），因此它是
-一个长生命周期的单例——文件末尾的 `asr_manager = ASRSessionManager()`。
+识别结果广播给课堂所有成员。它还持有若干**进程内**状态（声纹身份缓存、
+自我语音门禁状态、句子级音量竞争、句子合并缓冲），是长生命周期的单例——
+文件末尾的 `asr_manager = ASRSessionManager()`。
 
-单例身份是这里唯一需要小心的地方：`asr_manager` 必须自始至终是**同一个对象**。
-server.py 用 `from app.realtime.asr_manager import asr_manager` 再导出（而不是
-重新 `ASRSessionManager()` 一次），路由模块也从这里取，因此三处拿到的是同一个
-实例，各自的会话表不会分叉。反过来，若某处重新构造一个，症状是"某人说话时另一
-处查不到他的会话"——不报错，只是行为不对。
+`asr_manager` 必须自始至终是**同一个对象**，各调用点都从这里取，不要重新构造，
+否则会出现"某人说话时另一处查不到他的会话"且不报错。
 
 ## 关于这堆 import
 
-搬这类代码**必须**把依赖的模块级全局显式带上，少一个的后果不是导入失败，而是
-执行到那条分支才 NameError。`tests_safe/test_module_free_names.py` 用 symtable
-判据守住这一点，本模块的头必须让它保持空集。
+模块级全局必须显式、完整地导入，少一个要到执行到那条分支才 NameError。
+`tests_safe/test_module_free_names.py` 用 symtable 判据守住这一点，本模块的头
+必须让它保持空集。
 """
 
 import asyncio
@@ -48,9 +45,8 @@ from app.realtime.state import (
 )
 from app.services.voiceprint_manager import voiceprint_manager
 
-# 与 server.py 同源同值。原先是 `ROOT_DIR = BASE_DIR`，而 BASE_DIR 是
-# app.core.paths.PROJECT_ROOT 的字符串形式。这里直接重算而不复制字面量路径，
-# 免得锚点随文件位置漂移（见 tests_safe/test_paths_anchor.py）。
+# 直接由 PROJECT_ROOT 重算，不复制字面量路径，免得锚点随文件位置漂移
+# （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
 class ASRSessionManager:
@@ -562,7 +558,7 @@ class ASRSessionManager:
         display_username = resolved_username or ASR_UNKNOWN_SPEAKER_LABEL
         speaker_id = identity.get("speaker_id")
 
-        # 临时禁用声纹门控检查，允许所有语音转文字输出
+        # 关闭声纹门控检查，允许所有语音转文字输出
         # if ASR_SELF_VOICE_GATE_ENABLED and resolved_username != username:
         #     gate_state = self.self_voice_gate_state.get((int(meeting_id), username))
         #     if gate_state is not None:
@@ -692,7 +688,7 @@ class ASRSessionManager:
                         gate_state["verified_sentence_id"] = None
                         gate_state["pending_gate_pass"] = False
                         gate_state["sentence_locked"] = False
-                # 临时禁用声纹门控检查，允许所有语音转文字输出
+                # 关闭声纹门控检查，允许所有语音转文字输出
                 # if not gate_state.get("allow_output"):
                 #     return
             speaker_id = payload.get("speaker_id") or payload.get("speakerId") or payload.get("speaker") or payload.get("spk")
@@ -746,7 +742,7 @@ class ASRSessionManager:
                 username=username
             )
         else:
-            # 标准方案（原来的）
+            # 标准方案
             transcriber = RealtimeTranscriber(
                 on_partial=on_partial,
                 on_final=on_final,

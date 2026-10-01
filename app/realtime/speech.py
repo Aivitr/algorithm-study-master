@@ -1,22 +1,19 @@
-"""实时语音分析段：产物落库、转写记录、分析主流程与事件流（阶段 5 从 server.py 拆出）。
+"""实时语音分析段：产物落库、转写记录、分析主流程与事件流。
 
-这是 server.py 里实时链路的第一段实现，四个函数首尾相接：
+四个函数首尾相接：
 
     _persist_speech_emotion_artifacts      把一轮分析的情绪/画面产物落库
     _create_realtime_transcript_entry      生成一条实时转写记录
     _run_realtime_speech_analysis          跑一轮完整分析
     _stream_realtime_speech_analysis_events 把分析过程按事件流吐给 WebSocket
 
-它们只被 WebSocket 侧调用，彼此之间也互相调用，因此整块搬、不在中途拆开。
+它们只被 WebSocket 侧调用，彼此之间也互相调用，不要中途拆开。
 
 ## 关于这堆 import
 
-搬这类代码**必须**把依赖的模块级全局显式带上。在 server.py 里它们由模块级的
-import 提供，少搬一个的后果不是导入失败，而是**执行到那条分支才 NameError**；
-而 WebSocket 路由把异常吞成 200 的错误响应，于是测试全绿而链路是坏的——本仓库
-真的踩过两次（`app/core/emotions.py` 丢了 `import re`；`app/routers/votes.py`
-的 `datetime` 只写在另一个函数体内）。`tests_safe/test_module_free_names.py`
-就是为这类事故立的守卫，本模块的头必须让它保持空集。
+模块级全局必须显式、完整地导入，少一个要到执行到那条分支才 NameError。
+`tests_safe/test_module_free_names.py` 用 symtable 判据守住这一点，本模块的头
+必须让它保持空集。
 """
 
 import json
@@ -48,9 +45,8 @@ from app.services.llm_service import llm
 from app.services.research_runtime import research_runtime
 from app.services.user_lookup import resolve_user_by_identifier
 
-# 与 server.py 同源同值。原先是 `ROOT_DIR = BASE_DIR`，而 BASE_DIR 是
-# app.core.paths.PROJECT_ROOT 的字符串形式。这里直接重算而不复制字面量路径，
-# 免得锚点随文件位置漂移（见 tests_safe/test_paths_anchor.py）。
+# 直接由 PROJECT_ROOT 重算，不复制字面量路径，免得锚点随文件位置漂移
+# （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
 def _persist_speech_emotion_artifacts(

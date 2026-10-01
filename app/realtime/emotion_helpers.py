@@ -1,4 +1,4 @@
-"""实时链路里的情绪/画面判定辅助（阶段 5 从 server.py 迁出）。
+"""实时链路里的情绪/画面判定辅助。
 
 这里放的是**纯判定**：给一段标签、一段音频或一帧画面，判断"这是什么情绪"。
 
@@ -10,15 +10,10 @@
     _emotion_selection_key / _body_action_key / _detect_visual_state_from_video
                                     画面侧的状态判定
 
-**它为什么带走了自己的模块级变量 `analyzer`**
-`get_analyzer()` 用 `global analyzer` 做惰性单例缓存。`global` 绑定的是**函数所在
-模块**的全局名，因此函数与变量必须住在同一个模块里——把它们拆开不会报错，只会
-每次重新建一个分析器（或更糟：缓存永远不生效），所以两者一起搬。
+`get_analyzer()` 用 `global analyzer` 做惰性单例缓存，`analyzer` 必须与它同在本
+模块——拆开不会报错，只会每次重新建分析器、缓存永远不生效。
 
-这块不含任何跨模块共享状态（不像 `recent_speech_cache` 那批），所以是最安全的一
-块，先搬它。
-
-`server.py` 目前以再导出的方式持有同一批名字，未迁走的调用点一行未改。
+本模块不含跨模块共享状态。
 """
 
 import wave
@@ -36,13 +31,13 @@ def get_analyzer():
     return analyzer
 
 
-# 阶段 5 迁至 app/services/user_lookup.py，此处**再导出**（调用点保持不变）。
+# 再导出 app/services/user_lookup.py 的 resolve_user_by_identifier（调用点保持不变）。
 # 它被实时链路、情绪统计、快照三块共用，不能只跟着其中一块走。
 from app.services.user_lookup import resolve_user_by_identifier
 
 
-# 阶段 5 迁至 app/core/emotions.py，此处**再导出**（19 处调用点保持不变）。
-# 理由：它横跨实时链路、报告生成、情绪统计多个域，必须只有一份实现。
+# 再导出 app/core/emotions.py 的 normalize_emotion_label（调用点保持不变）。
+# 它横跨实时链路、报告生成、情绪统计多个域，必须只有一份实现。
 from app.core.emotions import normalize_emotion_label
 
 
