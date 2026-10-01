@@ -42,3 +42,6 @@ _msg*.txt
 # rglob("*.py") 枚举成一个多余的参数，把测试数量搅浑。
 _header*.py
 _before_*.py
+
+# 本机联调用叠加文件（含本机 SA 口令），只在不提交的前提下存在
+docker-compose.local-mssql.yml
