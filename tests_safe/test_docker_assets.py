@@ -171,10 +171,14 @@ def _load_split_tool():
     return module
 
 
-def _compose() -> dict:
-    path = REPO_ROOT / "docker-compose.yml"
+def _compose_file(name: str) -> dict:
+    path = REPO_ROOT / name
     assert path.is_file(), f"{path} 不存在（阶段 5 的本地开发编排）"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _compose() -> dict:
+    return _compose_file("docker-compose.yml")
 
 
 def _env_file_entries(service: dict) -> list[tuple[str, bool]]:
@@ -669,6 +673,123 @@ class TestRequirementsSplit:
             f"多半是清单改了名或删了包，而切分名单没跟着改——"
             f"那会让 Dockerfile 去装一个清单里不存在的包，或者反过来"
             f"让某个 torch 系包走了普通 PyPI（在 Linux 上会拉进 CUDA 版，镜像涨到数 GB）。"
+        )
+
+
+# --------------------------------------------------------------------------
+# 3b. GPU 直通是**叠加**文件，不是第二份编排
+# --------------------------------------------------------------------------
+#
+# `docker-compose.gpu.yml` 存在的唯一理由是：`deploy.resources.reservations.devices`
+# 在 compose 里是硬要求 —— 宿主没有能看见 GPU 的容器运行时（Linux 的
+# nvidia-container-toolkit / Windows 的 WSL2 后端）时，compose 会在起 app
+# **之前**直接报 `could not select device driver "" with capabilities: [[gpu]]`。
+# 所以它绝不能进主文件：那等于把"必须有 NVIDIA 显卡"加给每一个跑标准版的人，
+# 而标准版前提是"宿主只需 Docker"。
+#
+# 下面六条按危险程度排：倒数第二条（主文件里不许有）才是真正要守住的，
+# 最后一条反过来盯着它别变成空转。
+
+
+_GPU_OVERRIDE = "docker-compose.gpu.yml"
+
+
+def _reserved_devices(service: dict) -> list:
+    """Service 声明的设备预留（`deploy.resources.reservations.devices`）。
+
+    单独抽出来是因为它被两个方向用到：一个查叠加文件**有**，一个查主文件**没有**。
+    后者的失效方式是**静默**的——这段 dict 导航要是写错了，它取到的永远是空列表，
+    于是"主文件里不许有"这条断言平凡通过，而仓库里那台没独显的机器照样起不来。
+    所以调用方还得有一条反向断言盯着这个函数本身（见下面的
+    `test_the_reservation_scanner_finds_the_known_good_override`）。
+    """
+    return (
+        ((service.get("deploy") or {}).get("resources") or {})
+        .get("reservations", {})
+        .get("devices")
+        or []
+    )
+
+
+class TestGpuOverrideStaysAnOverride:
+    def test_it_only_touches_the_app_service(self):
+        """叠加文件只许改 app。
+
+        多写一个 `db:` 就等于把数据库的定义复制到这里 —— 主文件一改就悄悄
+        分叉，而症状是"加了 GPU 之后库连不上了"这种指不到病因的报错。
+        """
+        services = _compose_file(_GPU_OVERRIDE).get("services") or {}
+        assert set(services) == {"app"}, (
+            f"{_GPU_OVERRIDE} 只应叠加 app，实际写了：{sorted(services)}"
+        )
+
+    def test_it_reserves_an_nvidia_gpu(self):
+        app = _compose_file(_GPU_OVERRIDE)["services"]["app"]
+        devices = _reserved_devices(app)
+        assert any(
+            "nvidia" in str(d.get("driver"))
+            and "gpu" in [str(c) for c in d.get("capabilities") or []]
+            for d in devices
+        ), (
+            f"{_GPU_OVERRIDE} 里没有 nvidia 的设备预留：{devices}\n"
+            f"写法见 compose 规范：deploy.resources.reservations.devices 下"
+            f"`driver: nvidia` + `capabilities: [gpu]`。"
+        )
+
+    def test_it_does_not_pin_the_build_context_again(self):
+        """叠加文件不得重复 context / dockerfile / target。
+
+        写了就等于把它们钉死在本文件里：主文件哪天改了构建目标，只有不加 GPU
+        的人跟着变，加 GPU 的人还停在旧的那份上——两套镜像长得不一样。
+        """
+        build = _compose_file(_GPU_OVERRIDE)["services"]["app"].get("build") or {}
+        for key in ("context", "dockerfile", "target"):
+            assert key not in build, (
+                f"{_GPU_OVERRIDE} 的 app.build 里又写了一遍 `{key}` —— "
+                f"叠加文件只应补 `args`，其余交给主文件。"
+            )
+
+    def test_it_does_not_smuggle_database_config(self):
+        """与 `test_no_other_service_defines_db_keys` 同一个理由：配置只应有一个入口。"""
+        app = _compose_file(_GPU_OVERRIDE)["services"]["app"]
+        hit = sorted(set(_PROD_DB_KEYS) & set(app.get("environment") or {}))
+        assert not hit, f"{_GPU_OVERRIDE} 里的 app.environment 定义了库键：{hit}"
+
+    def test_the_main_file_carries_no_gpu_reservation(self):
+        """**这一条是本节的重点**：主文件里出现设备预留，标准版就废了。
+
+        `docker-compose.yml` 是"一条命令拉起整套系统"的那份，前提是宿主
+        只需 Docker。设备预留是硬要求，写进去以后没有独显的机器、演示机和 CI
+        都会在 `up` 时直接失败 —— 而且失败发生在**起服务之前**，
+        报的是 docker 的设备驱动错误，和"这个仓库需要显卡"这件事看不出关系。
+        """
+        offenders = {
+            name: _reserved_devices(service)
+            for name, service in (_compose().get("services") or {}).items()
+            if _reserved_devices(service)
+        }
+        assert not offenders, (
+            f"docker-compose.yml 里有服务预留了设备：{offenders}\n"
+            f"GPU 直通只应写在 {_GPU_OVERRIDE} 里，用 "
+            f"`docker compose -f docker-compose.yml -f {_GPU_OVERRIDE} up` 叠加。"
+        )
+
+    def test_the_reservation_scanner_finds_the_known_good_override(self):
+        """守卫自己的守卫：上面那条断言的力量全在 `_reserved_devices` 上。
+
+        它要是哪天被"简化"（或 compose 的字段层级理解错了），取到的永远是空
+        列表，于是"主文件里不许有设备预留"**照样全绿**——而仓库里这台没独显的
+        机器在 `up` 时会直接失败。本仓库反复出现的就是这类"断言写在 A 上、
+        改动发生在 B"的静默失效。
+
+        所以这里拿那份**已知正确**的叠加文件反向验证：扫描器必须能在它身上
+        看见预留。
+        """
+        app = _compose_file(_GPU_OVERRIDE)["services"]["app"]
+        assert _reserved_devices(app), (
+            f"扫描器在 {_GPU_OVERRIDE} 上什么都没找到，而那份文件里明明有预留。\n"
+            f"说明 `_reserved_devices` 的字段层级已经与 compose 规范对不上——"
+            f"上面那条「主文件不许有」的断言因此是平凡成立的。"
         )
 
 
