@@ -225,7 +225,7 @@ algorithm-study-master/
 - **mental_health_assessments**: 心理健康评估
 
 建表脚本是 `db/schema.sql`（生产开发通用、可重复执行）。它是**从生产导出的冻结快照**，
-模型改了它不会跟着改；重新生成的命令记在 `docs/待验收事项.md` A33。
+模型改了它不会跟着改；重新生成用 `python tools/export_prod_schema.py --yes`。
 
 ## API接口
 
@@ -246,7 +246,7 @@ algorithm-study-master/
 
 > `GET /voiceprint_register` 是**既知死路由**——它 `FileResponse` 的
 > `voiceprint_register.html` 全仓不存在，任何调用都会抛 `RuntimeError`。
-> 已登记为 A4，按约定保持原样。
+> 按约定保持原样——补上那个文件等于新增功能，不在"不改行为"的重构范围里。
 
 ### 登录相关
 
@@ -351,7 +351,6 @@ algorithm-study-master/
 | 为什么这么搭、怎么跑起来 | `deploy/docker.md` |
 | 上线部署 | `deploy/README.md` |
 | 接口清单 + 测试基线覆盖 | `docs/route-inventory.md` |
-| 重构期间发现的问题与**待决定**的事项 | `docs/待验收事项.md` |
 | 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
 | 功能层面（面向使用者） | `docs/功能介绍文档.md` |
 | 安装与使用（含容器部署步骤） | `docs/安装及使用.md` |

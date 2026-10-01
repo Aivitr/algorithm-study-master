@@ -21,7 +21,6 @@
 这不是推测。实测第二条命令收集到 3 个测试、耗时 3.59s，即一次真实的
 `import server` → `import database`，也就是一次对生产库的 DDL 尝试
 （`app/core/database.py` 的 `_ensure_transcripts_columns()` 在**导入期**执行）。
-详见 `docs/待验收事项.md`。
 
 结论：闸门必须放在**无论参数怎么写都会被加载**的位置。conftest.py 的加载范围
 是「从 confcutdir（默认即 rootdir）向下到测试文件所在目录」的每一层——

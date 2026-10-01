@@ -9,7 +9,7 @@
 "未完成的功能全量保留"这条约定。两个 `async def` 自第一天起就没有装饰器，
 原样留着即可。
 
-## 两个函数的现状（**待决定**，已登记在 docs/待验收事项.md）
+## 两个函数的现状（**待决定**）
 
 1. `upload_report_template` —— **前端正在调它，但后端没有这条路由。**
    前端有一处 `axios.post('/api/upload-report-template', formData)`

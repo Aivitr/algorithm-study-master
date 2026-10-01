@@ -103,13 +103,13 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 
 | 路由 | 原因 |
 |---|---|
-| `/api/register`、`/api/login` | **绕过 ORM 直连 MSSQL**（`server.py:1935`/`:1985`）。本地 sqlite 无法承接，pymssql 只讲 MSSQL。详见设计文档 §3.12、待验收事项 A7 |
+| `/api/register`、`/api/login` | **绕过 ORM 直连 MSSQL**（`server.py:1935`/`:1985`）。本地 sqlite 无法承接，pymssql 只讲 MSSQL。详见设计文档 §3.12 |
 | `/api/agora-token` | 响应取自 `.env` 的 `AGORA_*`。凭据配齐的机器上会返回**带时效的真实 Token**——既不可复现，也会把凭据写进随仓库提交的基线文件。本机只是恰好缺 `AGORA_APP_CERTIFICATE` 才显得"确定"，不能依赖。`test_responses_do_not_leak_env_secrets` 即为防止同类路由被误加 |
 | `/summary` | 处理器内调用 LLM，实测外连 `116.196.150.245:443`（被 socket 兜底拦下 8 次） |
 | `POST /login` | 调用 `llm.init_meeting_goals()`，且为写操作 |
 | 全部 `POST`/`DELETE`（26 条） | 改变状态；两次运行结果不可比 |
 | 3 条 WebSocket | 长连接，非请求-响应语义 |
-| `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError`。详见待验收事项 A4 |
+| `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError` |
 
 **覆盖率：25 / 59 ≈ 42%**。
 
