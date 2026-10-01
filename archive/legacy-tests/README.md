@@ -111,6 +111,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 | `test_gemma_simple.py` | 66 | | Gemma 简化验证 |
 | `check_enhanced_runtime.ps1` | 36 | | PowerShell：用 `importlib.util.find_spec` 探依赖是否装齐 |
 
+> ⚠️ 上表最后一行的情况**已经变了**：该脚本已另补一份**在仓库根**（本文档只记归档物，
+> 不描述那一份）。起因是 `/api/research-runtime` 的 `setup_scripts.check_runtime`
+> 一直承诺着「仓库根/check_enhanced_runtime.ps1」这个路径，而 `setup_enhanced_runtime.ps1`
+> 末尾也叫用户去跑它——两边都指着一个不存在的文件。
+> **本目录这一份是原样留档的旧物，不要拿去用**：它末尾还是过期的
+> `from research_runtime import ...`（模块早已搬进 `app/services/`）。
+>
 > 另需注意：`test-dir/` 里的 `check_*.py` / `fix_db_final.py` / `debug_emotion_data.py`
 > / `detect_oss_region.py` 与 `../ops-scripts/` 中的同名脚本是**两份不同的东西**。
 > `ops-scripts/` 收的是 `root/` 那一支（较新，且已加生产目标防护）；
