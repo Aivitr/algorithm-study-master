@@ -183,6 +183,9 @@ FRAMEWORK_ROUTES = [
     ("Route", "", "/openapi.json"),
     ("Route", "", "/redoc"),
     ("MOUNT", "", "/storage"),
+    # 阶段 6：本地化的前端资源。误删它不会让 /api 出错，而是让页面**白屏**——
+    # 与 /storage 同属"删了照样能启动、测试不红就没人发现"的那一类。
+    ("MOUNT", "", "/static"),
 ]
 
 

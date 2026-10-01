@@ -27,12 +27,20 @@
    有人证明它没把某个包漏掉或算重。漏掉的后果是运行时 `ModuleNotFoundError`，
    且按本仓库的老规矩，多半还是**延迟导入**里才炸。
 
+4. **构建上下文里少了运行时资产。**
+   前三条都在挡"不该进去的进去了"，这条挡反方向：`.dockerignore` 是一条通配规则
+   就能扫掉一整棵子树的，而 `index.html`、`static/` 这些正是 `server.py` 在
+   **运行时**才读的。少一个的后果在宿主机上完全不可见——所有测试读的是宿主文件，
+   只有容器里的页面白屏。阶段 6 把前端资源全量落到 `static/` 之后，
+   这条路第一次真的会疼。
+
 对齐 `pytest.ini` 的安全约定：本文件只读文件、不起容器、不连任何数据库。
 """
 
 from __future__ import annotations
 
 import importlib.util
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -65,6 +73,74 @@ _FORBIDDEN_IN_CONTEXT = (
     "uploads",
     "voiceprints.json",
 )
+
+# 反过来：必须**留在**构建上下文里的运行时资产。
+#
+# 上面那张表是"进去了就出事"，这张是"没进去就出事"。只挡一个方向是不够的——
+# `.dockerignore` 的末尾一直写着「index.html、app/、tools/ 都要保留」，
+# 但那句话此前**只是散文**：谁要是在那里补一条 `static/`（理由是"生成物不必进镜像"，
+# 听上去相当合理），宿主机上的每一条测试都会照样全绿，只有容器里的页面变成白屏。
+# 阶段 6 把前端资源全量落到 static/ 之后，这条路径第一次真的会疼。
+_REQUIRED_IN_CONTEXT = (
+    "index.html",        # app/routers/pages.py 的 `GET /` 真的读这个文件
+    "pcm-processor.js",  # `GET /pcm-processor.js`
+    "static",            # 阶段 6：本地化的前端资源，由 server.py 的 /static 挂载伺服
+    "app",
+    "tools",
+    "tests_safe",
+)
+
+
+def _dockerignore_patterns() -> set[str]:
+    """`.dockerignore` 里生效的行（去注释、去空行）。文件不存在则返回空集。"""
+    ignore = REPO_ROOT / ".dockerignore"
+    if not ignore.is_file():
+        return set()
+    return {
+        line.strip()
+        for line in ignore.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+
+
+def _pattern_hits(relpath: str, patterns: set[str]) -> bool:
+    """单条仓库相对路径（`app/x.py`）会不会被这些模式排除。
+
+    认识的形态：精确同名（含整棵子树）、`**/x`、`*.ext`。
+    不认识的：中缀 `a/**/b`、字符类、转义。真到那一步，与其把这里养成小半个
+    Docker，不如直接起一次容器验证。
+
+    `fnmatch` 的 `*` 会跨 `/`，比 Docker 的本义宽一点——对这个用途是好事：
+    多认出来的情形由调用方（只判顶层条目）兜着，不会变成误报。
+    本函数的行为由 `test_pattern_hits_matches_expectation` 逐条钉住，
+    因为它一旦被"简化"成字符串相等，上面那条断言就会静默失效。
+    """
+    for raw in patterns:
+        if raw.startswith("!"):  # 取反规则本身不构成排除
+            continue
+        pattern = raw.rstrip("/")
+        if not pattern:
+            continue
+        if relpath == pattern or relpath.startswith(pattern + "/"):
+            return True
+        if fnmatch(relpath, pattern):
+            return True
+        if pattern.startswith("**/") and fnmatch(relpath, pattern[3:]):
+            return True
+    return False
+
+
+# 本守卫**只判条目整体是否被排除**，不逐个子文件扫。
+#
+# 这一条边界是试出来的：最初的版本 rglob 整个子树，结果
+# `app/__pycache__/*.pyc` 立刻报了红——而那是**应该**被排除的，Python 会重新生成
+# 字节码。把"整棵子树被扫掉"和"子树里的缓存被扫掉"混为一谈，守卫就变成了噪声。
+#
+# 代价是漏掉一种情形：`**/*.css` 这类规则不会让 `static` 这个目录名被排除，
+# 却会扫掉它下面的样式表。这个缺口是**已知且有意留着**的——
+# 真要堵它，就得逐文件判定"这个文件运行时会不会被读到"，而那需要引入
+# SOURCES.json / index.html 的可达性，等于把阶段 6 的守卫复制一份到这里。
+# 与其做一个半吊子的复制，不如把边界写清楚：这里管"目录整个没了"。
 
 
 def _load_split_tool():
@@ -118,6 +194,52 @@ class TestDockerignore:
             f".dockerignore 没有排除 {entry!r}。"
             f"现有条目：{sorted(lines)}"
         )
+
+    @pytest.mark.parametrize("entry", _REQUIRED_IN_CONTEXT)
+    def test_runtime_asset_is_not_excluded(self, entry):
+        """运行时真会读的文件/目录不得被 `.dockerignore` 扫出去。
+
+        与上一条互补：那条问"危险的东西出去了吗"，这条问"必需的东西还在吗"。
+        只挡前者的话，一条看着很合理的 `static/`（"生成物，何必进镜像"）
+        就能让容器里的页面白屏，而**宿主机的全部测试依然全绿**——
+        正是阶段 6 要消灭的那类"在开发机上看不出来"。
+
+        判据是"这个条目**本身**会不会被排除"，不追究它下面的缓存目录
+        （见 `_pattern_hits` 上方那段边界说明）。
+        """
+        assert not _pattern_hits(entry, _dockerignore_patterns()), (
+            f".dockerignore 排除了 {entry!r}。\n"
+            f"这类资产由 `python server.py` 在运行时读取，宿主机上永远看不出问题，"
+            f"只有容器里才会表现为白屏或 404。"
+        )
+
+
+# 守卫自己的守卫。
+#
+# 上面那条断言的全部力量都在 `_pattern_hits` 上：它要是被"简化"成只做字符串相等
+# （很容易发生——看着像等价改写），`static/` 这类规则就再也拦不住，
+# 而上面那条测试**照样全绿**。本仓库反复出现的就是这种失效。
+#
+# 两个方向都点名：该报的必须报，不该报的必须不报。后者同样重要——
+# 会误报的守卫会被注释掉（这个函数的 rglob 版本就是这么被改掉的）。
+@pytest.mark.parametrize(
+    "entry, patterns, expected",
+    [
+        ("static", {"static/"}, True),
+        ("static", {"static"}, True),
+        ("static", {"**/static"}, True),
+        ("index.html", {"*.html"}, True),
+        ("pcm-processor.js", {"**/*.js"}, True),
+        # 不该报：子树里的缓存被排除是正常的，Python 会重建
+        ("static", {"**/__pycache__"}, False),
+        ("app", {"*.py[cod]"}, False),
+        ("tools", {"tmp/"}, False),
+        # 取反规则不构成排除
+        ("static", {"!static"}, False),
+    ],
+)
+def test_pattern_hits_matches_expectation(entry, patterns, expected):
+    assert _pattern_hits(entry, patterns) is expected
 
 
 # --------------------------------------------------------------------------

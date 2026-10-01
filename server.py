@@ -140,6 +140,13 @@ app.add_middleware(
 
 app.mount("/storage", StaticFiles(directory=os.path.join(BASE_DIR, "storage")), name="storage")
 
+# 阶段 6：前端外部依赖本地化的落点。`index.html` 原本从 5 个外部 CDN 拉 23 个
+# 资源，CDN 在部署区域不可达时页面白屏、图标变空框（Font Awesome 的 webfonts
+# 与 Inter 的 woff2 都在那份 CSS 的 url() 里，是最容易漏掉的一半）。
+# 与上面 /storage 同类：**框架级静态挂载，不计入 C3 的 59 个接口**，
+# 但同样钉在 tests_safe/test_route_contract.py 的 FRAMEWORK_ROUTES 里。
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
 
 # ==================== 再导出（迁移兼容面） ====================
 # 下面这一整段是阶段 5 拆分实时链路时留下的**再导出**。每搬走一块，就在原位置
