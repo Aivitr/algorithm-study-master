@@ -70,6 +70,23 @@ docker compose exec app python -m pytest   # 容器里跑
 - 阿里本地语音识别 `requirements_funasr.txt`
 - 性能优化/GPU加速 `requirements_enhanced_runtime.txt`
 
+## 增强版：把 GPU 直通给容器
+
+增强版要 GPU，而主编排**故意不带**设备预留——那在 compose 里是硬要求，写进去会让
+没有 NVIDIA 运行时的机器连标准版都起不来。所以另有一份叠加文件：
+
+```bash
+# 直通设备 + 把镜像里的 torch 换成 CUDA 版（镜像会大出好几 GB）
+TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
+  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
+镜像默认装的是 **CPU 版 torch**，它的 `torch.cuda.is_available()` 永远是 `False`
+——设备直通了也看不见，所以上面那条命令要把 `TORCH_INDEX_URL` 一起给（只想直通设备、
+不换索引的话，去掉那个变量即可）。六个模型槽位与增强依赖由宿主上的
+`setup_enhanced_runtime.ps1` / `download_enhanced_open_models.py` 准备，
+核实用仓库根的 `check_enhanced_runtime.ps1`。细节见 `docs/安装及使用.md` 3.2。
+
 ## 核心功能
 
 ### 🎓 教师功能

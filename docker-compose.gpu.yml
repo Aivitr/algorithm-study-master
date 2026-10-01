@@ -1,0 +1,78 @@
+# ============================================================================
+# 增强版叠加文件：把 NVIDIA GPU 直通给 app。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+#
+# 标准版**不含**本文件，命令照旧：`docker compose up --build`。
+#
+# ---------------------------------------------------------------------------
+# 一、为什么单独一个文件，而不是写进 docker-compose.yml
+# ---------------------------------------------------------------------------
+#
+# `deploy.resources.reservations.devices` 在 compose 里是**硬要求**，不是"有就用、
+# 没有就算"：宿主没有 NVIDIA 驱动 + 能看见 GPU 的容器运行时（Linux 上是
+# nvidia-container-toolkit；Windows 上要 Docker Desktop 的 WSL2 后端）时，
+# compose 会在起 app **之前**直接报
+#
+#     could not select device driver "" with capabilities: [[gpu]]
+#
+# 把它写进主文件，等于把这条要求加给每一个跑标准版的人——包括没有独显的机器、
+# 演示机和 CI。标准版的前提是"宿主只需 Docker"，这一点不能被增强版的需求污染。
+#
+# ---------------------------------------------------------------------------
+# 二、直通设备 ≠ 容器里的 torch 会用它
+# ---------------------------------------------------------------------------
+#
+# 这两件事是分开的，少一件都用不上 GPU：
+#
+#   1. **设备**：由下面这段 reservations 交给容器（本文件管）；
+#   2. **轮子**：镜像里的 torch 是 **CPU 版**——`Dockerfile` 的
+#      `TORCH_INDEX_URL` 默认指向 `download.pytorch.org/whl/cpu`，为的是把镜像
+#      从数 GB 压到可接受的体积。CPU 版 torch 的 `torch.cuda.is_available()`
+#      永远是 False，**哪怕设备已经直通进来**。
+#
+# 所以本文件同时把那个 ARG 接出来（见下方的 `build.args`）：装上 GPU 直通的
+# 同时把 torch 换成 CUDA 版，一条命令：
+#
+#   TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
+#     docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+#
+# **换 CUDA 索引会让镜像大出好几 GB**，所以默认值保持 CPU 版——不设这个环境
+# 变量时，本文件的行为与不加它时**完全一致**（除了设备那一段）。
+# 索引里 cu118 / cu121 / cu124 对应不同 CUDA 版本，按宿主驱动挑一个能用的。
+#
+# 注意：增强版那六个模型槽位与增强依赖（`requirements_enhanced_runtime.txt`）
+# 是**另一条线**，由 `setup_enhanced_runtime.ps1` 在宿主上准备。三者齐了才算
+# 真正的增强版，判据看 `/api/research-runtime` 的 `enhanced_stack_ready`，
+# 或直接在宿主上跑 `check_enhanced_runtime.ps1`（它会打印 `nvidia-smi` 与
+# `torch.cuda.is_available()`）。
+#
+# ---------------------------------------------------------------------------
+# 三、自检
+# ---------------------------------------------------------------------------
+#
+#   宿主驱动是否就绪      →  `nvidia-smi` 能打出版卡信息
+#   容器能否看见 GPU      →  `docker run --rm --gpus all <任意镜像> nvidia-smi`
+#                            （Windows 用 WSL2 后端即可，无需另装 toolkit）
+#   容器里的 torch 是否可用 →  `docker compose -f docker-compose.yml \
+#                              -f docker-compose.gpu.yml exec app \
+#                              python -c "import torch; print(torch.cuda.is_available())"`
+# ============================================================================
+
+services:
+  app:
+    build:
+      # 只叠加 args，不重复 context / dockerfile / target —— 那三项由主文件给，
+      # 在这里再写一遍就等于把它们**钉死**在本文件里，主文件一改就悄悄分叉。
+      args:
+        # 默认与 Dockerfile 里那个 ARG 同值：不设环境变量时本文件不改变任何东西。
+        TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+
+    # 设备预留：compose 的规范写法（`gpus:` 那套更晚才有，兼容面窄）。
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
