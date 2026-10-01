@@ -64,8 +64,8 @@ _README_ROUTE_ROW = re.compile(
     re.MULTILINE,
 )
 
-# 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与设计文档
-# 冻结的"59 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
+# 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与
+# test_route_contract.py 冻死的"59 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
 # 整体失效，它会立刻跌到 0 而报红。
 _MIN_EXPECTED_ROUTES = 50
 

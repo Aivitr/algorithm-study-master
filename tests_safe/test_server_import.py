@@ -1,7 +1,7 @@
 """探针：能否在本地库上导入 server 模块。
 
 这是冒烟基线的前置问题。`server.py` 在导入时会：
-  - 连接数据库（并可能执行 ALTER TABLE，见设计文档 §3.11）
+  - 连接数据库（并可能执行 ALTER TABLE）
   - 读取 OSS / Agora / LLM 配置
   - 初始化 voiceprint_manager、ai_core engine 等重依赖
 

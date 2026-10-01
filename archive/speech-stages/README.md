@@ -37,7 +37,7 @@ verify_stage4.py
 归档前这 14 个都在仓库根，所以它能跑。归档后它们被分到
 `docs/` `tests/` `verification/` 和仓库根，**裸文件名解析到的位置全变了**。
 
-当时的取舍是：§4.3 的结构本身就要求把它们分到四个子目录，所以取另一半要求——
+当时的取舍是：归档结构本身就要求把它们分到四个子目录，所以取另一半要求——
 **用 README 记录，而不是保持可运行**。这些脚本的价值在记录阶段进展，不在执行。
 
 ### 两个本来就坏的导入（与本次归档无关，原样保留）
@@ -47,7 +47,7 @@ verify_stage4.py
 | `modules/voiceprint_api.py:7` | `from flask import app`——**这是个 FastAPI 项目**。该文件从来没有成功导入过。另：它引用的 `ROOT_DIR` 也未定义 |
 | `modules/aliyun_speaker_diarization.py:10` | `from ai_core import refresh_aliyun_token, ALIYUN_CONFIG`——已核对，**这两个名字在 `ai_core.py` 中确实存在**（第 12、24 行），所以这一条是可解析的；但 `ai_core` 仍是仓库根的运行期模块，本归档模块与它有依赖关系 |
 
-**这两处都没有修**。C1/C2：不改变代码内容，保留它作为「当时的真实状态」的证据。
+**这两处都没有修**。不改内容、不删文件：保留它作为「当时的真实状态」的证据。
 
 ### `tests/` 里那 3 个脚本为什么还能导入 `server`
 
@@ -128,7 +128,7 @@ from server import manager                      # 另两个
 
 ### `audio_constraint_test.html`
 
-Stage 4「前端音频采集强约束」的测试页（17KB）。§4.3 未枚举此文件；
+Stage 4「前端音频采集强约束」的测试页（17KB）。归档清单未枚举此文件；
 实测它只被 `check_project_status.py` 与 `verify_stage4.py` 引用，二者都属 Stage 4，
 故随本工作线归档。放在本目录根而非 `docs/`，因为它是**工具**不是文档。
 
@@ -136,6 +136,6 @@ Stage 4「前端音频采集强约束」的测试页（17KB）。§4.3 未枚举
 
 ## 查阅指引
 
-- 映射依据与取舍 → 设计文档 §4.3
-- 为什么这 7 个模块不在 `app/` → 设计文档 §4.3 + 本文件
+- 映射依据与取舍 → `archive/README.md`
+- 为什么这 7 个模块不在 `app/` → `archive/README.md` + 本文件
 - 声纹管理器（**仍在使用**的那个，与这里的不同）→ 仓库根 `voiceprint_manager.py`

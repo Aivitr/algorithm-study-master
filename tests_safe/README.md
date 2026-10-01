@@ -72,7 +72,7 @@ tests/test_api_endpoints.py:2   from server import app
 结构形状 / 摘要，**不逐字节比对**——原始响应里含 HTML 大页面与时间戳，逐字节
 比对既脆弱又不可读。形状用于保证字段集合没变，摘要用于保证取值没变。
 
-**基线是在本地 ORM 库上录的，不是在生产的库上**（D17）。本库与生产库结构本就不
+**基线是在本地 ORM 库上录的，不是在生产的库上**。本库与生产库结构本就不
 一致（18 表 vs 15 表，`transcripts` 另多 6 列，见 `docs/production-schema-drift.md`），
 因此**结构层面的结论不能外推到生产**。
 
@@ -83,7 +83,7 @@ tests/test_api_endpoints.py:2   from server import app
 - `/voiceprint_register` 是死路由，指向的文件全仓不存在
 - 外部服务（阿里云 NLS / DeepSeek / Agora）只能 mock，mock 的契约未必等于现实
 - 测试直连 ASGI，**不经过 nginx**，因此反代层问题（如 `/ws/` 前缀不匹配）
-  测试永远发现不了，需另加部署形态验证（设计文档 §7.4）
+  测试永远发现不了，需另加部署形态验证
 
 ## 命名陷阱（写新测试时最容易踩的两个）
 

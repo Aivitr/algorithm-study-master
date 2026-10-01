@@ -186,7 +186,7 @@ def test_cache_get_refreshes_recency():
     """`get` 命中应当把该条移到队尾，从而免于被驱逐。
 
     原文只测了"写入顺序驱逐"，没测"读取会影响驱逐顺序"——而后者才是
-    LRU 之所以叫 LRU 的那一半。设计文档 §4 把缓存策略列为待验证项，这条补上。
+    LRU 之所以叫 LRU 的那一半。缓存策略此前列为待验证项，这条补上。
     """
     from app.services.llm_service import ExpiringLRUCache
 

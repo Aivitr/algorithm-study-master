@@ -9,12 +9,12 @@
 #   pytest —— 测试框架
 #   httpx  —— fastapi.testclient.TestClient 的底层传输（ASGI 直连，不监听端口）
 #
-# 设计文档 §7.1 原列了 pytest-asyncio 与 syrupy，**实测后未采用**：
+# 测试工具栈原本列了 pytest-asyncio 与 syrupy，**实测后未采用**：
 #   - pytest-asyncio：Starlette 的 TestClient.websocket_connect 本身就是同步 API，
 #     WebSocket 测试不需要异步插件
 #   - syrupy：快照需精确控制哪些字段参与比对（时间戳、凭据必须排除），
 #     自建 JSON 基线的排除规则反而更少
-# 理由详见设计文档 §6「阶段 1」与 tests_safe/README.md。
+# 理由详见 tests_safe/README.md。
 
 -r requirements.txt
 

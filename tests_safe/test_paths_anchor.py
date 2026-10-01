@@ -1,6 +1,6 @@
 """路径锚点契约：所有模块对「项目根在哪」必须给出同一个答案。
 
-这条契约防的是设计文档 §3.1 的失效模式
+这条契约防的是路径锚点的失效模式
 --------------------------------------
 在本仓库里，「项目根目录」曾经有四份各自独立的推导（server.py、config.py、
 research_runtime.py、3/c_realtime_integration.py），四种写法**当前都得出了
@@ -11,7 +11,7 @@ research_runtime.py、3/c_realtime_integration.py），四种写法**当前都�
     config.py 迁到 app/core/ 之后
     BASE_DIR = Path(__file__).resolve().parent   # → <root>/app/core  ✗
     env_path = BASE_DIR / ".env"                 # → 不存在
-    if not env_path.exists(): return             # → 静默 return（§3.10）
+    if not env_path.exists(): return             # → 静默 return（配置静默失效）
 
 结果是配置无声退化成默认值：应用照常启动、照常跑，只在连库那一刻才暴露。
 **没有任何一步会报错。** 阶段 3 的全部工作就是移动文件，所以这条路径会被
@@ -68,7 +68,7 @@ def test_project_root_is_the_repo_root():
 def test_root_resolution_is_independent_of_cwd(session_tmp_dir):
     """根目录的解析结果**不得**随当前工作目录变化。
 
-    这是 §3.1 的正题：锚点若与"进程从哪启动"或"文件住在哪"挂钩，
+    这才是正题：锚点若与"进程从哪启动"或"文件住在哪"挂钩，
     从别处启动就会静默指错目录。这里换一个完全无关的 cwd 重跑一次解析，
     结果必须逐字节相同。
 
@@ -357,7 +357,7 @@ def test_server_syspath_additions_are_known_and_present():
 # `sqlite:///` 后面直接跟 `./`：地址相对**进程的工作目录**，而不是仓库根。
 _CWD_RELATIVE_SQLITE = "sqlite:///./"
 
-# 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（与设计文档 §4.3 的归档策略一致）。
+# 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（与 archive/README.md 的归档策略一致）。
 _ANCHOR_SKIP_DIRS = {
     "venv", "archive", "__pycache__", ".git", ".codegraph", ".pytest_cache",
     "_tmp_agora_token_builder", "node_modules",

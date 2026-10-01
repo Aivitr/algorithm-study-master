@@ -69,7 +69,7 @@ def test_legacy_dir_no_longer_exists_in_repo_root(legacy):
     archived = ARCHIVE / LEGACY_DIRS[legacy]
     assert archived.is_dir(), (
         f"归档副本 {archived} 不存在——{legacy}/ 既不在仓库根、也不在归档里，"
-        f"说明文件被删了。C2 约定：不删除任何文件。"
+        f"说明文件被删了。按「全量保留」的约定：不删除任何文件。"
     )
 
 
