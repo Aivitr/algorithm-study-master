@@ -37,10 +37,15 @@ python server.py
 
 打开 `http://127.0.0.1:8000`
 
-> ⚠️ **这条路现在没有数据库可连。** `.env.dev` 里的 `DB_HOST=db` 是 compose 网络里的
-> 服务名，只在容器内可解析——宿主上跑 `server.py`，注册 / 登录会直接连不上，
-> ORM 侧则回落本地 SQLite。想连库请走上面的容器方式（在容器里跑），
-> 或自备一份指向本机库的覆盖层。见 `docs/待验收事项.md` A33 §9。
+> ⚠️ **这条路没有数据库可连，是刻意的**（2026-10-01 定）。`.env.dev` 里的
+> `DB_HOST=db` 是 compose 网络里的服务名，只在容器内可解析——宿主上跑 `server.py`，
+> 注册 / 登录会直接连不上，ORM 侧则回落本地 SQLite。
+>
+> 要用数据库就走上面的容器方式；需要在容器里做事（建表、查数据、跑脚本）用
+> `docker compose exec app bash`，它天然在 compose 网络里。
+>
+> **宿主上跑测试是例外，照常可用**——`./venv/Scripts/python.exe -m pytest` 走的是
+> 测试隔离闸门（sqlite + `127.0.0.1:1`），与真实库无关。见 `docs/待验收事项.md` A33 §9。
 
 ## 配置
 - 复制 `.env.example` 为 `.env`
