@@ -1,7 +1,7 @@
 # 生产库结构差异存档
 
 **采集日期**：2026-10-01
-**目标**：`cscl_db` @ `***REMOVED-HOST***:3433`
+**目标**：`cscl_db` @ `<生产 RDS 主机名>:3433`（具体主机名只存在于 `.env.prod`，不入库）
 **采集方式**：只读 `INFORMATION_SCHEMA.COLUMNS`（列名、类型、长度、可空性），**未读取任何一行数据**
 **服务端版本**：Microsoft SQL Server 2019 (RTM-CU32-GDR) 15.0.4455.2
 
