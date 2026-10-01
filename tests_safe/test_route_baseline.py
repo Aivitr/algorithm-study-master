@@ -10,6 +10,10 @@
     且顺序耦合会让基线不稳定
   - `/api/register`、`/api/login` 为**覆盖盲区**：它们绕过 ORM 直连 MSSQL，
     无法在本地库上运行（见设计文档 §3.12 与待验收事项 A7）
+  - **唯一的例外**：`GET /api/download-exercises/1` 会往 `storage/exercises/`
+    落一个文件（见 `WRITES_A_FILE`）。它**不写库**，所以签名稳定、可以进基线；
+    但"只读"这个说法对它不准确。基线遍历结束后会把**本次新产生的**删掉。
+    2026-10-01 之前这件事没做，该目录已经攒了 200 多个文件（A24 发现二）。
 
 记录：`pytest --record-baseline` 重新录制；默认与已录基线比对。
 """
@@ -53,6 +57,11 @@ READ_ONLY_ROUTES = [
     ("GET", "/api/get-video-context", {
         "meeting_id": 1, "timestamp": _TS_SECONDS, "user_id": 2,
     }),
+    # ⚠ 这一条**会写文件**，是 `READ_ONLY_ROUTES` 里唯一的例外。
+    # 处理器每次调用都往 storage/exercises/ 落一个 `exercises_{id}_{时间戳}.txt`
+    # 且从不清理（app/routers/quiz.py:50-55）。不写库 ⇒ 签名稳定 ⇒ 可进基线；
+    # 但"只读"对它不准确。遍历结束后由 _cleanup_new_exercise_files() 收尾。
+    # 不改处理器本身：它每次生成新文件名，很可能是**故意的**（避免覆盖上一次导出）。
     ("GET", "/api/download-exercises/1", {}),
     ("GET", "/api/student-quiz-history/2", {}),
     ("GET", "/api/teacher-templates/1", {}),
@@ -106,14 +115,77 @@ def _json_shape(data, depth=0):
     return type(data).__name__
 
 
+_EXERCISE_DIR = Path(__file__).resolve().parent.parent / "storage" / "exercises"
+
+
+def _exercise_files() -> set[Path]:
+    if not _EXERCISE_DIR.is_dir():
+        return set()
+    return set(_EXERCISE_DIR.glob("exercises_*.txt"))
+
+
+def _cleanup_new_exercise_files(before: set[Path]) -> None:
+    """删掉**本次遍历新产生**的导出文件。
+
+    按"遍历前就有的"做差集，所以不可能碰到任何一个**先前已存在**的文件——
+    包括那 200 多个历史遗留。
+    """
+    for path in _exercise_files() - before:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+# 遍历前后的目录快照。收尾是否真的生效由它裁决。
+_BASELINE_RUN: dict[str, set[str]] = {}
+
+
 @pytest.fixture(scope="session")
 def raw_responses(client, seeded_ids):
-    """遍历只读路由，保留原始响应（签名与凭据检查都从它派生）。"""
+    """遍历只读路由，保留原始响应（签名与凭据检查都从它派生）。
+
+    收尾用 `finally`：`WRITES_A_FILE` 那条即使中途抛错，也不该把文件留在盘上。
+    """
     result = {}
-    for method, path, params in READ_ONLY_ROUTES:
-        response = client.request(method, path, **({"params": params} if params else {}))
-        result[f"{method} {path}"] = response
+    before = _exercise_files()
+    try:
+        for method, path, params in READ_ONLY_ROUTES:
+            response = client.request(method, path, **({"params": params} if params else {}))
+            result[f"{method} {path}"] = response
+    finally:
+        _cleanup_new_exercise_files(before)
+        # 快照放在**收尾之后**：这样"清理没生效"与"清理函数根本没动手"
+        # 都会被下面那条断言一起抓到。
+        # 判据取"遍历前后是否一致"，而不是"有没有删不掉的文件"——
+        # 后者有个洞：清理函数若什么都不做，它同样返回空，照样绿。
+        _BASELINE_RUN["before"] = {p.name for p in before}
+        _BASELINE_RUN["after"] = {p.name for p in _exercise_files()}
     return result
+
+
+def test_baseline_run_leaves_no_export_files_behind(raw_responses):
+    """跑一遍基线不该在仓库里留下导出文件：遍历前后目录必须一模一样。
+
+    依赖 `raw_responses` 只为保证顺序——得等那次遍历跑完再看。
+
+    背景（A24 发现二）：`GET /api/download-exercises/1` 每次调用都往
+    `storage/exercises/` 落一个文件且从不清理，而它被列在 `READ_ONLY_ROUTES`
+    里。2026-10-01 之前这件事没人管，该目录攒了 234 个文件（几乎全由测试产生，
+    当天一天就长了约 200 个）。现在遍历结束即收尾，由本断言盯着收尾是否生效。
+    """
+    before = _BASELINE_RUN.get("before")
+    after = _BASELINE_RUN.get("after")
+    assert before is not None and after is not None, (
+        "没取到遍历前后的快照——`raw_responses` 没跑到收尾就被丢弃了。"
+    )
+
+    assert after == before, (
+        f"基线遍历前后 {_EXERCISE_DIR} 变了：\n"
+        f"  新增：{sorted(after - before)}\n"
+        f"  减少：{sorted(before - after)}\n"
+        "（新增说明收尾没生效；减少说明清理**删过头**了，碰到了遍历前就存在的文件。）"
+    )
 
 
 @pytest.fixture(scope="session")
