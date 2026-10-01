@@ -229,14 +229,12 @@ algorithm-study-master/
 
 ## API接口
 
-**共 59 个**：GET 28 / POST 26 / DELETE 2 / WebSocket 3。地址与输入输出**已冻结**
+逐条清单在 `docs/route-inventory.md`——从**运行中的 app 枚举 `app.routes`** 得到的
+（不是手抄），另含「能否纳入测试基线」的分类。接口的地址与输入输出**已冻结**
 （设计文档 C5），改动会让 `tests_safe/test_route_contract.py` 与
-`tests_safe/baselines/routes.json` 报红。
-
-逐条清单不在这里——在 `docs/route-inventory.md`。那一份是从**运行中的 app 枚举
-`app.routes`** 得到的（不是手抄），另含「能否纳入测试基线」的分类。README 里再抄
-一份就等于凭空多出一个真相，两份迟早漂移；所以这里只留数量声明，
-`tests_safe/test_readme_routes.py` 盯着它与源码一致。
+`tests_safe/baselines/routes.json` 报红。README 不复制那份清单：手抄的副本迟早与它
+漂移，而 README 恰是外人最先读到的那一份——`tests_safe/test_readme_routes.py`
+盯着这一点。
 
 > `GET /voiceprint_register` 是**既知死路由**：它 `FileResponse` 的
 > `voiceprint_register.html` 全仓不存在，任何调用都会抛 `RuntimeError`。
