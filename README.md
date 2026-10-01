@@ -176,24 +176,30 @@ python test_concurrent_users.py
 
 
 algorithm-study-master/
-├── server.py                      # 主服务器
-├── database.py                    # 数据库模型
-├── llm_service.py                 # LLM服务
-├── knowledge_graph_service.py     # 知识图谱服务
-├── video_processor.py             # 视频处理
-├── ai_core.py                     # AI核心功能
+├── server.py                      # 主服务器（FastAPI 入口）
 ├── index.html                     # 前端界面
-├── test_concurrent_users.py       # 并发测试脚本
-├── DEPLOYMENT.md                  # 部署文档
-├── requirements.txt               # Python依赖
-├── 1/                             # 语音识别模块
-│   ├── aliyun.py
-│   ├── service_aliyun.py
-│   └── ...
-└── storage/                       # 临时存储目录
-    ├── video_chunks/
-    ├── audio_chunks/
-    └── snapshots/
+├── pcm-processor.js               # 前端音频采集脚本（`GET /pcm-processor.js`）
+├── haarcascade_frontalface_default.xml   # 人脸检测模型（video_processor 在仓库根找它）
+├── conftest.py / pytest.ini       # 测试隔离闸门，只收集 tests_safe/
+├── Dockerfile / docker-compose.yml / .dockerignore
+├── requirements*.txt              # 基础 / dev / lock / 两套可选运行时
+├── app/                           # 应用代码
+│   ├── core/                      # 配置、数据库、路径锚点
+│   ├── models/                    # ORM 模型
+│   ├── routers/                   # HTTP 路由
+│   ├── realtime/                  # WebSocket 与实时链路
+│   └── services/                  # LLM / 语音 / 视频 / 知识图谱等服务
+├── static/                        # 前端资源（css / js / img / vendor）
+├── db/                            # schema.sql + init.sh（生产开发通用建库）
+├── deploy/                        # 部署文档与配置模板
+├── docs/                          # 文档与验收笔记
+├── tests_safe/                    # 唯一被收集的测试套件
+├── tools/                         # 一次性 / 运维脚本
+├── enhanced_bridge_templates/     # 可选：说话人 / 音视频增强的桥接模板
+├── _tmp_agora_token_builder/      # server.py 追加进 sys.path 的小工具
+├── archive/                       # 已归档的代码与文档（不参与运行，未删除）
+├── storage/ / uploads/            # 运行时数据（不进版本库）
+└── venv/                          # 本地虚拟环境（不进版本库）
 
 
 ## 数据库表结构
