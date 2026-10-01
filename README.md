@@ -227,18 +227,6 @@ algorithm-study-master/
 建表脚本是 `db/schema.sql`（生产开发通用、可重复执行）。它是**从生产导出的冻结快照**，
 模型改了它不会跟着改；重新生成用 `python tools/export_prod_schema.py --yes`。
 
-## API接口
-
-逐条清单在 `docs/route-inventory.md`——从**运行中的 app 枚举 `app.routes`** 得到的
-（不是手抄），另含「能否纳入测试基线」的分类。接口的地址与输入输出**已冻结**
-（设计文档 C5），改动会让 `tests_safe/test_route_contract.py` 与
-`tests_safe/baselines/routes.json` 报红。README 不复制那份清单：手抄的副本迟早与它
-漂移，而 README 恰是外人最先读到的那一份——`tests_safe/test_readme_routes.py`
-盯着这一点。
-
-> 接口里**已知的坑**（哪条是死路由、哪组不纳入基线）都记在那份清单的
-> 「已知盲区」一节——README 不再逐条复述。
-
 ## 文档在哪
 
 | 想看什么 | 去哪 |
