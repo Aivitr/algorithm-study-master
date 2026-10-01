@@ -245,3 +245,29 @@ class TestClickWiring:
             + "\n  ".join(problems)
             + "\n\n（这类问题不会改变任何静态 DOM，只有点一下才露馅。）"
         )
+
+
+class TestRootInstanceShape:
+    """根实例的结构性事实。判据取自运行时，不解析源码。
+
+    `static/js/app.js` 的选项对象里有**两个同层 `watch` 键**（约 546 行与文件
+    末尾）。JS 对象字面量对重复键是"后者整体胜出"：不合并、也不警告。所以前一个
+    （3 个监视器连同类中约 50 行）**从未注册过**。
+
+    这是一处已知的、**决定保留**的历史遗留（`docs/待验收事项.md` A26）：删掉它
+    不改变任何运行时行为（它本来就是死的），却会抹掉"本该接上却没接上"的痕迹，
+    而其中 `_syncAgoraRemoteVideos()` 全文件只有那里引用过。
+
+    为什么不写一个"扫源码找重复键"的断言：那种括号深度扫描被 JS 正则字面量带偏过
+    一次（A26 的核查留痕），脆的守卫比没有守卫更糟。运行时取 `$options.watch`
+    既准确又不受格式影响。
+    """
+
+    def test_root_instance_registers_only_the_last_duplicate_watch(self):
+        actual = _probe_result()["watch_keys"]
+        assert actual == ["showKnowledgeGraph"], (
+            f"根实例实际注册的 watch 变成了 {actual}，不再是只有 showKnowledgeGraph。\n"
+            "  - 若你是**有意**修好了 app.js 里重复 `watch` 键的老问题（A26），"
+            "请同时更新 docs/待验收事项.md 的 A26 与这条断言；\n"
+            "  - 若不是有意的，说明选项对象里又出现了同层重复键，后面的把前面的盖掉了。"
+        )
