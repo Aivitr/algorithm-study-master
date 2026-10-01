@@ -11,9 +11,8 @@
 为什么 CSS 要特殊处理
 --------------------
 `all.min.css`（Font Awesome）与 Google Fonts 返回的 CSS 里还有 `url(...)`
-指向字体文件。只抓 CSS 不抓字体，页面会**静默**变成空框图标 / 回退字体——
-这恰恰是本阶段要消灭的那类故障。所以样式表走 `fetch_stylesheet()`：
-把 `url()` 指的东西一并抓下来，按需改写相对路径。
+指向字体文件。只抓 CSS 不抓字体，页面会**静默**变成空框图标 / 回退字体。
+所以样式表走 `fetch_stylesheet()`：把 `url()` 指的东西一并抓下来，按需改写相对路径。
 
 Font Awesome 的 CSS 用的是 `../webfonts/xxx` 这种**相对**路径，只要本地目录
 层级与原站一致就不必改写；Google Fonts 用的是 `fonts.gstatic.com` 的
@@ -21,27 +20,22 @@ Font Awesome 的 CSS 用的是 `../webfonts/xxx` 这种**相对**路径，只要
 
 为什么 jsdelivr 要走镜像
 ----------------------
-**实测：本机 Python 抓 `cdn.jsdelivr.net` 必然握手失败**——`ConnectionResetError
-[WinError 10054]`，五次包全中、非偶发；而同一时刻 `curl`（Windows 原生
-Schannel，TLS 指纹与 OpenSSL 不同）取同一 URL 返回 200。同时段
-`cdnjs` / `fonts.googleapis.cn` / `download.agora.io` / `images.unsplash.com`
-用 Python 全部正常。所以这不是"外网不通"，是**jsdelivr 单独拒绝这一族指纹**。
+**实测：本机 Python 抓 `cdn.jsdelivr.net` 必然握手失败**（`ConnectionResetError
+[WinError 10054]`，非偶发），而同一时刻 `curl` 取同一 URL 返回 200，其余 CDN
+（cdnjs / fonts.googleapis.cn / download.agora.io / images.unsplash.com）用
+Python 均正常。所以这不是"外网不通"，是 jsdelivr 单独拒绝这一族 TLS 指纹。
 
 对策是换运输路线，不是换内容：npmmirror（阿里云的 npm 镜像）的 `/files/`
-端点回的是发布包里的原件。脚本里 5 个 jsdelivr 资源已用 curl 双取并
-逐字节比对过 SHA256，**5/5 一致**。
-
-清单里 `url` 仍记权威地址，另加 `fetched_from` 记这一份实际从哪条路来——
-**换源必须留痕**，否则下一个人看到 `url` 写 jsdelivr 会以为真是从那儿下的。
-在 jsdelivr 可通的机器上重跑，字节与 SHA256 都相同，清单不会漂移。
+端点回的是发布包里的原件。清单里 `url` 仍记权威地址，另加 `fetched_from` 记
+这一份实际从哪条路来——**换源必须留痕**，否则下一个人看到 `url` 写 jsdelivr
+会以为真是从那儿下的。
 
 用法
 ----
     py -3.12 tools/vendor_frontend.py            # 抓取并重写 SOURCES.json
     py -3.12 tools/vendor_frontend.py --check    # 只校验，不下载（CI/测试友好）
 
-对齐本仓库的旧坑：`.env` 指向生产库，但本脚本**只发 HTTP GET、不碰数据库**，
-所以可以放心在开发机上跑。
+本脚本**只发 HTTP GET、不碰数据库**，可以放心在开发机上跑。
 """
 
 from __future__ import annotations
@@ -110,12 +104,10 @@ STYLESHEETS: tuple[tuple[str, str, str], ...] = (
         "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css",
         "6.0.0",
     ),
-    # 用 `.cn` 而不是 `index.html` 原来写的 `.com`：**实测本机到
-    # `fonts.googleapis.com` 稳定不可达**（curl 返回 000，重试多次均如此），
-    # 而 `fonts.googleapis.cn` 可达且返回的是**同一份 CSS**（同样的
-    # unicode-range 分片、同样的字体名，只是 url() 指向 `fonts.gstatic.cn`）。
-    # 两者背后是同一套字体对象，所以这不是"换了个字体"，
-    # 而是"换了一条能走通的路去拿同一个字体"。
+    # 用 `.cn`：**实测本机到 `fonts.googleapis.com` 稳定不可达**（curl 返回 000），
+    # 而 `fonts.googleapis.cn` 可达且返回的是**同一份 CSS**（同样的 unicode-range
+    # 分片、同样的字体名，只是 url() 指向 `fonts.gstatic.cn`）——同一套字体对象，
+    # 换了一条能走通的路。
     (
         "vendor/inter/inter.css",
         "https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700;800&display=swap",
@@ -124,7 +116,7 @@ STYLESHEETS: tuple[tuple[str, str, str], ...] = (
 )
 
 # 落地页配图。这些是 `index.html` 里 <img src> 的原样 URL；
-# 去重后 15 条对应 13 张照片（其中两张各用了两种裁剪尺寸）。
+# 去重后 15 条对应 13 张照片。
 IMAGES: tuple[str, ...] = (
     "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800&h=420&fit=crop",
     "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=720&h=1080&fit=crop",
@@ -149,8 +141,7 @@ _SIZE_RE = re.compile(r"[?&]w=(\d+)[^&]*&h=(\d+)")
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]")
 
 # jsdelivr 的 npm 路径 → npmmirror 的 `/files/` 路径。取正则而不是逐条列表：
-# 这个改写对**任何** jsdelivr 资源都成立，将来往 STANDALONE 加一个包时
-# 不必记得同步维护第二张表（那种"两处清单不会同时改"正是本仓库的旧坑）。
+# 这个改写对**任何** jsdelivr 资源都成立，往 STANDALONE 加包时不必同步维护第二张表。
 _JSDELIVR_RE = re.compile(
     r"^https://cdn\.jsdelivr\.net/npm/(?P<pkg>[^@/]+)@(?P<version>[^/]+)/(?P<path>.+)$"
 )
@@ -159,9 +150,8 @@ _JSDELIVR_RE = re.compile(
 def _mirror_url(url: str) -> str | None:
     """返回一个 URL 的镜像地址；没有镜像则返回 None。
 
-    见文件头「为什么 jsdelivr 要走镜像」。没有镜像的资源（cdnjs、
-    `fonts.googleapis.cn`、agora、unsplash）**不做任何猜测性改写**——
-    猜错会静默换成另一个文件，比失败糟糕得多。
+    没有镜像的资源（cdnjs、`fonts.googleapis.cn`、agora、unsplash）**不做任何
+    猜测性改写**——猜错会静默换成另一个文件，比失败糟糕得多。
     """
     match = _JSDELIVR_RE.match(url)
     if not match:
@@ -179,16 +169,11 @@ def _fetch(url: str, *, timeout: int = 60, attempts: int = 6) -> tuple[bytes, st
     npmmirror（见 `_mirror_url`）。所以必须把**实际地址**交回调用方，
     由它写进清单的 `fetched_from`——换源留痕，不留在日志里就等于没留。
 
-    为什么是「每轮依次试各候选」而不是「先试完权威源再试镜像」：
-    jsdelivr 的拒绝是**即时**的（握手期 RST，不是超时），而失败重试是为
-    *偶发*抖动准备的。按候选串行重试会让本机的每一次运行都先白等 6 轮退避
-    （≈30 秒）才落到镜像上。按轮次交替则第一次就命中能用的一条，
-    同时保留了对偶发抖动的重试。
+    候选按**轮次交替**试，而不是先试完权威源再试镜像：jsdelivr 的拒绝是即时的
+    （握手期 RST，不是超时），串行重试会让本机每次都先白等完整轮退避才落到镜像上。
 
-    重试本身不是"顺手加的"：同一 URL 连打三次会 200/200/000，
-    也见过连续 4 次全挂而几分钟后恢复。没有重试的话，一次抖动就会让脚本
-    半路死掉，而**已经写下去的文件看起来是完整的**。真正的完整性由 SHA256
-    兜底，重试只是别让一次抖动白跑十分钟。
+    重试是必需的：同一 URL 会时通时断，没有重试的话一次抖动就会让脚本半路死掉，
+    而**已经写下去的文件看起来是完整的**。真正的完整性由 SHA256 兜底。
     """
     candidates = [url]
     mirror = _mirror_url(url)
@@ -220,7 +205,7 @@ def _sha256(raw: bytes) -> str:
 
 # 按「相对 static/ 的路径」去重。这不是优化，是**正确性**：
 # Google 把 Inter 当作**可变字体**发布，5 个字重共用同一批 woff2，
-# 于是那份 CSS 里 35 个 url() 只指向 7 个不同的文件。不去重的话清单里会有
+# 所以那份 CSS 里 35 个 url() 只指向 7 个不同的文件。不去重的话清单里会有
 # 35 条、其中 28 条是重复路径——`test_frontend_assets.py` 会直接判红。
 _CACHE: dict[str, dict] = {}
 
@@ -366,14 +351,9 @@ def build_manifest() -> list[dict]:
 
 def write_manifest(entries: list[dict]) -> None:
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    # `newline="\n"` 是必需的，不是风格问题。`Path.write_text` 默认会做
-    # **平台换行转换**，于是同一份清单在 Windows 上写成 CRLF、在别处写成 LF，
-    # 而 .gitattributes 的 `* text=auto eol=lf` 会在入库时把 CRLF 归一成 LF——
-    # 结果是"在 Windows 上重跑脚本"必然产生一条**纯换行的假 diff**。
-    #
-    # 假 diff 的代价比它看起来大：本脚本的自证方式就是"重跑一次，看仓库有没有变"
-    # （`--check` 同理）。一旦重跑天然会脏，这条自证就失效了，而失效的方式是
-    # **没人再去看那几行 diff**——正是本仓库反复出现的那类静默。
+    # `newline="\n"` 是必需的：`Path.write_text` 默认做**平台换行转换**，会与
+    # .gitattributes 的 `* text=auto eol=lf` 冲突，使 Windows 上重跑必然产生一条
+    # **纯换行的假 diff**，让本脚本"重跑一次看仓库有没有变"的自证失效。
     MANIFEST.write_text(
         json.dumps(
             {

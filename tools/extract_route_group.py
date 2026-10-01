@@ -24,12 +24,8 @@
   * 区间内不得出现 `from server` / `import server`（会造成二次执行）；
   * 区间内不得含 `if __name__`；
   * 落地前新模块必须**没有任何"被全局查找却无模块级绑定"的名字**
-    （用 symtable 判定，见 tools/static_checks.py）。
-
-最后一条针对的是最隐蔽的一类回归：搬走的路由体引用了某名字，它在 server.py 里
-是模块级全局（`import re`、`from datetime import datetime`），新模块没提供。
-它不会导入失败，而是执行到那条路由才 NameError——外层 `try/except` 又会把它
-吞成 200 的 `{"status":"error"}`，于是测试全绿而接口是坏的。
+    （用 symtable 判定，见 tools/static_checks.py）——否则要到执行那条路由才
+    NameError，而外层 `try/except` 又会把它吞成 200 的 `{"status":"error"}`。
 """
 
 import argparse
@@ -89,12 +85,10 @@ def _server_import_table(tree: ast.Module) -> dict[str, tuple[str, str, str]]:
 def _needed_names(body_text: str) -> set[str]:
     """模块体里"被全局查找、却没有任何模块级绑定"的名字（= 必须由头提供）。
 
-    这里**不能**用 AST 收集名字。AST 版会把函数体内的局部导入也算作
-    "本区间已经提供了这个名字"，于是
-    `def a(): from datetime import datetime` 会被当成全区可用，而
-    `def b(): datetime.now()` 照样在运行时 NameError——本仓库真实踩过
-    （`app/routers/votes.py` 的 `/api/confirm-vote`）。symtable 的判据与
-    运行时一致，见 `tools/static_checks.py`。
+    这里**不能**用 AST 收集名字。AST 版会把函数体内的局部导入算作"本区间
+    已经提供了这个名字"，于是 `def a(): from datetime import datetime` 会被
+    当成全区可用，而 `def b(): datetime.now()` 照样在运行时 NameError。
+    symtable 的判据与运行时一致，见 `tools/static_checks.py`。
 
     头的产物 `router` / `APIRouter` 由头自己提供，先扣掉。
     """
@@ -173,7 +167,7 @@ def main() -> None:
     # AST 的 `lineno` 指向 `def` 行，**不含装饰器**——而路由的地址字符串
     # 就在 `@app.post("...")` 那一行里。若从 def 行开始切，装饰器会被留在
     # server.py 里成为孤立的一行（语法上仍合法，因为紧跟后面的 def 会"接住"它，
-    # 于是那条路由**地址变了却不报错**）。这里自动把装饰器一起带上。
+    # 那条路由**地址变了却不报错**）。这里自动把装饰器一起带上。
     adjusted = args.start
     while adjusted > 1 and lines[adjusted - 2].lstrip().startswith("@"):
         adjusted -= 1
@@ -246,7 +240,7 @@ def main() -> None:
 
     # ---- 写模块 -----------------------------------------------------------
     # 先做 `@app.` → `@router.` 的改写：自动头需要据此判断依赖（改完之后
-    # 装饰器里的 `app` 不再是外部名字，`router` 则记为由头提供）。
+    # 装饰器里的 `app` 已不是外部名字，`router` 则记为由头提供）。
     body = block_text.replace("@app.", "@router.")
     for block in extra_blocks:
         # 额外区间接在正文之后。它们都是模块级 def/class，Python 在**调用时**
@@ -276,10 +270,8 @@ def main() -> None:
     rest = rest.replace(marker, assembly + marker)
 
     # ---- 落地前自检：两边都必须仍是合法 Python --------------------------
-    # 这一条是补的：本脚本初版从 AST 的 def 行（不含装饰器）开始切，把
-    # `@app.post("/api/cast-vote")` 留在了 server.py 里当孤儿——语法上仍然
-    # 合法（它会"接住"紧随其后的 def），因此**不报错**，只是那条路由的地址
-    # 变了。静态解析立即能发现这类残骸，所以落地前必须过一遍。
+    # 装饰器被留成孤儿行时语法上仍然合法（它会"接住"紧随其后的 def），
+    # 因此不报错，只是那条路由的地址变了；落地前用 ast.parse 必须过一遍。
     try:
         ast.parse(rest)
     except SyntaxError as exc:
@@ -299,10 +291,10 @@ def main() -> None:
             f"多半是装饰器没被一起带走。")
 
     # ---- 头是否把所有需要的名字都提供了 ----------------------------------
-    # 少一个 import 的后果是**运行到那条路由时才 NameError**——而且本仓库的路由
-    # 处理器普遍把异常吞成 200 的 {"status":"error"}，所以它不会冒泡、测试也
-    # 看不见（路由契约测试只查路由表，根本不执行处理器）。因此在这里静态核对
-    # 整个新模块：任何"被全局查找、却无模块级绑定"的名字都必须为零。
+    # 少一个 import 的后果是**运行到那条路由时才 NameError**，且会被处理器吞成
+    # 200 的 {"status":"error"}，测试看不见（路由契约测试只查路由表，不执行
+    # 处理器）。因此静态核对整个新模块：任何"被全局查找、却无模块级绑定"的名字
+    # 都必须为零。
     missing = free_globals(module_text, f"app/routers/{args.module}.py")
     if missing:
         die(f"新模块里这些名字没有定义也没有导入：{sorted(missing)}。\n"

@@ -4,12 +4,7 @@
 ------------------
 配置与数据模型的值都取决于输入——`os.environ`、`.env`、文件系统。分两次进程
 跑，两次看到的输入可能不同，差异就会被误读成回归；反过来说，**两边输入不同时
-"没有差异"更是假阳性**。
-
-阶段 3.2 就踩了这条：先用 `schema_snapshot.py` 在 `/tmp/orighead` 与真实仓库
-各拍一张，结果 `.env` 只有真实仓库里有，于是所有密钥字段一边是
-`sha256("")`、一边是真值，报出一整屏"差异"。**那屏差异里没有一个字是关于代码
-的。** 所以比配置必须在同一进程里做。
+"没有差异"更是假阳性**。所以比配置必须在同一进程里做。
 
 做法
 ----
@@ -49,8 +44,8 @@ import sys
 from pathlib import Path
 
 # 搬迁前的文件里可能有 `from app.core.paths import ...` 这类仓库内的绝对导入。
-# 必须显式把仓库根放进 sys.path，否则加载旧文件会 ModuleNotFoundError——
-# 而那是**加载失败**，不是"比对通过"，不能被当成一致。
+# 必须显式把仓库根放进 sys.path，否则加载旧文件会 ModuleNotFoundError
+# （**加载失败**不是"比对通过"，不能被当成一致）。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # 名字里含这些片段的字段，差异只报摘要不报原值
@@ -97,9 +92,9 @@ _ADDRESS = re.compile(r"0x[0-9a-fA-F]+")
 def _values_equal(a, b) -> bool:
     """叶子值是否相同。
 
-    不能一律用 `==`：SQLAlchemy 的 `Engine` **没有定义 `__eq__`**，于是退化成
-    身份比较，两个配置相同、各自新建的 Engine 永远"不相等"——实测就是这样报出
-    一条假差异。反过来也不能一律用 `repr`：`sessionmaker` 的 repr 里有内存地址。
+    不能一律用 `==`：SQLAlchemy 的 `Engine` **没有定义 `__eq__`**，会退化成
+    身份比较，两个配置相同、各自新建的 Engine 永远"不相等"。反过来也不能一律用
+    `repr`：`sessionmaker` 的 repr 里有内存地址。
 
     所以按语义分流：类型自己定义了 `__eq__`（str/int/dataclass/...）就用 `==`；
     只有默认身份相等的对象（Engine 这类）才退到 repr，并把地址抹掉。

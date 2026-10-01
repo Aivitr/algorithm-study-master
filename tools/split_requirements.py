@@ -9,20 +9,13 @@
 
 第 1 条不是优化，是**正确性**：在 Linux 上，`pip install torch` 默认拉的是
 CUDA 版，连同十余个 nvidia-* 运行时库，镜像凭空涨到好几 GB——而这台机器
-没有 GPU，装了也只用 CPU 版。Windows 上恰好默认就是 CPU 版，所以在开发机
-的 venv 里看不出这个问题，只有容器里才会暴露。
+没有 GPU，装了也只用 CPU 版。
 
 第 2 条必须在第 1 条**之后**装：`insightface`、`pyannote.audio`、`resemblyzer`
 在安装期就要 import torch。
 
-为什么不另立一份清单
---------------------
-最省事的写法是在 Dockerfile 里抄一份 torch 三件套的名单。那样就有了**两处定义**，
-而本仓库吃过太多次这个亏（见 `app/core/oss.py` 的文件头）：两份清单不会同时改，
-分叉后不报错，只表现为"某个包里装着两个版本的 torch"或"某个包莫名没装"。
-
-所以这里从 requirements.txt **现算**，只有 `HEAVY_PACKAGES` 这一处是"知识"，
-且 `tests_safe/test_docker_assets.py` 会断言它声明的每一个包都**真的**在
+清单从 requirements.txt **现算**，不另立一份：只有 `HEAVY_PACKAGES` 这一处是
+"知识"，且 `tests_safe/test_docker_assets.py` 会断言它声明的每一个包都**真的**在
 requirements.txt 里——名单一旦过期，测试红，而不是静默漏装。
 
 用法
@@ -31,11 +24,9 @@ requirements.txt 里——名单一旦过期，测试红，而不是静默漏装
 
 开发镜像喂的是 `requirements-dev.txt`（测试工具也得有），它首行是
 `-r requirements.txt`，所以本工具会**跟随 `-r` 引用**把被引用的清单展开进来。
-这样"哪些包要装"始终只有一份定义，不必在 Dockerfile 里再抄一遍 pytest、httpx。
 
-跟随引用时有个坑：只展开、**不把 `-r` 那一行本身当成包**（它没有包名）。
-不展开的话，torch 会因为藏在被引用的文件里而整个漏掉 —— 而漏掉的后果是
-Linux 上装成 CUDA 版，镜像涨好几 GB，且不报任何错。
+跟随引用时只展开、**不把 `-r` 那一行本身当成包**（它没有包名）。不展开的话，
+torch 会因为藏在被引用的文件里而整个漏掉——Linux 上就会装成 CUDA 版且不报错。
 """
 
 from __future__ import annotations
@@ -136,7 +127,7 @@ def main() -> int:
     heavy, light = split_requirements(source, args.source.parent)
     if not heavy:
         # 空的重型层也算"成功"，但几乎肯定是 HEAVY_PACKAGES 与 requirements.txt
-        # 对不上了——那时镜像会在 Linux 上悄悄装成 CUDA 版。出声。
+        # 对不上了——那时 Linux 上会悄悄装成 CUDA 版。出声。
         print(
             f"警告：{args.source} 里一个 PyTorch 包都没找到，"
             f"但 HEAVY_PACKAGES 声明了 {HEAVY_PACKAGES}。请核对。",

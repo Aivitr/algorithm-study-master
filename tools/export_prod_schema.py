@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 """把生产库的**表结构**导出成一份幂等的建库脚本（`db/schema.sql`）。
 
-## 它为什么存在
-
-本仓库此前**没有任何建库资产**——零个 `.sql`、无迁移框架。唯一存在的 DDL 脚本
-`archive/ops-scripts/db-maintenance/init_db.py` 陈旧且只覆盖 5/18 张表
-（见 `docs/production-schema-drift.md`）。于是"新开发者一条命令把系统拉起来"这件事
-缺了最基础的一块：库从哪来。
-
 这份脚本产出 `db/schema.sql`，**生产开发通用**：对空库跑就是建库，对已有的库跑是
 无操作（每张表/索引/外键都包在 `IF ... IS NULL` / `IF NOT EXISTS` 里）。
 
@@ -15,8 +8,8 @@
 
 **绝不 `import app.*`。** `app/core/database.py` 在**导入期**就执行
 `_ensure_transcripts_columns()`，会对 `DATABASE_URL` 指向的库发 `ALTER TABLE`——
-**导入动作即 DDL**（A13 那次事故就是这么来的）。本脚本只连库、只读目录视图，
-所以它自带一个极小的 `.env` 解析器，绕开整个应用。
+**导入动作即 DDL**。本脚本只连库、只读目录视图，所以它自带一个极小的 `.env`
+解析器，绕开整个应用。
 
 ## 它做的唯一一件事就是读
 
@@ -158,9 +151,8 @@ ORDER BY TABLE_SCHEMA, TABLE_NAME
 """
 
 # 库级排序规则必须一起搬。不带 COLLATE 的 CREATE DATABASE 会取**服务器默认值**，
-# 本机容器默认是 SQL_Latin1_General_CP1_CI_AS，而生产库是中文排序规则——
-# 两者对中文字符串的**比较与排序语义不同**（影响唯一索引判重、ORDER BY、LIKE）。
-# 实测本机那个 smartclass 库是 Chinese_PRC_CI_AS，与容器默认值不一致。
+# 而生产库是中文排序规则——两者对中文字符串的**比较与排序语义不同**（影响唯一索引
+# 判重、ORDER BY、LIKE）。
 _Q_COLLATION = """
 SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS nvarchar(128)) AS COLLATION_NAME
 """
@@ -392,7 +384,7 @@ def main() -> int:
 
         table_rows = _only_select(cursor, _Q_TABLES).fetchall()
         # 本脚本全程按 dbo 拼 DDL（OBJECT_ID(N'dbo.'+name)）。若库里存在别的模式，
-        # 硬跑会产出**指向错误对象的脚本**——宁可中止，也不要静默产出一份错的建库文件。
+        # 硬跑会产出**指向错误对象的脚本**——宁可中止，也不要静默产出错的建库文件。
         odd_schemas = sorted({r["TABLE_SCHEMA"] for r in table_rows} - {"dbo"})
         if odd_schemas:
             sys.exit(
@@ -419,9 +411,7 @@ def main() -> int:
         conn.close()
 
     # 源主机名**刻意不写进产物**：db/schema.sql 是入库文件，而生产 RDS 主机名
-    # 属于不该进版本库的那一类（与用户名、口令同级）。第一版这里写的是
-    # `{db_name} @ {host}`，被 tests_safe/test_docker_assets.py 的凭据守卫当场
-    # 抓住 —— 那条守卫正是为这类遗漏写的，见 A33。
+    # 属于不该进版本库的那一类（与用户名、口令同级）。
     header = f"""-- ============================================================================
 -- 建库脚本（生产开发通用）—— 由 tools/export_prod_schema.py 自动生成，请勿手改。
 --
@@ -470,7 +460,7 @@ GO
     if not out_path.is_absolute():
         out_path = REPO_ROOT / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # 显式指定 newline="\n"：本仓库全 LF，Path.write_text 的平台默认换行是 A25/A31 记过的坑
+    # 显式指定 newline="\n"：本仓库全 LF，Path.write_text 的平台默认换行会写成 CRLF
     with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("".join(parts))
 
