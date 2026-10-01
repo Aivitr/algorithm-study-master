@@ -4,17 +4,16 @@ README 曾经手抄过一整份按域分组的路由表，和机器枚举的 `do
 并存——两份真相，迟早漂移，而 README 恰恰是**外人最先读到的那一份**：它一旦落后，
 读到的人按它去调接口，拿到的是 404。
 
-2026-10-02 起 README 不再自持清单，只声明**总数**并指向 `docs/route-inventory.md`。
-本文件随之换成新的契约，四条一起守：
+2026-10-02 起 README 不再自持任何路由数据——清单、数量、分项，一概不留，只指向
+`docs/route-inventory.md`。本文件随之换成新的契约，三条一起守：
 
   1. README 里**不许再出现路由表行**（`_README_ROUTE_ROW`）——手抄清单回流就报红；
-  2. README 声明总数的那句话（"共 N 个"）必须等于源码里的实际条数；
-  3. README 必须真的指向 `docs/route-inventory.md`（指路断了，读者就无处可去）；
-  4. `docs/route-inventory.md` 与源码逐条一致。
+  2. README 必须真的指向 `docs/route-inventory.md`（指路断了，读者就无处可去）；
+  3. `docs/route-inventory.md` 与源码逐条一致。
 
-第 2 条是这一组里最要紧的：它把 README 与 59 条路由之间那条**唯一的**契约钉死。
-也因此它的解析必须能证明自己没空转——正则匹配不到数量时返回 None，断言直接失败，
-而不是拿 0 去比。
+README 侧不再有任何路由内容需要"比对"，所以这里没有相等断言可言——守的是
+**它不再复述**（第 1 条）与**它把读者送去哪**（第 2 条）：前者是反向断言，
+后者是正向断言，两头都不靠"解析出来的东西恰好为空"来通过。
 
 "文档悄悄腐化"在本仓库不是假想敌：
   * README 的项目结构树整棵是错的（列的七个文件全都早已不在根目录）；
@@ -63,13 +62,6 @@ _ROUTE_DECORATORS = frozenset(
 _README_ROUTE_ROW = re.compile(
     r"^\|\s*`?(GET|POST|PUT|DELETE|PATCH|WS)`?\s*\|\s*`([^`]+)`\s*\|",
     re.MULTILINE,
-)
-
-# README 里那句数量声明：`**共 59 个**：GET 28 / POST 26 / DELETE 2 / WebSocket 3`。
-# 五段全抓——只盯总数的话，分项（GET/POST/…）照样能悄悄漂。
-_README_COUNT = re.compile(
-    r"\*\*共\s*(\d+)\s*个\*\*："
-    r"GET\s*(\d+)\s*/\s*POST\s*(\d+)\s*/\s*DELETE\s*(\d+)\s*/\s*WebSocket\s*(\d+)"
 )
 
 # 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与设计文档
@@ -121,10 +113,11 @@ def _routes_in_source() -> set[tuple[str, str]]:
 
 
 def test_the_source_side_actually_found_routes():
-    """`test_readme_states_the_route_count_correctly` 的保底：源码侧不许抽空。
+    """`test_the_other_inventory_document_agrees_with_the_source` 的保底。
 
     抽取逻辑一旦整体失效（装饰器换了写法、`_ROUTE_OWNERS` / `_ROUTE_DECORATORS`
-    没跟上），数量断言会拿"实际 0 条"去比，从而**平凡通过**。所以先在这里拦一道。
+    没跟上），那份清单会抽成空集，而"空集 == 空集"**平凡通过**。所以先在这里
+    拦一道——本仓库在"空输入 == 通过"上栽过不止一次。
     """
     found = _routes_in_source()
     assert len(found) >= _MIN_EXPECTED_ROUTES, (
@@ -147,39 +140,6 @@ def test_readme_does_not_hand_copy_the_route_list():
         f"README 里又出现了 {len(rows)} 行手抄的路由表（例：{rows[:3]}）。\n"
         f"路由清单只留 docs/route-inventory.md 一份——那是从运行中的 app 枚举"
         f"出来的，不会腐化；README 里再抄一份就是第二个真相。"
-    )
-
-
-def test_readme_states_the_route_count_correctly():
-    """README 那句「共 N 个：GET a / POST b / …」必须逐项等于源码里的实际条数。
-
-    清单搬走之后，这句数量声明就是 README 与 59 条路由之间**唯一**的契约。
-    总数与分项都抓：只盯总数的话（"59 没变"），GET/POST 之间挪一条照样能瞒过去。
-    """
-    if not README.is_file():
-        pytest.skip("README.md 不存在")
-
-    m = _README_COUNT.search(README.read_text(encoding="utf-8"))
-    assert m, (
-        "README 里找不到「**共 N 个**：GET a / POST b / DELETE c / WebSocket d」"
-        "这句数量声明。清单搬去 docs/route-inventory.md 之后，这句是 README 与"
-        "源码之间唯一的接口契约。"
-    )
-    stated_total, *stated_parts = (int(g) for g in m.groups())
-    stated = dict(zip(("GET", "POST", "DELETE", "WS"), stated_parts))
-
-    source = _routes_in_source()
-    assert len(source) >= _MIN_EXPECTED_ROUTES, (
-        f"源码侧只抽出 {len(source)} 条路由，抽取逻辑可能坏了——先修那个，别比数字。"
-    )
-    actual = {method: sum(1 for m_, _ in source if m_ == method)
-              for method in ("GET", "POST", "DELETE", "WS")}
-
-    assert stated_total == len(source) and stated == actual, (
-        f"README 的数量声明与源码对不上。\n"
-        f"  README：共 {stated_total} 个 {stated}\n"
-        f"  源码  ：共 {len(source)} 个 {actual}\n"
-        f"路由是冻结的（设计文档 C5），两边不一致多半是加了/删了接口没同步这两处。"
     )
 
 
