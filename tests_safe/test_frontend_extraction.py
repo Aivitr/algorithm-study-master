@@ -131,6 +131,21 @@ def _app_root_span(html: str) -> tuple[int, int]:
     assert depth == 0, "`#app` 的 <div> 深度没有回到 0"
     return root.end(), cursor
 
+
+# ②b 拆出来的组件的模板块。约定写成 `type` 在前、`id` 在后（Vue 的 x-template 惯例）。
+_X_TEMPLATE_RE = re.compile(
+    r"""<script\b(?=[^>]*\btype\s*=\s*["']text/x-template["'])[^>]*\bid\s*=\s*["']([\w-]+)["'][^>]*>""",
+    re.IGNORECASE,
+)
+
+
+def _template_blocks(html: str) -> dict[str, int]:
+    """`text/x-template` 模板块：{id: 标签在 html 里的偏移}。
+
+    返回偏移而不只是名字，是因为下面要判它**在哪**——位置是这组断言的重点。
+    """
+    return {match.group(1): match.start() for match in _X_TEMPLATE_RE.finditer(html)}
+
 _KEY_RE = re.compile(r"([A-Za-z_$][\w$]*)\s*(?=[:(])")
 
 # 正则字面量只可能出现在这些记号之后；否则 `/` 是除号。
@@ -303,11 +318,11 @@ class TestNoInlineSource:
 
 
 class TestComponentTemplates:
-    """②b 的组件模板块（`text/x-template`）必须待在 `#app` **之外**。
+    """②b 拆出来的组件，其模板块（`text/x-template`）必须待在 `#app` **之外**。
 
     根实例编译的是 `#app` 的整棵子树。模板块一旦落进去，就会被当成一块普通
-    标记参与渲染——页面上凭空多出一段弹窗结构，同时组件那边取不到模板、
-    弹窗永远不出现。症状（页面多了块东西）离原因（块的位置）很远，
+    标记参与渲染——页面上凭空多出一段内容，同时组件那边取不到模板、
+    那块 UI 永远不出现。症状（页面多了块东西）离原因（块的位置）很远，
     所以在这里钉住。
 
     顺带记一条：这条断言**不能**写成"`global-modal-overlay` 这个 class
@@ -315,23 +330,53 @@ class TestComponentTemplates:
     还留在 index.html 里，只是变成了惰性文本——那条写法会把一个正确的改动判红。
     真正证明"拆分没改行为"的是 `test_frontend_render.py` 里那 12 个状态
     的快照与 10 条接线，不是这里的文本检查。
+
+    这组断言**按 id 自动枚举**，不逐块写死：每拆一块就多一个模板块，
+    写死的版本会漏掉新加的。第一条拆（通用弹窗）时它只查一个 id，
+    拆第二块（落地页）时才改成枚举——顺手把那个缺口补上。
     """
 
-    def test_global_modal_template_block_exists(self):
-        assert 'id="global-modal-tpl"' in _index_html(), (
-            "找不到通用弹窗组件的模板块。app.js 里的 "
-            "`Vue.component('global-modal', ...)` 通过 `#global-modal-tpl` 引用它。"
+    def test_there_is_at_least_one_template_block(self):
+        assert _template_blocks(_index_html()), (
+            "index.html 里一个 `text/x-template` 模板块都没有。"
+            "②b 拆出来的组件都靠它承载模板。"
         )
 
-    def test_component_template_sits_outside_app_root(self):
+    def test_every_template_block_sits_outside_app_root(self):
+        """**形状对不上**是这里最容易犯的错，所以一次性报全。
+
+        报"第一个不对的"会让人修一个跑一次；模板块通常有好几个。
+        """
         html = _index_html()
         _, app_end = _app_root_span(html)
-        offset = html.find('id="global-modal-tpl"')
-        assert offset > app_end, (
-            f"组件模板块位于 `#app` 子树之内（模板在偏移 {offset}，"
-            f"`#app` 结束于 {app_end}）。\n"
+        inside = [
+            name for name, offset in _template_blocks(html).items() if offset < app_end
+        ]
+        assert not inside, (
+            f"这些模板块位于 `#app` 子树之内：{inside}"
+            f"（`#app` 结束于偏移 {app_end}）。\n"
             f"必须挪到 `#app` 外面：否则根实例会把它当普通标记渲染出来，"
             f"而组件取不到模板。"
+        )
+
+    def test_every_registered_component_has_its_template(self):
+        """app.js 里 `template: '#xxx'` 指向的 id 必须真的存在。
+
+        写错一个字母的后果不是报错，是**那块 UI 整块消失**——Vue 只会
+        在控制台留一条模板找不到的警告，页面照常渲染其余部分。
+        （开发机上这条警告极易被略过：本文件开头说的那类问题。）
+        """
+        blocks = _template_blocks(_index_html())
+        # 先剥掉行注释：代码注释里为了解释也会写出 `template: '#xxx'` 这样的字样，
+        # 不剥的话，改个 id 名就会因为注释没跟着改而报一条假红。
+        code = re.sub(r"//[^\n]*", "", _app_js())
+        referenced = set(re.findall(r"""template:\s*['"]#([\w-]+)['"]""", code))
+        assert referenced, "app.js 里没有任何 `template: '#...'` —— 组件拆分没接上？"
+
+        missing = sorted(name for name in referenced if name not in blocks)
+        assert not missing, (
+            f"app.js 引用了这些模板 id，但 index.html 里找不到对应的模板块：{missing}。\n"
+            f"现有模板块：{sorted(blocks)}"
         )
 
 

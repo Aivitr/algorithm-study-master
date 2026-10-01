@@ -82,6 +82,15 @@ Vue.component('global-modal', {
     template: '#global-modal-tpl',
 });
 
+// 落地页。它是耦合最松的一块，所以排在第一个"整页"组件：
+// 实测它对外部状态的**全部**依赖只有 `pageState`——零个插值，六处绑定里
+// 五处是切页、一处是 v-if。因此它**不需要任何 prop**，只往外抛一个 `go` 事件。
+// 这是拆分的理想形态：搬出去不仅没引入 prop 打孔，反而把"这页怎么显示"
+// 交回给了父级（v-if 留在页面上）。
+Vue.component('landing-page', {
+    template: '#landing-page-tpl',
+});
+
 new Vue({
     el: '#app',
     data: {
