@@ -17,10 +17,13 @@
 ## 两个函数的现状（**待你决定**，已登记在 docs/待验收事项.md）
 
 1. `upload_report_template` —— **前端正在调它，但后端没有这条路由。**
-   `index.html:11207` 有 `axios.post('/api/upload-report-template', formData)`，
+   前端有一处 `axios.post('/api/upload-report-template', formData)`
+   （`static/js/app.js` 里，即 index.html 原本内联的那段脚本，阶段 7 外移），
    而全仓库没有任何 `@app.post("/api/upload-report-template")`。也就是说这个按钮
-   点下去拿到的是 404。实测方法：把 index.html 里所有 axios/fetch 的路径与
+   点下去拿到的是 404。实测方法：把前端源码（index.html / static/js/app.js /
+   static/css/app.css / pcm-processor.js）里所有 axios/fetch 的**路径字面量**与
    `tests_safe/test_route_contract.py` 的契约表逐条对照，**只有这一条对不上**。
+   判据是那个路径字符串本身，**不是行号**——行号会随改动漂，而这个路径不会。
 
 2. `select_viewpoint`（"老师直接选择观点（不投票）"）—— 前端**完全没有**调用点，
    后端也没有路由，是两侧都没接的半成品。

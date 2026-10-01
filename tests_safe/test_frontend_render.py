@@ -50,6 +50,14 @@
   哈希就会随区域漂。届时要么把区域固定住，要么把该状态排除在快照之外。
 * **换机器可能算不出同样的哈希。** 探针依赖 jsdom（本机是 npm 全局装的）。
   环境缺 jsdom 时**跳过**，不判失败——它不是本仓库的依赖，装不装是使用者的选择。
+* **换时区/区域不该改变哈希**——这一条**已被断言**，不再是"碰巧"。
+  `TestSnapshotsAreTimezoneIndependent` 在两个相差 26 小时的时区下各跑一遍，
+  要求 13 个哈希逐一相同。之所以要它：模板里有
+  `new Date(report.created_at).toLocaleDateString()` / `toLocaleTimeString()`
+  这类区域相关表达式（在「我的习题」的学生报告列表一段里）。
+  当下所有状态都没把那份列表填成非空，所以看不出差别；哪天给某状态填上真实时间
+  （接口返回的是带时区的时间戳），哈希就会随**运行机器的区域**漂——
+  症状是"在我这儿绿、在别人机器上红"。该断言就是在那天之前先把话说死。
 
 对齐 `pytest.ini` 的安全约定
 ============================
@@ -60,6 +68,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from functools import lru_cache
@@ -83,12 +92,8 @@ MIN_CLICKS = 18
 TIMEOUT_SECONDS = 180
 
 
-@lru_cache(maxsize=1)
-def _probe_result() -> dict:
-    """跑一次探针，返回它打印的 JSON。缺 node / 缺 jsdom 时 skip。
-
-    缓存：三个用例共用一份结果，不必跑三遍 node。
-    """
+def _run_probe(tz: str | None = None) -> dict:
+    """跑一次探针，返回它打印的 JSON。缺 node / 缺 jsdom 时 skip。"""
     assert PROBE.is_file(), f"找不到探针脚本 {PROBE}"
 
     node = shutil.which("node")
@@ -99,6 +104,8 @@ def _probe_result() -> dict:
         [node, str(PROBE), "--json"],
         capture_output=True, text=True, encoding="utf-8", timeout=TIMEOUT_SECONDS,
         cwd=str(REPO_ROOT),
+        # `env=None` 表示继承当前环境（即"本机时区"那一侧）。
+        env=None if tz is None else {**os.environ, "TZ": tz},
     )
 
     if proc.returncode == EXIT_MISSING_JSDOM:
@@ -114,6 +121,58 @@ def _probe_result() -> dict:
     )
 
     return json.loads(proc.stdout)
+
+
+@lru_cache(maxsize=1)
+def _probe_result() -> dict:
+    """**本机时区**下的结果。缓存：多个用例共用一份，不必重复跑 node。"""
+    return _run_probe()
+
+
+# 两个**故意拉开 26 小时**的挑战时区（`Etc/GMT-14` 是 UTC+14，`Etc/GMT+12` 是 UTC−12；
+# 名字里的正负号是 POSIX 的反转写法，别被它骗了）。
+#
+# 为什么是两个、而不是"本机时区 vs 某一个"
+# -----------------------------------------
+# 只挑一个挑战时区的话，它能不能撞出偏差取决于**本机**在哪个时区——
+# 在这台机器上会响的用例，换台机器可能一声不吭。换两个固定时区互相比，
+# 结果就与本机在哪无关，谁跑都一样。
+#
+# 为什么是 26 小时
+# ----------------
+# 这是**保证**，不是碰运气：同一个时刻在两个时区下的本地时间必然相差 26 小时，
+# 而 26 > 24，所以两者的**日历日期必然不同**。也就是说，页面只要渲染了任何一个
+# 由"时刻"推出来的日期，这两次跑就一定对不上——无论那个时刻是几点、哪一天。
+# 单个挑战时区给不了这个保证（相差 8 小时时，多数时刻的日期其实是一样的）。
+_TZ_CHALLENGERS = ("Etc/GMT-14", "Etc/GMT+12")
+
+# 注：时区**必须**经 subprocess 的 `env=` 传，不能在 shell 里 `TZ=Asia/Kolkata node`。
+# Git Bash(MSYS) 会把它当成路径去转换，值里带 `/` 的时区（`Asia/Kolkata`、
+# `Etc/GMT-14`…）会**被丢掉**，node 那边 `process.env.TZ` 是 undefined，
+# 于是两次跑的是同一个时区——断言永远是绿的。`TZ=UTC` 恰好不含 `/`，
+# 所以这个坑单看 UTC 是看不出来的。已实测。
+
+
+@lru_cache(maxsize=1)
+def _probe_result_in_tz(tz: str) -> dict:
+    return _run_probe(tz)
+
+
+def _node_timezone_offset(tz: str) -> int:
+    """让 node 自己报出它在 `tz` 下看到的时区偏移（分钟）。
+
+    用于正向对照：证明 `TZ` 环境变量**真的**改变了 node 的时间视图。
+    """
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("PATH 里没有 node，前端渲染探针跳过")
+    proc = subprocess.run(
+        [node, "-e", "process.stdout.write(String(new Date(0).getTimezoneOffset()))"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+        cwd=str(REPO_ROOT), env={**os.environ, "TZ": tz},
+    )
+    assert proc.returncode == 0, f"node 求时区偏移失败：{proc.stderr[-500:]}"
+    return int(proc.stdout.strip())
 
 
 def _baseline() -> dict:
@@ -220,6 +279,63 @@ class TestRenderedStructureIsUnchanged:
         )
 
 
+class TestSnapshotsAreTimezoneIndependent:
+    """快照不该随**运行机器的区域**变——把"碰巧"变成"检查过"。
+
+    模板里有 `new Date(...).toLocaleDateString()` / `toLocaleTimeString()` 这类
+    区域相关的表达式（`index.html` 的「我的习题」一段里，学生报告列表用它们
+    显示日期）。当前 13 个状态里没有一个把那份列表填成非空，所以换时区也看不出
+    差别——但那是**当下状态的巧合**，不是结构保证。
+
+    哪天给这个状态填上一条真实的 `created_at`（接口返回的时间戳是带时区的，
+    如 `2026-01-01T00:00:00Z`），哈希就会随**运行机器的区域**漂。症状是
+    "在我这儿绿、在别人机器上红"，而且两边都很难想到是时区。
+
+    这条断言就是在那天之前先把话说死。它也在防一类更坏的情况：组件拆分时给某个
+    状态"顺手"塞了一条带时间戳的示例数据——那会让基线**只在录制它的那台机器上**
+    才算得对，而基线是要进仓库、被别人拉的。
+    """
+
+    def test_the_two_challenger_timezones_are_actually_far_apart(self):
+        """**正向对照**：两个挑战时区必须真的生效，且相差 > 24 小时。
+
+        少了这一条，下面那条是空的：两次跑在同一个时区，哈希当然相同，
+        断言永远为绿——一个永远不会响的守卫。
+
+        断言的是"相差 > 24 小时"而不是"两个偏移不相等"：后者太弱。
+        相差 25 小时时，两个时区下的**日历日期必然不同**，下面那条才有保证；
+        相差 8 小时的话，多数时刻的日期其实一样，等于没测。
+        （`TZ` 被 Git Bash 吞掉的坑见上面 `_TZ_CHALLENGERS` 的注释。）
+        """
+        a, b = (_node_timezone_offset(tz) for tz in _TZ_CHALLENGERS)
+        assert abs(a - b) > 24 * 60, (
+            f"{_TZ_CHALLENGERS} 的时区偏移差了 {abs(a - b)} 分钟，不到 24 小时。\n"
+            f"此时下面那条时区无关性断言**保证不了**能撞出偏差。\n"
+            f"（若其中一个没生效，两个值会相同——TZ 没传到 node。）"
+        )
+
+    def test_state_hashes_survive_a_timezone_change(self):
+        """在两个相差 26 小时的时区下各跑一次，13 个状态的哈希必须逐一相同。"""
+        first, second = _TZ_CHALLENGERS
+        expected = {
+            k: v["hash"] for k, v in _probe_result_in_tz(first)["states"].items()
+        }
+        actual = {
+            k: v["hash"] for k, v in _probe_result_in_tz(second)["states"].items()
+        }
+
+        drifted = sorted(k for k in expected if expected[k] != actual.get(k))
+        assert not drifted, (
+            f"这些状态的渲染结果**随运行机器的时区变了**：{drifted}。\n"
+            f"（对比 `TZ={first}` 与 `TZ={second}`，两者相差 26 小时。）\n"
+            f"几乎一定是某个状态拿到了非空的时间字段，而模板里用了\n"
+            f"`new Date(...).toLocaleDateString()` / `toLocaleTimeString()`。\n"
+            f"处置二选一，别靠「我这台机器是绿的」：\n"
+            f"  1. 把该状态的时间字段固定成与区域无关的值；或\n"
+            f"  2. 把它排除在快照之外，并在覆盖面上记一笔。"
+        )
+
+
 class TestClickWiring:
     """事件接线：快照看不见的那一半。
 
@@ -250,9 +366,13 @@ class TestClickWiring:
 class TestRootInstanceShape:
     """根实例的结构性事实。判据取自运行时，不解析源码。
 
-    `static/js/app.js` 的选项对象里有**两个同层 `watch` 键**（约 546 行与文件
-    末尾）。JS 对象字面量对重复键是"后者整体胜出"：不合并、也不警告。所以前一个
-    （3 个监视器连同类中约 50 行）**从未注册过**。
+    `static/js/app.js` 的根实例选项对象里有**两个同层 `watch` 键**：前一个（3 个
+    监视器连同类中约 50 行）与文件末尾那一个。JS 对象字面量对重复键是"后者整体
+    胜出"：不合并、也不警告。所以前一个**从未注册过**。
+
+    （判据是"根实例的选项对象里有几个同层 `watch`"，**不是行号**——本文件早先
+    记的是"约 546 行"，加了上面那段说明注释之后就漂到了 555 行。A26 记错位置
+    也是同一个毛病。）
 
     这是一处已知的、**决定保留**的历史遗留（`docs/待验收事项.md` A26）：删掉它
     不改变任何运行时行为（它本来就是死的），却会抹掉"本该接上却没接上"的痕迹，

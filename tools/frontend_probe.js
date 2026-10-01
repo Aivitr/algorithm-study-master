@@ -227,31 +227,41 @@ const screenOverlay = () => {
 
 // 关闭按钮＝遮罩内**文档序第一个**带 .fa-times 的按钮（即弹窗头部的 ×）。
 // 不按文字选：这些按钮里只有一个图标，没有文字。取文档序第一个而不是"唯一一个"——
-// 课堂弹窗选文件后会多出一个删除按钮（index.html:2064），同样带 .fa-times。
+// 「进入课堂弹窗」里选中文件后还会多出一个删除按钮，同样带 .fa-times。
 const closeButtonIn = el => [...el.querySelectorAll('button')].find(b => b.querySelector('.fa-times'));
 
+// ⚠️ 下面这些说明里**不写行号**，只写"在哪一块"。
+//
+// 原先每处都附了 `index.html:NNNN`，看着方便，但**会烂**：A29 把落地页拆成
+// 组件时，204 行被换成一个 `<landing-page>` 标签，其后每一行的编号都往上挪了
+// 约 198 —— 于是落地页那两颗按钮的标注（原 35/36，现 3053/3054）和登录/注册页
+// 的"返回首页"（原 228/288，现 28/88）当场全错，而没有任何东西会因此报红。
+// 这与 A26 那次"记了坐标、没记判据"是同一个毛病。
+//
+// 所以这里改用**稳定的锚点**：`#landing-page-tpl` 这类 id、或"侧栏那一颗"这种
+// 结构描述。它们不会因为别处增删行而失效，而且比行号更好找。
 const CLICKS = [
   ['落地页点“登录” → 进登录页', '默认（落地页）', async () => {
     const btn = buttonWith(/^登录$/);
-    if (!btn) return ['落地页上找不到文字为“登录”的按钮（index.html:35）'];
+    if (!btn) return ['落地页上找不到文字为“登录”的按钮（#landing-page-tpl 里的 lp-login-btn）'];
     btn.click(); await tick();
     return vm.pageState === 'login' ? null : [`pageState 应为 login，实为 ${vm.pageState}`];
   }],
   ['落地页点“注册” → 进注册页', '默认（落地页）', async () => {
     const btn = buttonWith(/注册/);
-    if (!btn) return ['落地页上找不到去注册的按钮（index.html:36）'];
+    if (!btn) return ['落地页上找不到去注册的按钮（#landing-page-tpl 里的 lp-register-btn）'];
     btn.click(); await tick();
     return vm.pageState === 'register' ? null : [`pageState 应为 register，实为 ${vm.pageState}`];
   }],
   ['登录页点“返回首页” → 回落地页', '登录页', async () => {
     const btn = buttonWith(/返回首页/);
-    if (!btn) return ['登录页上找不到“返回首页”（index.html:228）'];
+    if (!btn) return ['登录页上找不到“返回首页”（pageState 为 login 那一块里那颗）'];
     btn.click(); await tick();
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
   }],
   ['注册页点“返回首页” → 回落地页', '注册页', async () => {
     const btn = buttonWith(/返回首页/);
-    if (!btn) return ['注册页上找不到“返回首页”（index.html:288）'];
+    if (!btn) return ['注册页上找不到“返回首页”（pageState 为 register 那一块里那颗）'];
     btn.click(); await tick();
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
   }],
@@ -310,16 +320,16 @@ const CLICKS = [
   // 另有一条**已知边界**：从大厅切到「个人中心」用的是注入（真实接线会调
   // loadVoiceprintStatus()，触网），从「个人中心」再点开 AI 弹窗则是真点击。
   ['大厅（学生）点“加入课堂” → 开进入课堂弹窗', '大厅（学生）', async () => {
-    // 匹配到的是文档序第一个，即侧栏那颗（index.html:210）；大厅首页里还有一颗
-    // （index.html:389）文案相同。两颗都写 `showClassModal = true`，选哪颗都成立。
+    // 匹配到的是文档序第一个，即**侧栏那颗**；大厅首页里还有一颗文案相同。
+    // 两颗都写 `showClassModal = true`，选哪颗都成立。
     const btn = buttonWith(/加入课堂/);
-    if (!btn) return ['大厅（学生）上找不到“加入课堂”按钮（index.html:210 / 389）'];
+    if (!btn) return ['大厅（学生）上找不到“加入课堂”按钮（侧栏或大厅首页那颗）'];
     btn.click(); await tick();
     return vm.showClassModal === true ? null : [`点了“加入课堂”但 showClassModal 为 ${vm.showClassModal}`];
   }],
   ['大厅（教师）点“创建课堂” → 开进入课堂弹窗', '大厅（教师）', async () => {
     const btn = buttonWith(/创建课堂/);
-    if (!btn) return ['大厅（教师）上找不到“创建课堂”按钮（index.html:210 / 389）'];
+    if (!btn) return ['大厅（教师）上找不到“创建课堂”按钮（侧栏或大厅首页那颗）'];
     btn.click(); await tick();
     return vm.showClassModal === true ? null : [`点了“创建课堂”但 showClassModal 为 ${vm.showClassModal}`];
   }],
@@ -327,19 +337,19 @@ const CLICKS = [
     const { el, why } = screenOverlay();
     if (!el) return [why];
     const btn = closeButtonIn(el);
-    if (!btn) return ['进入课堂弹窗里找不到带 .fa-times 的按钮（index.html:2017）'];
+    if (!btn) return ['进入课堂弹窗里找不到带 .fa-times 的按钮（弹窗头部那颗）'];
     btn.click(); await tick();
     return vm.showClassModal === false ? null : ['点了弹窗的“×”但 showClassModal 仍为 true'];
   }],
   ['进入课堂弹窗点遮罩 → 关', '进入课堂弹窗', async () => {
     const { el, why } = screenOverlay();
     if (!el) return [why];
-    el.click(); await tick();   // 目标是遮罩自身，@click.self 才会触发（index.html:2012）
+    el.click(); await tick();   // 目标是遮罩自身，@click.self 才会触发（showClassModal 那个 .fixed.inset-0）
     return vm.showClassModal === false ? null : ['点了遮罩但进入课堂弹窗没关'];
   }],
   ['个人中心点“开始对话” → 开 AI 辅导弹窗', '个人中心（学生）', async () => {
     const btn = buttonWith(/开始对话/);
-    if (!btn) return ['个人中心上找不到“开始对话”按钮（index.html:1916）'];
+    if (!btn) return ['个人中心上找不到“开始对话”按钮（个人中心那一页里那颗）'];
     btn.click(); await tick();
     return vm.showAITutor === true ? null : [`点了“开始对话”但 showAITutor 为 ${vm.showAITutor}`];
   }],
@@ -347,21 +357,21 @@ const CLICKS = [
     const { el, why } = screenOverlay();
     if (!el) return [why];
     const btn = closeButtonIn(el);
-    if (!btn) return ['AI 辅导弹窗里找不到带 .fa-times 的按钮（index.html:1957）'];
+    if (!btn) return ['AI 辅导弹窗里找不到带 .fa-times 的按钮（弹窗头部那颗）'];
     btn.click(); await tick();
     return vm.showAITutor === false ? null : ['点了弹窗的“×”但 showAITutor 仍为 true'];
   }],
   ['AI 辅导弹窗点遮罩 → 关', 'AI 辅导弹窗', async () => {
     const { el, why } = screenOverlay();
     if (!el) return [why];
-    el.click(); await tick();   // 同上（index.html:1945）
+    el.click(); await tick();   // 同上（showAITutor 那个 .fixed.inset-0）
     return vm.showAITutor === false ? null : ['点了遮罩但 AI 辅导弹窗没关'];
   }],
   // 侧栏里 8 个切页按钮只有 4 个是纯赋值，另外 4 个顺带调了触网方法
-  // （index.html:231 studentReports、247 history、254 report、261 profile）——只取纯的那类。
+  // （studentReports / history / report / profile 那四个）——只取纯的那类。
   ['大厅（教师）点“设置” → 切到设置页', '大厅（教师）', async () => {
     const btn = buttonWith(/^设置$/);
-    if (!btn) return ['侧栏上找不到文字恰为“设置”的按钮（index.html:268）'];
+    if (!btn) return ['侧栏上找不到文字恰为“设置”的按钮（切页那一列里那颗）'];
     btn.click(); await tick();
     return vm.activeTab === 'settings' ? null : [`activeTab 应为 settings，实为 ${vm.activeTab}`];
   }],
