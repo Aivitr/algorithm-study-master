@@ -46,6 +46,42 @@ axios.interceptors.response.use(
     }
 );
 
+// ===========================================================================
+// 组件注册（②b 组件拆分的第一步）
+// ===========================================================================
+//
+// 为什么可以在这里注册、不需要构建步骤
+// ------------------------------------
+// static/vendor/vue-2.6.14.js 是**带编译器的完整版**（`Vue.compile` 存在），
+// 所以 `template` 可以直接给一段字符串或一个选择器，运行时编译。
+// 这一点是实测确认的，不是看文件名猜的。
+//
+// 为什么模板写在 index.html 而不写在这里
+// ------------------------------------
+// `template: '#global-modal-tpl'` 指向 index.html 里那个 text/x-template 块。
+// 本仓库没有构建步骤，模板若写成 JS 字符串，就失去了语法高亮与折叠，
+// 编辑体验会明显变差——而这块标记以后还要改。
+//
+// 这次搬迁到底动了什么
+// --------------------
+// 只动了"引用方式"，没动行为：
+//     组件内读 globalModal  → 改成读 prop `modal`
+//     组件内调 resolveModal → 改成 $emit('resolve', ...)
+//     组件内调 closeModal() → 那是 resolveModal(true) 的别名，同样改成 $emit
+// 对外一个字节都没变：showAlert / showConfirm / resolveModal / closeModal
+// 四个方法原样留在根实例上，约 40 处调用点不受影响；
+// 弹窗的 DOM 结构、class、Promise 契约也都保持原样。
+//
+// 这个等价性不是靠"看一遍觉得对"来保证的：tools/frontend_probe.js 会把
+// 拆分前后 12 个状态的渲染结果逐个比对（必须逐字节相同），并真的点一遍
+// 确定/取消/遮罩、核对 showConfirm 的 Promise 兑现成什么。
+Vue.component('global-modal', {
+    props: {
+        modal: { type: Object, required: true },
+    },
+    template: '#global-modal-tpl',
+});
+
 new Vue({
     el: '#app',
     data: {

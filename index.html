@@ -3222,24 +3222,39 @@
         </div>
     </div>
 
-    <!-- 通用弹窗 -->
+    <!-- 通用弹窗（组件 global-modal）
+         组件定义在 app.js 里；模板在同目录下那个 text/x-template 的 script 块中。
+         这里只保留"把状态喂进去、把决定接回来"两件事：
+           :modal   → 弹窗要显示的内容与类型
+           @resolve → 用户在弹窗里做的选择（true = 确定/遮罩关闭，false = 取消）
+         之所以能把 v-if 收进组件里，是因为 resolveModal 本来就会把
+         globalModal 复位成 { show: false, ... }，隐藏方式没有变。 -->
+    <global-modal :modal="globalModal" @resolve="resolveModal"></global-modal>
+
+</div>
+
+<!-- 通用弹窗组件的模板。
+     放在 #app **之外**：根实例编译的是 #app 的整棵子树，留在这里才不会被它当普通标记吃掉。
+     type="text/x-template" 让浏览器不去执行它，只当一段惰性文本存着，由 Vue 取用。
+     保持标记写在 HTML 里（而不是塞进 JS 字符串），是为了保住语法高亮与可折叠——
+     本仓库没有构建步骤，模板若进了 JS 字符串，编辑体验会明显变差。 -->
+<script type="text/x-template" id="global-modal-tpl">
     <transition name="fade">
-        <div v-if="globalModal.show" class="global-modal-overlay" @click.self="globalModal.type !== 'confirm' && closeModal()">
+        <div v-if="modal.show" class="global-modal-overlay" @click.self="modal.type !== 'confirm' && $emit('resolve', true)">
             <div class="global-modal-card">
-                <div class="global-modal-icon" :class="globalModal.icon || 'info'">
-                    <i :class="{'fas fa-check': globalModal.icon==='success', 'fas fa-times': globalModal.icon==='error', 'fas fa-exclamation-triangle': globalModal.icon==='warning', 'fas fa-info-circle': globalModal.icon==='info' || !globalModal.icon}"></i>
+                <div class="global-modal-icon" :class="modal.icon || 'info'">
+                    <i :class="{'fas fa-check': modal.icon==='success', 'fas fa-times': modal.icon==='error', 'fas fa-exclamation-triangle': modal.icon==='warning', 'fas fa-info-circle': modal.icon==='info' || !modal.icon}"></i>
                 </div>
-                <div class="global-modal-title">{{ globalModal.title || '' }}</div>
-                <div class="global-modal-msg">{{ globalModal.message }}</div>
+                <div class="global-modal-title">{{ modal.title || '' }}</div>
+                <div class="global-modal-msg">{{ modal.message }}</div>
                 <div>
-                    <button v-if="globalModal.type === 'confirm'" class="global-modal-btn secondary" @click="resolveModal(false)">取消</button>
-                    <button class="global-modal-btn primary" @click="resolveModal(true)">确定</button>
+                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">取消</button>
+                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">确定</button>
                 </div>
             </div>
         </div>
     </transition>
-
-</div>
+</script>
 
 <script src="/static/js/app.js"></script>
 </body>
