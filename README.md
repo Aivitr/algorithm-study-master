@@ -236,9 +236,8 @@ algorithm-study-master/
 漂移，而 README 恰是外人最先读到的那一份——`tests_safe/test_readme_routes.py`
 盯着这一点。
 
-> `GET /voiceprint_register` 是**既知死路由**：它 `FileResponse` 的
-> `voiceprint_register.html` 全仓不存在，任何调用都会抛 `RuntimeError`。
-> 按约定保持原样——补上那个文件等于新增功能，不在"不改行为"的重构范围里。
+> 接口里**已知的坑**（哪条是死路由、哪组不纳入基线）都记在那份清单的
+> 「已知盲区」一节——README 不再逐条复述。
 
 ## 文档在哪
 
