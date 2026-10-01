@@ -332,7 +332,7 @@ algorithm-study-master/
 | 重构期间发现的问题与**待决定**的事项 | `docs/待验收事项.md` |
 | 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
 | 功能层面（面向使用者） | `docs/功能介绍文档.md` |
-| 从零装环境 | `docs/安装及使用.md` |
+| 安装与使用（含容器部署步骤） | `docs/安装及使用.md` |
 | OSS 配置 | `docs/OSS配置指南.md` |
 
 > `docs/DEPLOYMENT.md` 是**陈旧史料**：内容是 MySQL/pymysql/3308 时代的，与实际实现
