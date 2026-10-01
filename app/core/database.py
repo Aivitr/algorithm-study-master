@@ -8,10 +8,8 @@ from sqlalchemy.pool import NullPool
 # 数据库配置 - 阿里云 RDS SQL Server
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./storage/app.db")
 
-# connect_args 中的 login_timeout 是 pymssql 专有参数。此前无条件传入，
-# 导致 DATABASE_URL 指向 sqlite 时 sqlite3.connect() 抛
-# TypeError: 'login_timeout' is an invalid keyword argument。
-# 现按方言选择——生产（mssql+pymssql）传入的实参与此前完全一致。
+# login_timeout 是 pymssql 专有参数，sqlite3.connect() 不接受它，
+# 故 connect_args 按方言给出：mssql+pymssql 传超时，其余传空。
 _IS_MSSQL = SQLALCHEMY_DATABASE_URL.startswith("mssql")
 
 engine = create_engine(
@@ -21,9 +19,7 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 模型不在这里——它们在 `app/models/`（阶段 3.1 拆出）。
-# 本文件只负责引擎、会话与那一次补列的迁移，不再转出模型类：
-# 阶段 3.1 留的转发层已在阶段 3.2 随调用方一起收拢（见 A16 的「后续」）。
+# 模型不在这里——它们在 `app/models/`。本文件只负责引擎、会话与那一次补列的迁移。
 
 def _ensure_transcripts_columns():
     """Patch legacy transcript tables with research enhancement fields."""

@@ -1,13 +1,9 @@
-"""ORM 模型包（阶段 3.1 从仓库根的 `database.py` 拆出）。
+"""ORM 模型包。
 
 **导入本包即完成全部模型的注册**——`Base.metadata` 因此总是完整的。
-这一点是必需的：`declarative_base()` 只创建一个 `Base`，而模型类分散在多个
-模块里，只有全部导入过，`metadata.tables` 才包含全部表。
 
-阶段 3.2 起这条性质**不再由 `app.core.database` 顺带保证**（那个文件已不再
-导入本包）。需要整份 metadata 的地方必须显式 `import app.models`——
-`server.py`、测试的 `create_all()` 都属此类。少写这一句不会报错，
-`create_all()` 只会安静地建出一个没有任何表的空 schema。
+需要整份 metadata 的地方必须显式 `import app.models`——`server.py` 与测试里的
+`create_all()` 都属此类。
 """
 
 from app.models.base import Base
