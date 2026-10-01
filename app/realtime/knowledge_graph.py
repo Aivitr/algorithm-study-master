@@ -1,12 +1,8 @@
-"""实时链路的「知识图谱增量更新」（阶段 5 从 server.py 拆出）。
+"""实时链路的「知识图谱增量更新」。
 
-`update_knowledge_graph` 原本写在 server.py 的实时链路区块里，但**两个**模块都要
-用它：语音分析（`app/realtime/speech.py`）与学生流式生成
-（`app/realtime/stream.py`）。它不能只跟着其中一边走，所以给一个中立的家；
-server.py 在原位置再导出，所有既有调用点保持不变。
-
-它与实时链路里那堆进程内状态无关——只用 ORM 会话和知识图谱服务，因此可以
-完全独立出来，不需要和任何缓存/锁同住。
+`update_knowledge_graph` 被语音分析（`app/realtime/speech.py`）与学生流式生成
+（`app/realtime/stream.py`）共用，因此放在这里。它只用 ORM 会话和知识图谱服务，
+不依赖实时链路里的进程内缓存/锁。
 """
 
 from datetime import datetime

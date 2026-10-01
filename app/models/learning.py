@@ -1,9 +1,4 @@
-"""学习报告、练习题、学生作答、报告模板。
-
-阶段 3.1：本文件的类定义从仓库根的 `database.py` **逐字搬移**而来，只换了 import 头。
-字段、默认值、注释（含字面量 `[EMOJI]` 占位符）一律未动——搬移与校验过程见
-`tools/split_models_3_1.py`，可随时用 `--verify` 重跑。
-"""
+"""学习报告、练习题、学生作答、报告模板。"""
 
 from datetime import datetime
 

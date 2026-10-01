@@ -1,8 +1,6 @@
-"""实时链路的**进程内共享状态**与调参常量（阶段 5 从 server.py 迁出）。
+"""实时链路的**进程内共享状态**与调参常量。
 
-为什么整块搬，不能拆
---------------------
-这一块里有四份**被多处代码共享的可变状态**：
+本模块持有四份被多处代码共享的可变状态：
 
     kg_counter                   {meeting_id: 计数}，每 N 次触达就重建知识图谱
     recent_speech_cache          {(meeting_id, 归一化文本): 发言}，跨端短时去重
@@ -10,21 +8,18 @@
     recent_speech_cache_lock /
     recent_media_state_lock      上面两者的锁
 
-它们靠 `import` 拿到的都是**同一个对象**（后续都以就地修改的方式用，从不重新
-绑定），所以跟随本模块的函数与别处的调用点看到的是同一份数据。一旦有人
-`recent_speech_cache = {}` 重新绑定，等价性就会**静默**失效——因此这里加了
-注释标明"只许就地修改"。
+它们必须始终是**同一个对象**：只许就地修改，不能重新绑定，否则别处的调用点看到
+的就不是同一份数据。
 
-下面紧跟着的是短时缓存的自洽辅助（`_normalize_transcript_text`、
+下面紧跟着短时缓存的自洽辅助（`_normalize_transcript_text`、
 `_transcript_text_similar`、`_mark_recent_speech`、`_reserve_recent_speech_by_volume`、
 `_attach_recent_speech_transcript`、`_remember/_get_recent_media_state`、
-`_split_realtime_sentences` 等）。它们与上面那几张表是一体的：拆开就会有两个
-模块各持一份表，去重与"最近画面"全部失效，且不报任何错。所以一起搬。
+`_split_realtime_sentences` 等），与上面那几张表是一体的，不要拆开。
 
-`ASR_*` / `REALTIME_*` 常量是这一整套的调参项，跟着状态走。
+`ASR_*` / `REALTIME_*` 常量是这一整套的调参项。
 
-`ROOT_DIR` 与 server.py 的同名常量同源重算（都来自 `app.core.paths.PROJECT_ROOT`），
-因此 `_storage_relative_path` 里的相对路径换算结果不变。
+`ROOT_DIR` 来自 `app.core.paths.PROJECT_ROOT`，`_storage_relative_path` 的相对路径
+换算以它为基准。
 """
 
 import os
@@ -38,7 +33,7 @@ from typing import Any, Dict, List, Optional
 from app.core.emotions import normalize_emotion_label
 from app.core.paths import PROJECT_ROOT
 
-ROOT_DIR = str(PROJECT_ROOT)  # 与 server.py 的同名常量同源同值
+ROOT_DIR = str(PROJECT_ROOT)  # 项目根目录
 
 kg_counter = {}
 # 同一课堂内的短时转写去重缓存：避免同一句话被多端同时写成多条“各自发言”
@@ -58,7 +53,7 @@ ASR_UNKNOWN_SPEAKER_LABEL = "未确认说话人"
 ASR_SPEAKER_CACHE_TTL_SECONDS = 10.0    # 句子级别缓存：10秒（一句话通常不超过10秒）
 ASR_SPEAKER_CACHE_MAX_HITS = 1          # 每句话只验证一次
 ASR_SENTENCE_END_SILENCE_SECONDS = 3.0  # 沉默3秒视为句子结束
-ASR_SELF_VOICE_GATE_ENABLED = False  # 临时禁用声纹门控，允许所有用户语音转文字
+ASR_SELF_VOICE_GATE_ENABLED = False  # 关闭声纹门控，允许所有用户语音转文字
 ASR_SELF_VOICE_GATE_MIN_MS = 1400
 ASR_SELF_VOICE_GATE_WINDOW_MS = 2400
 ASR_SELF_VOICE_GATE_CHECK_INTERVAL_MS = 700

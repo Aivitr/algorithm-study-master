@@ -54,12 +54,7 @@ def refresh_aliyun_token():
                 _shared_token_expire = d['Token']['ExpireTime']
                 print("[OK] 阿里云Token刷新成功")
                 return _shared_token
-            # 失败分支（A34）。阿里云对 CreateToken 的拒绝是 HTTP 4xx 且**不带
-            # Token 字段**的，原来只有上面那一支，于是走到这里静默落到函数末尾
-            # 返回 None —— 调用方只能报一句与病因无关的"无法获取阿里云Token"。
-            # 第一次踩到时接口回的明明是 InvalidAccessKeyId.Inactive
-            # 「Specified access key is disabled.」，日志里一个字都没有。
-            # 这里只补日志，不动控制流。
+            # 失败分支：接口返回 4xx 且不带 Token 字段时，记录响应码与消息。
             else:
                 code = d.get("Code") if isinstance(d, dict) else None
                 message = d.get("Message") if isinstance(d, dict) else None
@@ -378,10 +373,10 @@ class RealtimeTranscriber:
 
     def _should_process_result(self, msg):
         """
-        兼容旧接口：不再在转写器里过滤 speaker_id。
+        兼容旧接口：不在转写器里过滤 speaker_id。
 
-        现在一个麦克风可能包含多个用户，speaker_id -> 系统用户 ID 的映射
-        交给 server.py 的 ASRSessionManager 结合本地声纹完成。
+        speaker_id -> 系统用户 ID 的映射交给 server.py 的 ASRSessionManager
+        结合本地声纹完成。
 
         阿里云返回格式：
         {

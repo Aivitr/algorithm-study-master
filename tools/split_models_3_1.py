@@ -1,17 +1,8 @@
-"""阶段 3.1：把 ORM 模型从仓库根的 `database.py` **逐字**搬进 `app/models/`。
-
-> **一次性制品，已用毕（阶段 3.2 之后不再可运行）。**
-> 它的输入是仓库根的 `database.py`。阶段 3.2 把那个文件搬去了
-> `app/core/database.py`，并删掉了 3.1 留下的模型转发层，因此 `--write`
-> 与 `--verify` 的两个前提（根级 `database.py` 存在、其中含类定义）都已不成立。
-> 保留全文是为了记录**当时怎么证明逐字等价**的——那是 3.1 的验收依据，
-> 属于过程证据，不是可再执行的工具。将来再有同类搬迁，请照它重写一份
-> 针对那次搬迁的脚本，而不是改这个。
+"""把 ORM 模型从仓库根的 `database.py` **逐字**搬进 `app/models/`。
 
 为什么用脚本搬，而不是手抄
 --------------------------
-`database.py` 的注释里含有 73 处字面量 `[EMOJI]`（上游某次批处理留下的占位符，
-不是渲染问题——`raw.count(b'[EMOJI]')` 实测为 73）。手工重打一遍，任何一处
+`database.py` 的注释里含有 73 处字面量 `[EMOJI]` 占位符。手工重打一遍，任何一处
 空白或字符的出入都不会有人发现。
 
 本脚本的做法是**按 AST 求出的行区间直接从源文件切片**，搬移后再把写出的每一行
@@ -29,8 +20,7 @@
 搬移的边界
 ----------
 本脚本**只搬类定义与那三条 `Index()`**。`engine` / `SessionLocal` / `get_db` /
-`_ensure_transcripts_columns()` 仍留在 `database.py`——那是阶段 3.2 的事
-（它们要进 `app/core/`），本步不动，以免一次改两件事而无法归因。
+`_ensure_transcripts_columns()` 留在 `database.py`，本步不动。
 """
 
 from __future__ import annotations
@@ -76,9 +66,8 @@ MODULE_DOC = {
 # 每个名字需要哪个 import。用于给每个模块算出**恰好够用**的 import 头，
 # 而不是统一塞一大串——统一塞会引入未使用导入，是纯粹的新噪声。
 #
-# 用名的判定走 AST 的 Name 节点，**不是**文本匹配。文本匹配在这里会出错：
-# 第一版用 `"Text("` 判 `Text` 是否被用到，而 `Column(Text, nullable=False)`
-# 那个 `Text` 后面没有括号，于是 classroom.py 漏了导入、导入期 NameError。
+# 用名的判定走 AST 的 Name 节点，**不是**文本匹配（文本匹配会漏掉
+# `Column(Text, nullable=False)` 这种 `Text` 后无括号的用法）。
 _NAME_IMPORTS = {
     "Base": "from app.models.base import Base",
     "Column": "from sqlalchemy import Column",
@@ -302,8 +291,7 @@ def new_database(text: str) -> str:
     """重写 `database.py`：留下引擎/会话/迁移，模型改为从 `app.models` 转出。
 
     「转出」而不是「删掉」是有意的：这一步要能证明**行为零变化**，最硬的证明
-    就是调用方一行都不用改。等 3.2 把本文件搬进 `app/core/` 时，那些调用方
-    本来就要改一次，届时一并去掉这层转发并删除本文件。
+    就是调用方一行都不用改。
     """
     lines = text.splitlines()
     keep_head = [ln for ln in lines[:24] if "declarative_base" not in ln]

@@ -1,4 +1,4 @@
-"""随堂练习与测验域的路由（阶段 5 从 server.py 拆出）。
+"""随堂练习与测验域的路由。
 
 本组 5 条，覆盖"出题产物 → 学生作答 → 批改 → 历史"这条链：
 
@@ -8,10 +8,8 @@
     POST /api/submit-answer                    提交答案
     GET  /api/student-quiz-history/{user_id}   某学生的作答历史
 
-`BASE_DIR` 与 `app/routers/pdf_report.py` 同理：不用 server.py 的常量（新模块
-拿不到，`from server import` 会让 server.py 二次执行，见
-`app/routers/__init__.py`），而是从 `app.core.paths.PROJECT_ROOT` 同源重算——
-两者取值相同，路径仍指向同一处。
+`BASE_DIR` 与 `app/routers/pdf_report.py` 同理：从 `app.core.paths.PROJECT_ROOT`
+同源重算（不能 `from server import`，见 `app/routers/__init__.py`），路径指向同一处。
 """
 
 import asyncio

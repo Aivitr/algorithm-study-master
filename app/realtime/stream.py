@@ -1,20 +1,17 @@
-"""实时用户流的生成器（阶段 5 从 server.py 拆出）。
+"""实时用户流的生成器。
 
 `process_user_stream_generator(username, video_data, meeting_id)` 是实时链路的主
 循环：它一边收浏览器推来的音视频分片，一边跑声纹/情绪/画面判定、写转写记录、
-更新知识图谱，并按事件把结果 yield 给 WebSocket 消费方。548 行，是所有实时路由
-的共同下游。
+更新知识图谱，并按事件把结果 yield 给 WebSocket 消费方。
 
-整块搬，不拆：它内部有大量跨分支共享的局部变量与控制流（提前 return 的清理
-路径、按帧累积的缓冲），切开就等于重写，而这一阶段的目标是"一个字都不改"。
+它内部有大量跨分支共享的局部变量与控制流（提前 return 的清理路径、按帧累积的
+缓冲），不要切开。
 
 ## 关于这堆 import
 
-搬这类代码**必须**把依赖的模块级全局显式带上，少一个的后果不是导入失败，而是
-执行到那条分支才 NameError；而 WebSocket 路由把异常吞成 200 的错误响应，于是
-测试全绿而链路是坏的——本仓库真的踩过两次。注意函数**自己**在开头写了
-`import time`、并在四处写了 `import traceback`：那些是函数体内的局部绑定，
-搬走时原样跟着走，不需要（也不应该）提到模块级来。
+模块级全局必须显式、完整地导入，少一个要到执行到那条分支才 NameError。函数
+**自己**在开头写了 `import time`、并在四处写了 `import traceback`：那些是函数体
+内的局部绑定，原样保留，不需要（也不应该）提到模块级来。
 
 `tests_safe/test_module_free_names.py` 用 symtable 判据守住这一点，本模块的头
 必须让它保持空集。
@@ -59,9 +56,8 @@ from app.services.llm_service import llm
 from app.services.research_runtime import research_runtime
 from app.services.user_lookup import resolve_user_by_identifier
 
-# 与 server.py 同源同值：原先是 `ROOT_DIR = BASE_DIR`，而 BASE_DIR 是
-# app.core.paths.PROJECT_ROOT 的字符串形式。直接重算，不复制字面量路径，
-# 免得锚点随文件位置漂移（见 tests_safe/test_paths_anchor.py）。
+# 直接由 PROJECT_ROOT 重算，不复制字面量路径，免得锚点随文件位置漂移
+# （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
 def process_user_stream_generator(username, video_data, meeting_id):
@@ -374,7 +370,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                         snapshot_path=staged_assets.get("snapshot_path", ""),
                     )
 
-                # 联合AI分析（替代原来的两次调用）
+                # 联合AI分析
                 relevance = 0
                 hint = ""
                 updated_goals = None

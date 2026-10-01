@@ -55,8 +55,7 @@ _SESSION_TMP = Path(tempfile.mkdtemp(prefix="smartclass-tests-"))
 # `_ensure_transcripts_columns()` 可能执行
 # `ALTER TABLE transcripts ADD ...`。**导入 database 这个动作本身即 DDL。**
 #
-# （阶段 3.2 之前该文件在仓库根、名为 `database.py`；内容与行为未变，只是位置变了。）
-# 改成一次性 sqlite 文件，DDL 即便发生也只落在临时目录里。
+# 因此改成一次性 sqlite 文件，DDL 即便发生也只落在临时目录里。
 os.environ["DATABASE_URL"] = f"sqlite:///{(_SESSION_TMP / 'app.db').as_posix()}"
 
 # ------------------------------------------------------- §2 直连 pymssql 路径

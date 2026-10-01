@@ -1,17 +1,16 @@
-"""快照与视频上下文域的路由（阶段 5 从 server.py 拆出）。
+"""快照与视频上下文域的路由。
 
 本组 2 条，都是"按时间点回看某节课当时的画面与发言"这一族：
 
     GET /api/snapshot/{meeting_id}      指定时间点的情绪快照（含截图路径）
-    GET /api/get-video-context          指定时间点前后的视频片段与发言（89 行）
+    GET /api/get-video-context          指定时间点前后的视频片段与发言
 
 两条都用 ±N 秒窗口去查 `EmotionLog`，因此对**时区**敏感：
 `datetime.fromtimestamp()` 按本地时区还原入参。行为基线的两条用例据此从
 `BASE_TIME` 反推时间戳，而不是硬编码——见 `tests_safe/test_route_baseline.py`。
 
 `resolve_user_by_identifier` 来自 `app.services.user_lookup`（它被三块业务共用，
-因此住在中立模块里）；不能 `from server import ...`：在 `python server.py` 下
-那会让 server.py 二次执行，见 `app/routers/__init__.py`。
+因此住在中立模块里）；不能 `from server import ...`，见 `app/routers/__init__.py`。
 """
 
 from typing import Optional
@@ -75,13 +74,13 @@ async def get_snapshot(meeting_id: int, username: str, timestamp: int, db: Sessi
         return {'status': 'error', 'message': str(e)}
 
 
-# 新增接口: 获取视频上下文
+# 获取视频上下文
 @router.get("/api/get-video-context")
 async def get_video_context(
     meeting_id: int,
     timestamp: float,  # 时间戳
     user_id: Optional[int] = None,  # 用户ID参数（兼容旧版）
-    username: Optional[str] = None,  # 新增：用户名/学号参数
+    username: Optional[str] = None,  # 用户名/学号参数
     db: Session = Depends(get_db)
 ):
     """

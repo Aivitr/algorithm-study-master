@@ -1,9 +1,7 @@
-"""WebRTC 信令转发（原 server.py:2817 的 `SignalConnectionManager`）。
+"""WebRTC 信令转发。
 
 仅转发 JSON（offer / answer / ICE），不解析 SDP——服务端在这一链路上是纯粹的
 中转，因此本类与 `connection.py` 一样是纯内存的。
-
-搬迁说明：方法体逐行照搬，未做逻辑改动。
 """
 
 from fastapi import WebSocket

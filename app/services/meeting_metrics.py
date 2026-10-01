@@ -1,4 +1,4 @@
-"""会议统计口径的共享辅助（阶段 5 从 server.py 迁出）。
+"""会议统计口径的共享辅助。
 
 本模块只有两个**纯查询**函数，作用是给"一节课"算两个维度的聚合，避免各路由
 各写一遍 SQL：
@@ -6,23 +6,11 @@
     _build_meeting_window_map(db, meeting_ids)     这节课的起止时刻
     _build_meeting_activity_map(db, meeting_ids, *) 这节课的发言数 / 发言人数
 
-为什么需要一个独立的家
-----------------------
-它们原本是 server.py 的模块级私有辅助，但**同时被两个业务域使用**——
-学生统计域（`/api/student-home-stats`）与教师域（`/api/teacher-classes`、
-`/api/teacher-stats`）。阶段 5 把路由按业务域拆出去之后，任何一方都不能再
-`from server import ...`（在 `python server.py` 下那会让 server.py 二次执行，
-见 `app/routers/__init__.py`）。跟着其中一组走，另一组就会缺依赖；所以给它
-一个中立的家，两组都从这里取。
+这两个函数同时服务学生统计域（`/api/student-home-stats`）与教师域
+（`/api/teacher-classes`、`/api/teacher-stats`），因此放在中立模块，两组都从
+这里取（不能 `from server import ...`，见 `app/routers/__init__.py`）。
 
-`server.py` 目前仍以 `from app.services.meeting_metrics import ...` **再导出**
-这两个名字，因此在 server.py 内的既有调用点（`/api/teacher-classes`、
-`/api/teacher-stats`）一行都不用改；等教师域也搬完，再让它们直接导入本模块。
-
-名字里的下划线
---------------
-`_` 前缀是它们在 server.py 里"模块私有"的历史痕迹，这里**刻意保留**：本次是
-纯搬迁，改名字只增加比对噪音。要改成公开名，应作为独立一次提交，且改完由
+`_` 前缀是刻意保留的模块私有名；要改成公开名应作为独立一次提交，并靠
 `tests_safe/test_module_free_names.py` 兜底（漏改调用点会立刻红）。
 """
 

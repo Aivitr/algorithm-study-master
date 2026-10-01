@@ -1,10 +1,4 @@
-"""实测「阶段 3 待搬迁代码」的测试覆盖率——**不引入任何新依赖**。
-
-为什么不用 pytest-cov
----------------------
-`requirements-dev.txt` 记录的工具栈是逐项决定过的（连 `pytest-asyncio` 与 `syrupy`
-都因"实测后未采用"而被写掉）。为了量一个数就再加一个依赖不划算，
-且会把「覆盖率」变成需要长期维护的负担。
+"""实测一批模块的测试覆盖率——**不引入任何新依赖**。
 
 本脚本只用两样东西：
 
@@ -15,9 +9,6 @@
 
     python tools/coverage_probe.py            # 跑整套测试并报告
     python tools/coverage_probe.py -k 某测试   # 透传参数给 pytest
-
-结论记录在 `docs/待验收事项.md` A15。**这个脚本的价值在于可复现**：
-那份结论里的数字应该随时能被重新量一遍，而不是只能被相信。
 """
 
 import ast
@@ -25,7 +16,7 @@ import os
 import sys
 import types
 
-# 设计文档 §4.1 认定的 15 个运行期模块——阶段 3 要搬的就是它们
+# 要统计覆盖率的 15 个运行期模块
 RUNTIME_MODULES = [
     "server.py",
     "ai_core.py",
@@ -119,7 +110,7 @@ def main() -> int:
         f"{100 * hit_total / line_total if line_total else 0:>9.1f}%"
     )
 
-    # 单独看某个类（阶段 3 的搬迁是逐个类/逐个模块进行的，整体数字不够用）
+    # 单独看某个类（整体数字不够用）
     server = os.path.join(ROOT, "server.py")
     classes = child_classes(server)
     if classes:

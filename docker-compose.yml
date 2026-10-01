@@ -12,7 +12,7 @@
 #   app      从本仓库 Dockerfile 构建，只负责连过去，镜像里不含任何数据库。
 #
 # ---------------------------------------------------------------------------
-# 一、数据库配置按环境分层（不再是"硬写死当安全阀"）
+# 一、数据库配置按环境分层
 # ---------------------------------------------------------------------------
 #
 # 容器的库配置来自 .env.dev（**必填**，见下方 env_file）。六个别名齐全：
@@ -21,16 +21,10 @@
 # 为什么 6 个都要：ORM 读 DATABASE_URL，而 /api/register 与 /api/login
 # **不走 ORM** —— 它们直接 pymssql.connect(DB_HOST, DB_PORT, ...)，不读
 # DATABASE_URL（见 app/routers/auth.py 的文件头）。只给 DATABASE_URL 的话，
-# 这两条路由会连一个不存在的地方，表现为注册失败（A32 就是这个）。
+# 这两条路由会连一个不存在的地方，表现为注册失败。
 #
-# 为什么用 MSSQL 而不是拿 mysql 镜像顶替：pymssql 说的是 TDS 协议，物理上
-# 连不上 MySQL；且 auth.py 用了 GETDATE() / SELECT TOP 1、database.py 用了
-# 不含 COLUMN 关键字的 ALTER TABLE，全是 T-SQL 方言。
-#
-# 历史：这里原先硬写 6 个假值当"安全阀"，因为当时工作区的 .env 装的是生产库，
-# 而 import app.core.database 本身就会发 ALTER TABLE（A13）。分层之后这个
-# 理由消失 —— 开发工作区里**根本不存在**生产库连接信息，安全性由"分层"提供，
-# 比"写死"更强：写死只是挡住，分层是压根没有。改动前那份 .env 已备份。
+# 必须用 MSSQL，不要拿 mysql 镜像顶替：pymssql 走 TDS 协议，且代码用了
+# T-SQL 方言（GETDATE() / SELECT TOP 1 / 不含 COLUMN 关键字的 ALTER TABLE）。
 #
 # ⚠️ 与分层配套的一条纪律：**本编排里的 ${...} 插值读的是仓库根的 .env**。
 # 所以这里**绝不插值 DB_\* / DATABASE_URL** —— 否则生产凭据会被拉进 compose。

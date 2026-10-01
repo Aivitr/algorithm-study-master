@@ -47,34 +47,17 @@ axios.interceptors.response.use(
 );
 
 // ===========================================================================
-// 组件注册（②b 组件拆分的第一步）
+// 组件注册
 // ===========================================================================
 //
-// 为什么可以在这里注册、不需要构建步骤
-// ------------------------------------
-// static/vendor/vue-2.6.14.js 是**带编译器的完整版**（`Vue.compile` 存在），
-// 所以 `template` 可以直接给一段字符串或一个选择器，运行时编译。
-// 这一点是实测确认的，不是看文件名猜的。
+// 本仓库没有构建步骤，靠 static/vendor/vue-2.6.14.js 的**带编译器完整版**
+// （`Vue.compile` 存在）在运行时编译 `template`。
 //
-// 为什么模板写在 index.html 而不写在这里
-// ------------------------------------
-// `template: '#global-modal-tpl'` 指向 index.html 里那个 text/x-template 块。
-// 本仓库没有构建步骤，模板若写成 JS 字符串，就失去了语法高亮与折叠，
-// 编辑体验会明显变差——而这块标记以后还要改。
+// 模板一律写在 index.html 的 text/x-template 块里，这里只写选择器
+// （如 `template: '#global-modal-tpl'`）——写成 JS 字符串会失去语法高亮与折叠。
 //
-// 这次搬迁到底动了什么
-// --------------------
-// 只动了"引用方式"，没动行为：
-//     组件内读 globalModal  → 改成读 prop `modal`
-//     组件内调 resolveModal → 改成 $emit('resolve', ...)
-//     组件内调 closeModal() → 那是 resolveModal(true) 的别名，同样改成 $emit
-// 对外一个字节都没变：showAlert / showConfirm / resolveModal / closeModal
-// 四个方法原样留在根实例上，约 40 处调用点不受影响；
-// 弹窗的 DOM 结构、class、Promise 契约也都保持原样。
-//
-// 这个等价性不是靠"看一遍觉得对"来保证的：tools/frontend_probe.js 会把
-// 拆分前后 12 个状态的渲染结果逐个比对（必须逐字节相同），并真的点一遍
-// 确定/取消/遮罩、核对 showConfirm 的 Promise 兑现成什么。
+// 组件不要读根实例上的 globalModal / resolveModal / closeModal，改读 prop `modal`
+// 并 `$emit('resolve', ...)`；那四个方法仍留在根实例上，供约 40 处调用点使用。
 Vue.component('global-modal', {
     props: {
         modal: { type: Object, required: true },
@@ -82,11 +65,8 @@ Vue.component('global-modal', {
     template: '#global-modal-tpl',
 });
 
-// 落地页。它是耦合最松的一块，所以排在第一个"整页"组件：
-// 实测它对外部状态的**全部**依赖只有 `pageState`——零个插值，六处绑定里
-// 五处是切页、一处是 v-if。因此它**不需要任何 prop**，只往外抛一个 `go` 事件。
-// 这是拆分的理想形态：搬出去不仅没引入 prop 打孔，反而把"这页怎么显示"
-// 交回给了父级（v-if 留在页面上）。
+// 落地页。它对外部状态唯一的依赖是 `pageState`，因此不需要任何 prop，
+// 只往外抛一个 `go` 事件。
 Vue.component('landing-page', {
     template: '#landing-page-tpl',
 });
@@ -543,10 +523,9 @@ new Vue({
             };
         }
     },
-    // ⚠ 这个 watch **从未生效**，不是笔误而是已知的历史遗留（docs/待验收事项.md A26）。
-    // 本对象末尾还有一个 `watch` 键（只有 showKnowledgeGraph 一个监视器），而 JS
-    // 对象字面量对重复键是**后者整体胜出**：不合并、也不警告。所以下面这三个
-    // 监视器连同这几十行代码从未注册过。
+    // ⚠ 这个 watch **从未生效**：本对象末尾还有一个 `watch` 键（只有
+    // showKnowledgeGraph 一个监视器），而 JS 对象字面量对重复键是**后者整体胜出**：
+    // 不合并、也不警告。所以下面这三个监视器连同这几十行代码从未注册过。
     //
     // 保持原样：删掉它不改变任何运行时行为（它本来就是死的），却会抹掉一处
     // "本该接上、实际没接上"的痕迹——其中 `_syncAgoraRemoteVideos()` 全文件

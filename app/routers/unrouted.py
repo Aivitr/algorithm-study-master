@@ -1,29 +1,20 @@
 """**没有接线**的处理器：两个函数都没有 `@router.*` 装饰器，不在任何路由表里。
 
-本模块被 server.py 正常装配（末尾有一段 `include_router`），但它**故意不贡献
-任何路由**——里面的报头 `router` 是空的。这样做的原因见下。
+本模块被 server.py 正常装配（末尾有一段 `include_router`），但**故意不贡献
+任何路由**——里面的报头 `router` 是空的。
 
-## 这两个函数为什么在这里
+## 不要补装饰器，也不要删
 
-它们是阶段 5 从 server.py 拆出来的，拆的时候**一个字都没改**——包括"没有装饰器"
-这件事。这不是拆分造成的：翻最初的提交 `44876f3`（Initial commit）可以看到，
-两个 `async def` 都紧贴着上一个处理器的 `return` 语句，上方既没有空行也没有
-装饰器。也就是说，**自项目第一天起它们就不是路由**。
+补上装饰器等于新增接口，而 59 个接口的地址与输入输出是冻结的；删掉则违反
+"未完成的功能全量保留"这条约定。两个 `async def` 自第一天起就没有装饰器，
+原样留着即可。
 
-按本项目的既有约定，它们不能删（未完成的功能要全量保留），也不能补上装饰器
-——补上就等于新增接口，而设计文档 C5 冻结了 59 个接口的地址与输入输出。
-所以只能原样留着，并把"它们没接线"这件事写成文字放在这里。
-
-## 两个函数的现状（**待你决定**，已登记在 docs/待验收事项.md）
+## 两个函数的现状（**待决定**，已登记在 docs/待验收事项.md）
 
 1. `upload_report_template` —— **前端正在调它，但后端没有这条路由。**
    前端有一处 `axios.post('/api/upload-report-template', formData)`
-   （`static/js/app.js` 里，即 index.html 原本内联的那段脚本，阶段 7 外移），
-   而全仓库没有任何 `@app.post("/api/upload-report-template")`。也就是说这个按钮
-   点下去拿到的是 404。实测方法：把前端源码（index.html / static/js/app.js /
-   static/css/app.css / pcm-processor.js）里所有 axios/fetch 的**路径字面量**与
-   `tests_safe/test_route_contract.py` 的契约表逐条对照，**只有这一条对不上**。
-   判据是那个路径字符串本身，**不是行号**——行号会随改动漂，而这个路径不会。
+   （`static/js/app.js`），而全仓库没有任何 `@app.post("/api/upload-report-template")`。
+   这个按钮点下去拿到的是 404。判据是那个**路径字符串**本身，不是行号。
 
 2. `select_viewpoint`（"老师直接选择观点（不投票）"）—— 前端**完全没有**调用点，
    后端也没有路由，是两侧都没接的半成品。
@@ -31,12 +22,12 @@
 ## 为什么落在 app/routers/ 而不是别处
 
 它们是 HTTP 处理器的形状（`Form` / `Depends` / `UploadFile`），编辑路由的人会来
-这里找；将来要把功能做完时，就地补一个装饰器再挪进对应的业务域模块（第 1 个
-属于教师域 `teacher.py`，第 2 个属于观点/投票域 `votes.py`）即可。
+这里找；将来要把功能做完时，就地补一个装饰器再挪进对应的业务域模块（第 1 个属于
+教师域 `teacher.py`，第 2 个属于观点/投票域 `votes.py`）。
 
 `app/routers/` 下若有模块存在却没被装配，`tests_safe/test_routers_layout.py`
 会报红——所以这里必须保留一个（空的）`router` 并在 server.py 里 include。
-空 router 的 include 是空操作：展开后的路由表与拆分前逐条一致（59 条）。
+空 router 的 include 是空操作：展开后的路由表仍逐条一致（59 条）。
 """
 
 import os
@@ -50,8 +41,7 @@ from app.core.paths import PROJECT_ROOT
 from app.models import Meeting
 from app.services.llm_service import llm
 
-# server.py 里 `BASE_DIR = str(PROJECT_ROOT)`。这里同源重算，不复制字面量路径，
-# 免得锚点随文件位置漂移（见 tests_safe/test_paths_anchor.py）。
+# 与 server.py 同源重算，不复制字面量路径（见 tests_safe/test_paths_anchor.py）。
 BASE_DIR = str(PROJECT_ROOT)
 
 # 故意为空：本模块不注册任何路由，见文件头的说明。
@@ -111,7 +101,7 @@ async def select_viewpoint(
 
 
 
-# 新增接口: 获取快照
+# 获取快照
 
 
 

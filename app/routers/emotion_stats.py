@@ -1,18 +1,17 @@
-"""情绪统计域的路由（阶段 5 从 server.py 拆出）。
+"""情绪统计域的路由。
 
-本组 2 条，是"一节课的情绪/互动汇总"这一族，也是 server.py 里最长的两条之一：
+本组 2 条，是"一节课的情绪/互动汇总"这一族：
 
-    GET /api/realtime-stats/{meeting_id}    实时统计：饼图、互动网络、时间线、成员得分（164 行）
-    GET /api/emotion-details/{meeting_id}   情绪明细：个人/群体时间线、视频片段、发言（216 行）
+    GET /api/realtime-stats/{meeting_id}    实时统计：饼图、互动网络、时间线、成员得分
+    GET /api/emotion-details/{meeting_id}   情绪明细：个人/群体时间线、视频片段、发言
 
-**本组带走了 `emotion_value_for_label`**（原 server.py:167）：它把归一化后的情绪
-标签映射成 0-100 的"情绪分"，只有这两条路由用得上，用 `--also` 一并搬走。
+本组带走 `emotion_value_for_label`——它把归一化后的情绪标签映射成 0-100 的
+"情绪分"，只有这两条路由用得上。
 
-另两个依赖住在中立模块里，因为它们被别处也用：
+另两个依赖住在中立模块里（都不能 `from server import ...`，见
+`app/routers/__init__.py`）：
   * `normalize_emotion_label` ← `app.core.emotions`
   * `resolve_user_by_identifier` ← `app.services.user_lookup`
-都不能 `from server import ...`：在 `python server.py` 下那会让 server.py 二次
-执行整个文件，见 `app/routers/__init__.py`。
 """
 
 from datetime import datetime, timedelta
@@ -193,7 +192,7 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         return {'status': 'error', 'message': str(e)}
 
 
-# 新增接口: 情绪详情API
+# 情绪详情 API
 @router.get("/api/emotion-details/{meeting_id}")
 async def get_emotion_details(
     meeting_id: int,

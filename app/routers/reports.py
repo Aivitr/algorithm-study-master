@@ -1,21 +1,17 @@
-"""学习报告域的路由（阶段 5 从 server.py 拆出）。
+"""学习报告域的路由。
 
 本组 3 条：
 
-    POST /api/generate-report            生成整节课的学习报告（223 行，本组最大）
-    GET  /api/reports/{user_id}          某学生的历史报告
+    POST /api/generate-report               生成整节课的学习报告（本组最大）
+    GET  /api/reports/{user_id}             某学生的历史报告
     GET  /api/meeting-reports/{meeting_id}  某节课的成员报告
 
-**本组为什么带走了两个"额外区间"**
-`_select_latest_reports`（原 server.py:1167）与 `_build_report_metric_maps`
-（原 server.py:1229）写在文件的另一处，但全仓库只有 `get_meeting_reports`
-用它们。它们**不能**留在 server.py：新模块要靠 `from server import ...` 才能
-拿到，而在 `python server.py` 启动时那会让 server.py 二次执行（见
-`app/routers/__init__.py`）。所以随本组一并迁走，用 `tools/extract_route_group.py`
-的 `--also` 一次完成。
+本组带走两个私有辅助：`_select_latest_reports` 与 `_build_report_metric_maps`。
+全仓库只有 `get_meeting_reports` 用它们，因此随本组放在这里——不能留在
+server.py（新模块要靠 `from server import ...` 才能拿到，见
+`app/routers/__init__.py`）。
 
-`/api/generate-report-stream`（216 行）**不在这里**——它挨着课堂实时那一段，
-与那组一起处理。
+`/api/generate-report-stream` **不在这里**——它在 `app/routers/report_stream.py`。
 """
 
 from typing import Any, Dict, List
@@ -286,7 +282,7 @@ async def get_user_reports(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-# 新增接口: 获取某次课堂的所有学生报告
+# 获取某次课堂的所有学生报告
 @router.get("/api/meeting-reports/{meeting_id}")
 async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
     """获取课堂的所有学生报告"""

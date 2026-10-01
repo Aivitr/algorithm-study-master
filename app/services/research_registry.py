@@ -36,7 +36,7 @@ class ClassroomDatasetSpec:
     note: str
 
 
-# These entries now reflect the current dual-mode runtime:
+# These entries reflect the dual-mode runtime:
 # - standard profile keeps the lightweight baseline path
 # - enhanced profile can activate the research-adapted algorithm hooks
 PRETRAINED_BACKBONES: Dict[str, BackboneSpec] = {

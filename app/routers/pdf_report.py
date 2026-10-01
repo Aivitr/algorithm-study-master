@@ -1,18 +1,15 @@
-"""PDF 报告导出域的路由（阶段 5 从 server.py 拆出）。
+"""PDF 报告导出域的路由。
 
-本组 1 条，但是 server.py 里最重的几条之一：
+本组 1 条：
 
-    POST /api/generate-pdf-report    把学习报告渲染成 PDF 存到 storage/reports（129 行）
+    POST /api/generate-pdf-report    把学习报告渲染成 PDF 存到 storage/reports
 
-它需要一个路径锚点来拼 `storage/reports`。这里**不用** server.py 的
-`BASE_DIR`（新模块拿不到它，`from server import` 会让 server.py 二次执行，
-见 `app/routers/__init__.py`），而是用与 server.py **同一个来源**重算：
+路径锚点用 `BASE_DIR = str(PROJECT_ROOT)` 同源重算，不用 server.py 的常量
+（不能 `from server import`，见 `app/routers/__init__.py`）。因此
+`os.path.join(BASE_DIR, "storage", "reports")` 指向与 server.py 相同的目录。
 
-    BASE_DIR = str(PROJECT_ROOT)
-
-两者取值完全相同，因此 `os.path.join(BASE_DIR, "storage", "reports")` 指向同一
-目录。`app.core.paths.PROJECT_ROOT` 是仓库里唯一被 `tests_safe/test_paths_anchor.py`
-钉住的锚点——凡是从 server.py 搬出去的模块，路径都必须从它派生。
+路径锚点必须从 `app.core.paths.PROJECT_ROOT` 派生——`tests_safe/test_paths_anchor.py`
+钉的就是它。
 """
 
 import os

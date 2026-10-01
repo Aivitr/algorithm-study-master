@@ -1,4 +1,4 @@
-"""会议与转写域的路由（阶段 5 从 server.py 拆出）。
+"""会议与转写域的路由。
 
 本组 4 条，都是"给定 meeting_id 取这节课的数据"这一族：
 
@@ -10,9 +10,8 @@
 它们与 `app/routers/votes.py` 的区别是**不碰任何模块级可变状态**：只是
 `db.query(...)` 之后组织返回值，因此是依赖最少的一组。
 
-`normalize_emotion_label` 取自 `app.core.emotions`（阶段 5 迁出，`server.py`
-仍是同一份实现的再导出点）——不能从 `server` 取：在 `python server.py` 启动时
-那会让 server.py 二次执行，见 `app/routers/__init__.py`。
+`normalize_emotion_label` 取自 `app.core.emotions`——不能从 `server` 取，
+见 `app/routers/__init__.py`。
 """
 
 from fastapi import APIRouter, Depends

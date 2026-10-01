@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # 一次性建库服务（compose 里的 `db-init`）的入口脚本。
 #
-# 为什么需要它：MSSQL 官方镜像**没有** postgres/mysql 那样的
-# `/docker-entrypoint-initdb.d` 自动执行目录。想在容器起好后自动建库，
-# 只能另起一个一次性容器来跑脚本 —— 就是这个文件。
+# MSSQL 官方镜像**没有** postgres/mysql 那样的 `/docker-entrypoint-initdb.d`
+# 自动执行目录，所以只能另起一个一次性容器来跑脚本。
 #
 # 它做的事：把 `db/schema.sql` 灌进 db 服务。
 #   - schema.sql 自带 `IF DB_ID(...) IS NULL CREATE DATABASE` + `USE`，

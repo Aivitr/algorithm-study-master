@@ -1,27 +1,14 @@
-"""声纹识别域的路由（阶段 5 从 server.py 拆出）。
+"""声纹识别域的路由。
 
-为什么本模块**不导入 `server`**
---------------------------------
-本仓库有两种被文档化的启动方式：
-
-    python server.py            模块名是 `__main__`
-    gunicorn server:app         模块名是 `server`
-
-若本模块在顶层写 `from server import logger`，那么在 `python server.py` 下，
-`server` 这个名字**不在 `sys.modules` 里**（在那的是 `__main__`），Python 会把
-server.py 当作一个**新模块再执行一遍**——重复建 app、重复注册全部 59 条路由、
-重复跑导入期副作用。这个故障**不报错**，只是内存里多出一套互不相干的对象。
-
-因此本模块只从 `app.*` 导入，`server.py` 在末尾用 `app.include_router()` 装配。
-依赖方向是单向的：`server` → `app.routers.*`，永不反向。
+本模块**只从 `app.*` 导入**，不导入 `server`；依赖方向单向：
+`server` → `app.routers.*`，永不反向（`from server import ...` 会让 server.py
+二次执行，见 `app/routers/__init__.py`）。
 
 共享状态从哪来
 --------------
-- `logger`：本模块自取。全仓库没有任何 logging 配置（无 `basicConfig` /
-  `dictConfig` / 带 `%(name)s` 的 Formatter），日志名不参与输出，因此
-  `getLogger(__name__)` 与 server.py 的 logger 在可观察行为上一致。
-- `USE_OSS` / `get_oss_manager`：直接取自 `app.services.oss_utils`，那本就是
-  它们的定义处，server.py 只是转发。降级判定与 server.py 保持同构。
+- `logger`：本模块自取（全仓库没有 logging 配置，日志名不参与输出）。
+- `USE_OSS` / `get_oss_manager`：直接取自 `app.services.oss_utils`，那本就是它们的
+  定义处；降级判定与 server.py 同构。
 - `BASE_DIR` / `ROOT_DIR`：由 `app.core.paths.PROJECT_ROOT` 重新定义，
   与 server.py 中 `BASE_DIR = str(PROJECT_ROOT)` 取值相同。
 """
@@ -45,7 +32,7 @@ try:
     from app.services.oss_utils import get_oss_manager
 
     USE_OSS = True
-except Exception:  # OSS 未配置时降级，与 server.py 同构
+except Exception:  # OSS 未配置时降级
     USE_OSS = False
 
 logger = logging.getLogger(__name__)

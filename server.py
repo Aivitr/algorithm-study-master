@@ -19,17 +19,15 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # ------------------------------------------------ 导入引导（唯一允许依赖自身位置处）
-# 要导入 `app` 包，总得先有一个已知的起点。本文件住在仓库根，因此它所在的
-# 目录就是仓库根，可用来把包挂上 sys.path。这是**唯一**一处允许依赖
-# server.py 自身位置的地方——除此之外所有路径解析一律走 app.core.paths。
+# 这是**唯一**一处允许依赖 server.py 自身位置的地方——
+# 除此之外所有路径解析一律走 app.core.paths。
 _BOOTSTRAP_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BOOTSTRAP_DIR not in sys.path:
     sys.path.insert(0, _BOOTSTRAP_DIR)
 
 from app.core.paths import PROJECT_ROOT, STORAGE_SUBDIRS, project_path
 
-# 引导目录必须与 paths.py 解析出的仓库根一致。若哪天 server.py 被移进 app/，
-# 这里会立刻报错——而不是让 BASE_DIR 静默指向 app/。§3.1 的失效模式正是静默。
+# 引导目录必须与 paths.py 解析出的仓库根一致，否则这里立刻报错。
 if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
     raise RuntimeError(
         f"server.py 的所在目录（{_BOOTSTRAP_DIR}）与 paths.py 解析出的仓库根"
@@ -38,16 +36,9 @@ if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
         f"此处失败是有意的：静默错位会让 storage/ 等数据目录指到别处。"
     )
 
-BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 20 余处 os.path.join(BASE_DIR, ...) 调用点
+BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 os.path.join(BASE_DIR, ...) 调用点
 
 # 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
-#
-# `1/`、`2/` 两条已于阶段 3 移除：
-#   - `1/` 实测不含任何被导入的模块（`1/README1.md` 亦确认「未被 server.py 接线」），
-#     现已归档到 archive/prototypes/legacy-1/
-#   - `2/` **从未存在**，原代码无条件追加它，一直是空操作
-# 保留指向已归档目录的 append，只会留下一条指向虚空的路径——静默无效，
-# 正是本仓库反复出现的那类故障。移除它们不改变任何行为。
 _SERVER_SYSPATH_ADDITIONS = [
     os.path.join(BASE_DIR, '_tmp_agora_token_builder'),
 ]
@@ -94,16 +85,13 @@ from app.core.config import (
 )
 from app.services.research_runtime import research_runtime
 
-# 实时链路管理器（阶段 3 自本文件迁出，见设计文档 §4.1）。
-# 两者均为纯内存结构，不碰数据库与网络，因此不牵动任何初始化顺序。
+# 实时链路管理器：两者均为纯内存结构，不碰数据库与网络。
 from app.realtime.connection import ConnectionManager
 from app.realtime.signaling import SignalConnectionManager
 
 # 📦 OSS📦
-# 阶段 5 迁至 app/core/oss.py：拆分后 app/realtime/speech.py 与将来的 stream /
-# asr_manager 都要用它，而它们不能从 server.py 取（`python server.py` 下会让
-# server.py 二次执行）。定义只保留一份，避免"各模块各自探测 OSS"的分叉——
-# 那种分叉不报错，只表现为某个模块在 OSS 可用时却走了不可用的分支。
+# 定义在 app/core/oss.py，此处再导出。不能从 server.py 取（`python server.py`
+# 下会让 server.py 二次执行）；定义只保留一份。
 from app.core.oss import USE_OSS, get_oss_manager
 
 try:
@@ -114,19 +102,16 @@ except ImportError:
 # 导入声纹管理器
 from app.services.voiceprint_manager import voiceprint_manager
 
-# 路径锚点统一：原为 os.getcwd()，从非项目根目录启动会静默错位到错误的数据目录。
-# 现已由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py 里的
-# 别名，值不再随本文件的位置变化。
+# 路径锚点由 app.core.paths 统一解析——ROOT_DIR 与 BASE_DIR 都是它在 server.py
+# 里的别名，值不随本文件的位置变化。
 ROOT_DIR = BASE_DIR
 for d in ("storage", *STORAGE_SUBDIRS):
     os.makedirs(os.path.join(ROOT_DIR, d), exist_ok=True)
 
 app = FastAPI()
 
-# 阶段 5 迁至 app/core/http.py，此处**再导出**：拆分后的路由模块也要用它，
-# 而路由模块不能从 server.py 导入（`python server.py` 下会二次执行整个文件）。
-# 定义只保留一份，避免两处缓存策略分叉——那种分叉不报错，只表现为
-# "某些接口仍然吃缓存"。
+# 定义在 app/core/http.py，此处再导出。路由模块不能从 server.py 导入
+# （`python server.py` 下会二次执行整个文件）；定义只保留一份。
 from app.core.http import NO_CACHE_HEADERS
 
 # 🔧 CORS🔧
@@ -140,33 +125,24 @@ app.add_middleware(
 
 app.mount("/storage", StaticFiles(directory=os.path.join(BASE_DIR, "storage")), name="storage")
 
-# 阶段 6：前端外部依赖本地化的落点。`index.html` 原本从 5 个外部 CDN 拉 23 个
-# 资源，CDN 在部署区域不可达时页面白屏、图标变空框（Font Awesome 的 webfonts
-# 与 Inter 的 woff2 都在那份 CSS 的 url() 里，是最容易漏掉的一半）。
-# 与上面 /storage 同类：**框架级静态挂载，不计入 C3 的 59 个接口**，
-# 但同样钉在 tests_safe/test_route_contract.py 的 FRAMEWORK_ROUTES 里。
+# 前端外部依赖本地化的落点。与上面 /storage 同类：**框架级静态挂载，不计入
+# 59 个接口**，但同样钉在 tests_safe/test_route_contract.py 的 FRAMEWORK_ROUTES 里。
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 
 # ==================== 再导出（迁移兼容面） ====================
-# 下面这一整段是阶段 5 拆分实时链路时留下的**再导出**。每搬走一块，就在原位置
-# 留一行 `from <新模块> import ...`，这样每一步都能单独跑测试、单独回滚——搬迁
-# 当时 server.py 里确有大量调用点，这句话因此是**真的**。
+# 下面这一整段是新模块的**再导出**，为的是不改 `import server; server.X` 的
+# 对外可见性：仓库内的 tests_safe/ 与 archive/ops-scripts/ 里有这样用的地方，
+# 仓库外可能也有。
 #
-# 现在实时链路已经全部搬完，server.py 自己**一个调用点都不剩**了（这里只剩
-# 引导、app 组装与路由装配）。这些别名之所以仍然保留，是为了不改变
-# `import server; server.X` 的对外可见性：仓库内的 tests_safe/ 与
-# archive/ops-scripts/ 里有这样用的地方，仓库外可能也有。
-#
-# 也就是说，**下面这一段的注释说的"调用点保持不变"要按历史读**：它记录的是
-# 那一组搬迁当时的判断，不是现在的调用图。哪天真要瘦身，可以整段删掉——
-# 已实测需要保留的只有 4 个：manager、signal_manager、ConnectionManager、
-# SignalConnectionManager（tests_safe/test_websocket_and_manager.py 用），
-# 另有 BASE_DIR、ROOT_DIR、_SERVER_SYSPATH_ADDITIONS、app 是 server.py 自己
-# 定义或本来就有的。删之前请自行确认仓库外没有使用者。
+# 哪天真要瘦身，可以整段删掉——已实测需要保留的只有 4 个：manager、
+# signal_manager、ConnectionManager、SignalConnectionManager
+# （tests_safe/test_websocket_and_manager.py 用）；另有 BASE_DIR、ROOT_DIR、
+# _SERVER_SYSPATH_ADDITIONS、app 是 server.py 自己定义或本来就有的。
+# 删之前请自行确认仓库外没有使用者。
 
 # 🔊 analyzer🔊
-# 阶段 5 迁至 app/realtime/emotion_helpers.py，此处**再导出**。
+# 定义在 app/realtime/emotion_helpers.py，此处再导出。
 from app.realtime.emotion_helpers import (
     get_analyzer,
     map_silent_emotion,
@@ -178,15 +154,13 @@ from app.realtime.emotion_helpers import (
     _detect_visual_state_from_video,
 )
 
-# 这两个原本紧跟在上面那一块里（作为"再导出点"），随搬迁一起进了
-# app/realtime/emotion_helpers.py。这里从**它们的真实出处**再导入一次，
-# 不是从 emotion_helpers 转手——避免让依赖链绕远路。
+# 从**真实出处**再导入一次，不从 emotion_helpers 转手——避免让依赖链绕远路。
 from app.core.emotions import normalize_emotion_label
 from app.services.user_lookup import resolve_user_by_identifier
 
 
 # 🧠 (🧠10🧠)
-# 阶段 5 迁至 app/realtime/state.py，此处**再导出**。
+# 定义在 app/realtime/state.py，此处再导出。
 from app.realtime.state import (
     kg_counter,
     recent_speech_cache,
@@ -226,7 +200,7 @@ from app.realtime.state import (
 )
 
 
-# 阶段 5 迁至 app/realtime/speech.py，此处**再导出**。
+# 定义在 app/realtime/speech.py，此处再导出。
 from app.realtime.speech import (
     _persist_speech_emotion_artifacts,
     _create_realtime_transcript_entry,
@@ -235,21 +209,20 @@ from app.realtime.speech import (
 )
 
 
-# 阶段 5 迁至 app/services/meeting_metrics.py，此处**再导出**。
-# 这两个辅助同时被学生统计域与教师域使用，不能只跟着其中一组走，
-# 因此给它们一个中立的家。
+# 定义在 app/services/meeting_metrics.py，此处再导出。
+# 这两个辅助同时被学生统计域与教师域使用，因此住在中立的服务模块里。
 from app.services.meeting_metrics import (
     _build_meeting_activity_map,
     _build_meeting_window_map,
 )
 
 
-# 阶段 5 迁至 app/realtime/knowledge_graph.py，此处**再导出**。
+# 定义在 app/realtime/knowledge_graph.py，此处再导出。
 from app.realtime.knowledge_graph import update_knowledge_graph
 
 
 # === 🎥 📹:👥📊 (yield) ===
-# 阶段 5 迁至 app/realtime/stream.py，此处**再导出**。
+# 定义在 app/realtime/stream.py，此处再导出。
 from app.realtime.stream import process_user_stream_generator
 
 
@@ -258,23 +231,20 @@ from app.realtime.stream import process_user_stream_generator
 
 # === WebSocket 连接管理器 / WebRTC 信令 ===
 #
-# 两个类已于阶段 3 迁至 app/realtime/（设计文档 §4.1）；
-# 单例本身于阶段 5 迁至 app/realtime/registry.py，此处**再导出**。
+# 连接管理器类定义在 app/realtime/，单例定义在 app/realtime/registry.py，
+# 此处**再导出**。路由模块不能 `from server import manager`（`python server.py`
+# 下会让本文件再执行一遍——重复建 app、重复注册全部 59 条路由，且不报错），
+# 见 app/routers/__init__.py。
 #
-# 为什么不把单例留在原地：拆出去的路由模块不能 `from server import manager`
-# ——在 `python server.py` 启动时 server.py 的模块名是 `__main__`，`server`
-# 不在 sys.modules 里，那样写会让本文件**再执行一遍**（重复建 app、重复注册
-# 全部 59 条路由），且不报错。详见 app/routers/__init__.py。
-#
-# 单例仍然全局唯一：这里用 `from ... import` 再导出而非重新赋值，
-# 因此 `server.manager` 与 `app.realtime.registry.manager` 是**同一个对象**，
+# 单例全局唯一：这里用 `from ... import` 再导出而非重新赋值，因此
+# `server.manager` 与 `app.realtime.registry.manager` 是**同一个对象**，
 # `from server import manager`（tests_safe/test_websocket_and_manager.py 的
 # 隔离夹具）拿到的身份不变。
 from app.realtime.registry import manager, signal_manager
 
 
 # === 实时语音识别 ASR 会话管理 ===
-# 阶段 5 迁至 app/realtime/asr_manager.py，此处**再导出**。
+# 定义在 app/realtime/asr_manager.py，此处再导出。
 from app.realtime.asr_manager import (
     ASRSessionManager,
     asr_manager,
@@ -282,7 +252,7 @@ from app.realtime.asr_manager import (
 
 
 # ==================== 路由装配 ====================
-# 阶段 5 起，路由按业务域拆入 app/routers/，此处只做装配。
+# 路由按业务域放在 app/routers/，此处只做装配。
 # 新增一组路由时：先在 app/routers/ 建模块，再在这里 include。
 from app.routers.voiceprint import router as voiceprint_router
 
@@ -365,9 +335,8 @@ app.include_router(realtime_router)
 
 
 # 空 router：这个模块里的两个处理器**没有**装饰器，所以不贡献任何路由。
-# 仍然要 include——app/routers/ 下有文件却没被装配，test_routers_layout 会报红
-# （那守卫防的是"拆到一半、忘了装配"，是好事，不该为特例放宽）。
-# 详情与两个函数的现状见 app/routers/unrouted.py 的文件头。
+# 仍然要 include——app/routers/ 下有文件却没被装配，test_routers_layout 会报红。
+# 详情见 app/routers/unrouted.py 的文件头。
 from app.routers.unrouted import router as unrouted_router
 
 app.include_router(unrouted_router)
