@@ -65,8 +65,12 @@ _README_ROUTE_ROW = re.compile(
     re.MULTILINE,
 )
 
-# README 里那句数量声明：`**共 59 个**：GET 28 / POST 26 …`
-_README_COUNT = re.compile(r"\*\*共\s*(\d+)\s*个\*\*")
+# README 里那句数量声明：`**共 59 个**：GET 28 / POST 26 / DELETE 2 / WebSocket 3`。
+# 五段全抓——只盯总数的话，分项（GET/POST/…）照样能悄悄漂。
+_README_COUNT = re.compile(
+    r"\*\*共\s*(\d+)\s*个\*\*："
+    r"GET\s*(\d+)\s*/\s*POST\s*(\d+)\s*/\s*DELETE\s*(\d+)\s*/\s*WebSocket\s*(\d+)"
+)
 
 # 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与设计文档
 # 冻结的"59 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
@@ -147,26 +151,34 @@ def test_readme_does_not_hand_copy_the_route_list():
 
 
 def test_readme_states_the_route_count_correctly():
-    """README 那句「共 N 个」必须等于源码里的实际条数。
+    """README 那句「共 N 个：GET a / POST b / …」必须逐项等于源码里的实际条数。
 
     清单搬走之后，这句数量声明就是 README 与 59 条路由之间**唯一**的契约。
+    总数与分项都抓：只盯总数的话（"59 没变"），GET/POST 之间挪一条照样能瞒过去。
     """
     if not README.is_file():
         pytest.skip("README.md 不存在")
 
     m = _README_COUNT.search(README.read_text(encoding="utf-8"))
     assert m, (
-        "README 里找不到「**共 N 个**」这句数量声明。清单搬去 "
-        "docs/route-inventory.md 之后，这句是 README 与源码之间唯一的接口契约。"
+        "README 里找不到「**共 N 个**：GET a / POST b / DELETE c / WebSocket d」"
+        "这句数量声明。清单搬去 docs/route-inventory.md 之后，这句是 README 与"
+        "源码之间唯一的接口契约。"
     )
-    stated = int(m.group(1))
+    stated_total, *stated_parts = (int(g) for g in m.groups())
+    stated = dict(zip(("GET", "POST", "DELETE", "WS"), stated_parts))
 
-    actual = len(_routes_in_source())
-    assert actual >= _MIN_EXPECTED_ROUTES, (
-        f"源码侧只抽出 {actual} 条路由，抽取逻辑可能坏了——先修那个，别比数字。"
+    source = _routes_in_source()
+    assert len(source) >= _MIN_EXPECTED_ROUTES, (
+        f"源码侧只抽出 {len(source)} 条路由，抽取逻辑可能坏了——先修那个，别比数字。"
     )
-    assert stated == actual, (
-        f"README 说「共 {stated} 个」，源码里实际 {actual} 条。\n"
+    actual = {method: sum(1 for m_, _ in source if m_ == method)
+              for method in ("GET", "POST", "DELETE", "WS")}
+
+    assert stated_total == len(source) and stated == actual, (
+        f"README 的数量声明与源码对不上。\n"
+        f"  README：共 {stated_total} 个 {stated}\n"
+        f"  源码  ：共 {len(source)} 个 {actual}\n"
         f"路由是冻结的（设计文档 C5），两边不一致多半是加了/删了接口没同步这两处。"
     )
 
