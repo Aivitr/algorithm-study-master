@@ -1,5 +1,9 @@
 # 智能协作学习系统
 
+这是一个基于AI技术的智能协作学习平台,通过实时音视频分析、自然语言处理和情绪识别技术,为师生提供智能化的教学支持与学习评估。系统支持教师/学生多角色协作,实现教学过程的全程智能监控、即时反馈和数据分析。
+
+---
+
 ## 快速开始（容器，一条命令）
 
 ```bash
@@ -21,10 +25,7 @@ docker compose up --build
 | `.env.dev` | 整份 | compose 里是 `required: true`，缺了当场报错。`cp .env.dev.example .env.dev` 即可 |
 
 数据库指向**按环境分层**：`.env.dev` 连本机容器（`dev`），`.env.prod` 连线上 RDS（`prod`），
-由 `APP_ENV` 选择。两份都**不进版本库**，仓库里只有它们的 `.example` 模板。
-细节（含"为什么不用 MySQL 顶替"）见 `deploy/docker.md`。
-
-> 代价：`db` 镜像 2.31 GB，常驻约 2 GB 内存。不用时 `docker compose stop db`。
+由 `APP_ENV` 选择。
 
 ### 本地开发怎么干活
 
@@ -50,6 +51,21 @@ docker compose exec -T db bash -c \
    -C -b -d cscl_db -Q "SELECT COUNT(*) FROM users"'
 ```
 
+### 测试
+
+```bash
+./venv/Scripts/python.exe -m pytest        # 宿主上跑，日常推荐
+docker compose exec app python -m pytest   # 容器里跑
+```
+
+> ⚠️ **不要跑裸 `pytest`。** `pytest.ini` 里的 `testpaths = tests_safe` 是隔离闸门，
+> 绕过它会让测试去连真实库。
+
+只有 `tests_safe/` 会被收集，它是**唯一**的测试套件：其中相当一部分是重构期间钉住行为
+等价性的守卫（路由契约、模块搬家、路径锚点、容器资产），不只是功能测试。
+容器内跑法下按 `deploy/docker.md` 有 1 条既知基线失败，**不要重录基线**。
+细节见 `tests_safe/README.md`。
+
 ## 运行（不用容器，手工装环境）
 
 ```bash
@@ -71,15 +87,15 @@ python server.py
 ## 配置
 - 复制 `.env.example` 为 `.env`
 - 数据库指向放在 `.env.dev`（本机）或 `.env.prod`（线上），见上方快速开始
-- 需要线上 AI / 阿里云 / OSS 时再填写对应环境变量
+- 需要线上 AI / 阿里云 / OSS / Agora 时再填写对应环境变量
+
+按 `APP_ENV` 分层加载，优先级是**进程环境变量 > `.env.<APP_ENV>` > `.env`**
+（逐层 `setdefault`，所以外层显式给出的值永远赢）。实现在
+`app/core/config.py::_load_dotenv`。
 
 ## 可选依赖
 - 阿里本地语音识别 `requirements_funasr.txt`
 - 性能优化/GPU加速 `requirements_enhanced_runtime.txt`
-
-## 项目简介
-
-这是一个基于AI技术的智能协作学习平台,通过实时音视频分析、自然语言处理和情绪识别技术,为师生提供智能化的教学支持与学习评估。系统支持教师/学生多角色协作,实现教学过程的全程智能监控、即时反馈和数据分析。
 
 ## 核心功能
 
@@ -104,147 +120,6 @@ python server.py
 - **语音识别**: 阿里云语音识别服务,实时语音转文字
 - **视觉分析**: OpenCV + Haar级联分类器实现人脸检测和情绪识别
 - **知识图谱**: 自动从对话中提取概念和关系,构建可视化知识网络
-
-## 技术架构
-
-### 后端技术栈
-- **框架**: FastAPI + WebSocket
-- **数据库**: MySQL (远程数据库)
-- **AI服务**: DeepSeek LLM + 阿里云语音识别
-- **视觉处理**: OpenCV + NumPy
-- **音视频处理**: FFmpeg
-
-### 前端技术栈
-- **框架**: Vue.js 2.x
-- **样式**: TailwindCSS
-- **图表**: ECharts (知识图谱可视化)
-- **通信**: WebSocket + Axios
-
-## 快速开始
-
-### 1. 环境要求
-- Python 3.8+
-- FFmpeg 4.3+
-- MySQL 5.7+ (或使用远程数据库)
-
-### 2. 安装依赖
-
-
-# 克隆项目
-git clone <your-repo-url>
-cd algorithm-study-master
-
-# 创建虚拟环境
-python -m venv venv
-
-# 激活虚拟环境 (Windows)
-venv\Scripts\activate
-# 激活虚拟环境 (Linux/Mac)
-source venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-
-### 3. 配置数据库和API密钥
-
-编辑 `database.py`:
-
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://username:password@host:port/database"
-
-
-编辑 `llm_service.py`:
-
-API_KEY = "your-deepseek-api-key"
-
-
-### 4. 启动服务
-
-
-python server.py
-
-
-访问 `http://localhost:8000`
-
-### 5. 测试并发性能
-
-
-python test_concurrent_users.py
-
-
-## 项目结构
-
-
-algorithm-study-master/
-├── server.py                      # 主服务器（FastAPI 入口）
-├── index.html                     # 前端界面
-├── pcm-processor.js               # 前端音频采集脚本（`GET /pcm-processor.js`）
-├── haarcascade_frontalface_default.xml   # 人脸检测模型（video_processor 在仓库根找它）
-├── conftest.py / pytest.ini       # 测试隔离闸门，只收集 tests_safe/
-├── Dockerfile / docker-compose.yml / .dockerignore
-├── requirements*.txt              # 基础 / dev / lock / 两套可选运行时
-├── app/                           # 应用代码
-│   ├── core/                      # 配置、数据库、路径锚点
-│   ├── models/                    # ORM 模型
-│   ├── routers/                   # HTTP 路由
-│   ├── realtime/                  # WebSocket 与实时链路
-│   └── services/                  # LLM / 语音 / 视频 / 知识图谱等服务
-├── static/                        # 前端资源（css / js / img / vendor）
-├── db/                            # schema.sql + init.sh（生产开发通用建库）
-├── deploy/                        # 部署文档与配置模板
-├── docs/                          # 文档与验收笔记
-├── tests_safe/                    # 唯一被收集的测试套件
-├── tools/                         # 一次性 / 运维脚本
-├── enhanced_bridge_templates/     # 可选：说话人 / 音视频增强的桥接模板
-├── _tmp_agora_token_builder/      # server.py 追加进 sys.path 的小工具
-├── archive/                       # 已归档的代码与文档（不参与运行，未删除）
-├── storage/ / uploads/            # 运行时数据（不进版本库）
-└── venv/                          # 本地虚拟环境（不进版本库）
-
-
-## 数据库表结构
-
-### 核心表
-- **users**: 用户信息 (支持teacher/student角色)
-- **meetings**: 课堂信息 (包含教学设计、知识点)
-- **transcripts**: 对话记录 (实时语音转文字)
-- **emotion_logs**: 情绪日志
-- **ai_insights**: AI提示记录
-
-### 扩展表
-- **knowledge_graphs**: 知识图谱数据
-- **graph_nodes**: 图谱节点
-- **graph_edges**: 图谱边
-- **learning_reports**: 学习报告
-- **exercises**: 习题库
-- **student_answers**: 学生作答记录
-- **mental_health_assessments**: 心理健康评估
-
-## API接口
-
-### 登录相关
-- `POST /login` - 登录或创建课堂
-
-### 课堂功能
-- `GET /summary?meeting_id=<id>` - 获取课堂总结
-- `GET /api/knowledge-graph/<meeting_id>` - 获取知识图谱
-- `POST /api/generate-report` - 生成学习报告
-- `GET /api/reports/<user_id>` - 获取用户所有报告
-
-### WebSocket
-- `WS /ws/<username>/<meeting_id>` - 实时通信
-
-## 部署指南
-
-
-### 生产环境部署要点
-1. 使用Nginx反向代理
-2. 配置SSL证书(Let's Encrypt)
-3. 使用Systemd管理服务
-4. 配置日志轮转
-5. 设置防火墙规则
-6. 数据库定期备份
-
 
 ## 使用示例
 
@@ -271,6 +146,242 @@ algorithm-study-master/
 - 学生查看个人报告和习题
 - 查看知识图谱了解讨论结构
 
+## 技术架构
+
+### 后端
+
+| 项 | 实际用的 |
+|---|---|
+| 框架 | FastAPI + Starlette + Uvicorn（含 WebSocket） |
+| 数据库 | **SQL Server 2022**（线上是远程实例），经 `pymssql` 走 **TDS** 协议 |
+| ORM | SQLAlchemy 2.x，模型在 `app/models/` |
+| 大模型 | DeepSeek API（走 `openai` SDK 的兼容接口） |
+| 语音识别 | 阿里云 NLS 实时转写，Token 的签发与刷新在 `app/services/ai_core.py`；另有浏览器端 Web Speech 兜底，见 `POST /api/browser-asr-final` |
+| 视觉处理 | OpenCV（Haar 级联），模型文件 `haarcascade_frontalface_default.xml` 在仓库根 |
+| 音视频处理 | FFmpeg —— **装在容器镜像里**（`apt-get install ffmpeg`），不是宿主的前置依赖 |
+| 运行环境 | Python **3.12**（`Dockerfile` 写死 `python:3.12-slim`，与开发机 venv 同大版本） |
+
+### 前端
+
+| 项 | 实际用的 |
+|---|---|
+| 框架 | Vue 2.6.14 + Tailwind 2.2.19 |
+| 图表 | ECharts 5.4.0（知识图谱、统计图） |
+| 通信 | Axios 1.20.0 + WebSocket |
+| 实时音视频 | Agora RTC SDK 4.22.0（`static/vendor/agora/`） |
+| 渲染 | marked 15.0.12（报告里的 Markdown） |
+| 图标与字体 | Font Awesome 6.0.0、Inter |
+
+上述前端库**全部本地化在 `static/vendor/` 下，页面不依赖公网 CDN**。
+每个文件的来源、版本与 SHA256 在 `static/vendor/SOURCES.json`，由
+`tools/vendor_frontend.py` 生成，**请勿手改**。
+
+## 项目结构
+
+```
+algorithm-study-master/
+├── server.py                      # 主服务器（FastAPI 入口）
+├── index.html                     # 前端界面
+├── pcm-processor.js               # 前端音频采集脚本（`GET /pcm-processor.js`）
+├── haarcascade_frontalface_default.xml   # 人脸检测模型（video_processor 在仓库根找它）
+├── conftest.py / pytest.ini       # 测试隔离闸门，只收集 tests_safe/
+├── .env.example                   # 共享密钥模板（.env / .env.dev / .env.prod 都由它派生）
+├── Dockerfile / docker-compose.yml / .dockerignore
+├── requirements*.txt              # 基础 / dev / lock / 两套可选运行时
+├── app/                           # 应用代码
+│   ├── core/                      # 配置、数据库、路径锚点
+│   ├── models/                    # ORM 模型
+│   ├── routers/                   # HTTP 路由
+│   ├── realtime/                  # WebSocket 与实时链路
+│   └── services/                  # LLM / 语音 / 视频 / 知识图谱等服务
+├── static/                        # 前端资源（css / js / img / vendor）
+├── db/                            # schema.sql + init.sh（生产开发通用建库）
+├── deploy/                        # 部署文档与配置模板
+├── docs/                          # 文档与验收笔记
+├── tests_safe/                    # 唯一被收集的测试套件
+├── tools/                         # 一次性 / 运维脚本
+├── enhanced_bridge_templates/     # 可选：说话人 / 音视频增强的桥接模板
+├── _tmp_agora_token_builder/      # server.py 追加进 sys.path 的小工具
+├── archive/                       # 已归档的代码与文档（不参与运行，未删除）
+├── storage/ / uploads/            # 运行时数据（不进版本库）
+└── venv/                          # 本地虚拟环境（不进版本库）
+```
+
+> 根目录那几样"看着该挪走"的东西**动不得**：`download_enhanced_open_models.py`、
+> 三个 `.ps1`、`enhanced_bridge_templates/` 的路径由 `GET /api/research-runtime`
+> 原样返回给调用方，`tests_safe/test_research_assets.py` 断言它们就在仓库根。
+
+## 数据库表结构
+
+### 核心表
+- **users**: 用户信息 (支持teacher/student角色)
+- **meetings**: 课堂信息 (包含教学设计、知识点)
+- **transcripts**: 对话记录 (实时语音转文字)
+- **emotion_logs**: 情绪日志
+- **ai_insights**: AI提示记录
+
+### 扩展表
+- **knowledge_graphs**: 知识图谱数据
+- **graph_nodes**: 图谱节点
+- **graph_edges**: 图谱边
+- **learning_reports**: 学习报告
+- **exercises**: 习题库
+- **student_answers**: 学生作答记录
+- **mental_health_assessments**: 心理健康评估
+
+建表脚本是 `db/schema.sql`（生产开发通用、可重复执行）。它是**从生产导出的冻结快照**，
+模型改了它不会跟着改；重新生成的命令记在 `docs/待验收事项.md` A33。
+
+## API接口
+
+**共 59 个**：GET 28 / POST 26 / DELETE 2 / WebSocket 3。地址与输入输出**已冻结**
+（设计文档 C5），改动会让 `tests_safe/test_route_contract.py` 与
+`tests_safe/baselines/routes.json` 报红。
+
+> 下表与 `docs/route-inventory.md`（从运行中的 app 机器枚举，另含"能否纳入测试基线"
+> 的分类）是同一个真相的两个投影，由 `tests_safe/test_readme_routes.py` 钉住三者一致。
+
+### 页面与静态资源
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/` | 主界面（`index.html`） |
+| `GET` | `/pcm-processor.js` | 前端音频采集脚本 |
+| `GET` | `/voiceprint_register` | 声纹注册页 |
+
+> `GET /voiceprint_register` 是**既知死路由**——它 `FileResponse` 的
+> `voiceprint_register.html` 全仓不存在，任何调用都会抛 `RuntimeError`。
+> 已登记为 A4，按约定保持原样。
+
+### 登录相关
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/register` | 注册新用户 |
+| `POST` | `/api/login` | 登录 |
+| `POST` | `/login` | 统一登录：学生端加入课堂 / 教师端创建课堂 |
+
+### 课堂与实时
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/summary` | 课堂总结（查询参数 `meeting_id`） |
+| `GET` | `/api/meeting/{meeting_id}` | 课堂详情 |
+| `GET` | `/api/transcripts/{meeting_id}` | 对话记录 |
+| `GET` | `/api/knowledge-graph/{meeting_id}` | 知识图谱 |
+| `GET` | `/api/snapshot/{meeting_id}` | 课堂快照 |
+| `GET` | `/api/get-video-context` | 视频上下文 |
+| `GET` | `/api/agora-token` | Agora 频道 Token |
+| `POST` | `/api/end-class` | 结束课堂 |
+| `POST` | `/api/suggest-topic` | 建议讨论话题 |
+| `POST` | `/api/quick-decompose` | 课题快速拆解 |
+| `POST` | `/api/cluster-viewpoints` | 观点聚类 |
+| `POST` | `/api/ai-tutor` | AI 辅导 |
+| `POST` | `/api/ai-tutor-stream` | AI 辅导（流式） |
+| `POST` | `/api/check-silence` | 冷场检测 |
+| `POST` | `/api/check-quiet-members` | 沉默成员检测 |
+| `POST` | `/api/browser-asr-final` | 浏览器端语音识别的最终结果回传 |
+
+### 统计与情绪
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/realtime-stats/{meeting_id}` | 实时统计 |
+| `GET` | `/api/emotion-details/{meeting_id}` | 情绪明细 |
+| `GET` | `/api/class-history/{user_id}` | 上课历史 |
+| `GET` | `/api/student-home-stats/{user_id}` | 学生首页统计 |
+| `GET` | `/api/active-groups/{teacher_id}` | 活跃小组 |
+| `GET` | `/api/teacher-templates/{teacher_id}` | 教师的模板 |
+| `DELETE` | `/api/delete-template/{template_id}` | 删除模板 |
+| `GET` | `/api/teacher-stats/{teacher_id}` | 教师统计 |
+| `GET` | `/api/teacher-classes/{teacher_id}` | 教师名下课堂 |
+| `GET` | `/api/class-groups/{meeting_id}` | 课堂分组 |
+| `GET` | `/api/all-student-reports/{teacher_id}` | 全班学习报告 |
+
+### 报告与习题
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/generate-report` | 生成学习报告 |
+| `POST` | `/api/generate-report-stream` | 生成学习报告（流式） |
+| `GET` | `/api/reports/{user_id}` | 用户的所有报告 |
+| `GET` | `/api/meeting-reports/{meeting_id}` | 课堂的报告 |
+| `GET` | `/api/exercises/{report_id}` | 报告对应的习题 |
+| `GET` | `/api/download-exercises/{report_id}` | 下载习题 |
+| `POST` | `/api/generate-pdf-report` | 生成 PDF 报告 |
+| `POST` | `/api/quiz-error-analysis` | 错题分析 |
+| `POST` | `/api/grade-short-answer` | 简答题批改 |
+| `POST` | `/api/submit-answer` | 提交作答 |
+| `GET` | `/api/student-quiz-history/{user_id}` | 答题历史 |
+
+### 观点投票
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/cast-vote` | 投票 |
+| `POST` | `/api/close-vote` | 结束投票 |
+| `POST` | `/api/confirm-vote` | 确认投票结果 |
+
+### 声纹
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/voiceprint/register` | 注册声纹 |
+| `POST` | `/api/voiceprint/verify` | 校验声纹 |
+| `POST` | `/api/voiceprint/identify` | 声纹识别（说话人是谁） |
+| `GET` | `/api/voiceprint/status/{username}` | 某人的声纹状态 |
+| `DELETE` | `/api/voiceprint/unregister/{username}` | 注销声纹 |
+| `GET` | `/api/voiceprint/users` | 已注册声纹的用户 |
+
+### 运维 / 研究运行时
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/research-runtime` | 运行时状态 |
+| `POST` | `/api/research-runtime/config` | 改运行时配置 |
+| `POST` | `/api/research-runtime/prepare-layout` | 准备模型目录布局 |
+
+### WebSocket
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `WS` | `/ws/{username}/{meeting_id}` | 课堂主链路 |
+| `WS` | `/ws-signal/{username}/{meeting_id}` | 信令 |
+| `WS` | `/ws-asr/{username}/{meeting_id}` | 实时语音转写 |
+
+## 文档在哪
+
+| 想看什么 | 去哪 |
+|---|---|
+| 为什么这么搭、怎么跑起来 | `deploy/docker.md` |
+| 上线部署 | `deploy/README.md` |
+| 接口清单 + 测试基线覆盖 | `docs/route-inventory.md` |
+| 重构期间发现的问题与**待你定夺**的事项 | `docs/待验收事项.md` |
+| 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
+| 功能层面（面向使用者） | `docs/功能介绍文档.md` |
+| 从零装环境 | `docs/安装及使用.md` |
+| OSS 配置 | `docs/OSS配置指南.md` |
+
+> `docs/DEPLOYMENT.md` 是**陈旧史料**：内容是 MySQL/pymysql/3308 时代的，与实际实现
+> （SQL Server/pymssql）不符，照它部署得不到可用系统。保留只为留痕，不要照做。
+
+## 部署指南
+
+### 生产环境部署要点
+1. 使用Nginx反向代理
+2. 配置SSL证书(Let's Encrypt)
+3. 使用Systemd管理服务
+4. 配置日志轮转
+5. 设置防火墙规则
+6. 数据库定期备份
+
+具体步骤见 `deploy/README.md`（`nginx-smartclass1.conf`、`smartclass1.service`、
+`smartclass1.env.example` 三个模板也在那里）。建库用同一份 `db/schema.sql`：
+
+```bash
+sqlcmd -S <host> -U <user> -P <password> -d cscl_db -i db/schema.sql
+```
+
 ## 许可证
 
 MIT License
@@ -280,12 +391,10 @@ MIT License
 如有问题或建议,请通过以下方式联系:
 - 邮箱: dai13576381980@qq.com
 
-
-致谢
+## 致谢
 
 - DeepSeek: LLM服务提供
 - 阿里云: 语音识别服务
 - OpenCV: 视觉处理库
 - FastAPI: 高性能Web框架
 - Vue.js: 前端框架
-
