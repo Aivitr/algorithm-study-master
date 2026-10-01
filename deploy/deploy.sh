@@ -120,7 +120,7 @@ create_venv() {
         pip install -r requirements.txt
     else
         log_warn "未找到 requirements.txt, 安装基础依赖..."
-        pip install fastapi uvicorn[standard] sqlalchemy pymysql opencv-python numpy openai aiohttp websockets python-multipart
+        pip install fastapi uvicorn[standard] sqlalchemy pymssql opencv-python numpy openai aiohttp websockets python-multipart
     fi
 
     deactivate
