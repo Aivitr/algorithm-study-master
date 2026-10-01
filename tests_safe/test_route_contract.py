@@ -16,17 +16,17 @@
 
 为什么阶段 3 必须先有它
 ----------------------
-设计文档 §4.1 要求把 `server.py` 拆成 13 个路由模块（按业务域，不按 URL 前缀）。
+`server.py` 被拆成 13 个路由模块（按业务域，不按 URL 前缀）。
 拆分过程中每个 `@app.post(...)` 装饰器都要挪一次位置，**地址字符串就在那行里**。
 改错一个字符的前缀（`/api/` 写成 `/apis/`），应用照样能启动、绝大多数测试照样能过，
 但 nginx 的反代会当场 404——线上表现为"整个功能消失"。
 
-设计文档 §4.1 因此明确要求：「路由前缀契约……必须在测试中断言」。
+正因如此，「路由前缀契约……必须在测试中断言」。
 本文件即该项。
 
 59 这个数字
 -----------
-C3 冻结的是「59 个接口」。实测枚举得 **56 条 HTTP + 3 条 WebSocket = 59**，
+接口契约冻结的是「59 个接口」。实测枚举得 **56 条 HTTP + 3 条 WebSocket = 59**，
 与 `docs/route-inventory.md` 一致。其余 5 条（`/storage` 挂载、`/docs`、
 `/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 59，
 但同样需要钉住——重构时误删 `app.mount("/storage", ...)` 会让所有 OSS 素材 404。
@@ -36,7 +36,7 @@ import pytest
 from fastapi.routing import APIRoute
 from starlette.routing import Mount, WebSocketRoute
 
-# nginx 硬编码的前缀（设计文档 §4.1）。生产 nginx 配置按这三个前缀做反代，
+# nginx 硬编码的前缀。生产 nginx 配置按这三个前缀做反代，
 # 仓库里没有它的副本，改了前缀在本地**测不出来**——只能靠这条契约挡。
 NGINX_PREFIXES = (
     "/api/",
@@ -176,7 +176,7 @@ WS_ROUTES = [
     "/ws/{username}/{meeting_id}",
 ]
 
-# 框架自带（不计入 C3 的 59，但误删同样是故障）
+# 框架自带（不计入冻结的 59，但误删同样是故障）
 FRAMEWORK_ROUTES = [
     ("Route", "", "/docs"),
     ("Route", "", "/docs/oauth2-redirect"),
@@ -203,13 +203,13 @@ def actual_routes(local_app):
 
 
 def test_frozen_interface_count_is_59():
-    """C3 冻结的「59 个接口」= 56 条 HTTP + 3 条 WebSocket。
+    """契约冻结的「59 个接口」= 56 条 HTTP + 3 条 WebSocket。
 
-    这条断言把 C3 的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
+    这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
     路由，这里会先失败，逼他确认"59"这个对外承诺是否也要改。
     """
     assert len(HTTP_ROUTES) + len(WS_ROUTES) == 59, (
-        f"C3 冻结 59 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+        f"契约冻结 59 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 
@@ -290,7 +290,7 @@ def test_nginx_prefixes_are_intact(actual_routes, prefix):
     matched = [p for _, _, p in actual_routes if p.startswith(prefix)]
     assert matched, (
         f"前缀 {prefix!r} 下一条路由都没有。nginx 按此前缀反代，"
-        f"该前缀消失等于线上对应功能整体 404（设计文档 §4.1）。"
+        f"该前缀消失等于线上对应功能整体 404。"
     )
 
 

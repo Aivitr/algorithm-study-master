@@ -4,7 +4,7 @@
 > **方法**：逐个文件通读源码定性；所有结论均给出文件与行号。
 > **本审计未运行任何遗留测试或脚本**——理由见 §1.1。
 
-本文件回答设计文档 §7.2 的第一个必做动作：「抢救已有测试」。
+本文件回答必做动作之一：「抢救已有测试」。
 结论是：**只有一小部分值得抢救，且抢救方式不是"让它们跑起来"**。
 
 ---
@@ -29,7 +29,7 @@ mssql+pymssql://<生产库用户>:***@<生产 RDS 主机名>:3433/cscl_db
 ```
 
 `_ensure_transcripts_columns()` 会对 `transcripts` 执行 inspect，缺列时发
-`ALTER TABLE transcripts ADD ...`（异常被吞掉，见设计文档 §3.11）。
+`ALTER TABLE transcripts ADD ...`（异常被吞掉）。
 
 **因此 `pytest.ini` 的 `testpaths = tests_safe` 不是风格偏好，是安全闸门。**
 本审计全程未运行 `tests/` 下任何文件，也未用 `--collect-only` 绕过它。

@@ -58,7 +58,7 @@ def _summary() -> dict:
 
 
 def test_summary_exposes_exactly_the_contracted_keys():
-    """键集不能变——它直接构成 `/api/research-runtime` 的响应结构（C3）。"""
+    """键集不能变——它直接构成 `/api/research-runtime` 的响应结构。"""
     assert set(_summary()) == EXPECTED_KEYS
 
 

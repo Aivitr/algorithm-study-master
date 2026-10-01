@@ -94,7 +94,7 @@ ops-scripts/
 
 **注意事项**：`detect_oss_region.py` 会**真实外连**多个阿里云 OSS endpoint，
 `diagnose_agora.py` 会连 Agora 网关。二者都读取 `.env` 中的真实密钥。
-源码含大量 `[EMOJI]` 占位（设计文档 §3.5 的注释污染），逐行读会难以理解——
+源码含大量 `[EMOJI]` 占位（注释污染），逐行读会难以理解——
 `detect_oss_region.py` 的 `ENDPOINTS` 列表是少数不受影响的部分。
 
 ---
@@ -106,16 +106,16 @@ ops-scripts/
 | `modify_backend.py` | 按模式批量改写 `server.py` |
 | `update_backend.py` | 同上，另一套规则 |
 | `update_frontend.py` | 批量改写前端 |
-| `remove_all_emojis.py` | 清理 `[EMOJI]` 占位（设计文档 §3.5 的污染清理工具） |
+| `remove_all_emojis.py` | 清理 `[EMOJI]` 占位（污染清理工具） |
 | `temp_fix.py` | **0 字节空文件** |
 
 ### 为什么在这里
 
-**这些脚本会原地改写 `server.py` 等源文件**——它们正是设计文档 §3.5 那批
+**这些脚本会原地改写 `server.py` 等源文件**——它们正是那批
 注释污染的**来源**。保留它们有明确价值：它们是「这些文件为什么变成这样」的
 唯一证据。**不要运行它们。**
 
-`temp_fix.py` 是 0 字节文件。保留原样（C2：不删除文件）；它证明了曾经有过一个
+`temp_fix.py` 是 0 字节文件。保留原样（不删除文件）；它证明了曾经有过一个
 「临时修复」，但内容已丢失。
 
 ---
