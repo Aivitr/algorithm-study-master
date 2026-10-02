@@ -12,10 +12,19 @@ cp .env.dev.example .env.dev      # 开发库指向，照抄即可，不用改
 docker compose up --build
 ```
 
-打开 <http://127.0.0.1:8000>。
-
 `up` 会按顺序拉起三个服务：`db`（SQL Server 2022，数据落命名卷）、
 `db-init`（一次性跑 `db/schema.sql` 建库，跑完退出）、`app`。
+
+打开 <http://127.0.0.1:8000>。
+
+
+>首次构建或依赖变更后重建时，如果 Debian 软件包下载较慢，可切换到 USTC 镜像：
+> ```powershell
+> $env:DEBIAN_MIRROR='https://mirrors.ustc.edu.cn/debian'
+> docker compose up --build
+> ```
+>这是可选的加速设置。日常启动已构建的项目运行 `docker compose up -d` 即可。
+
 
 **必填项**——只有这两处，其余 50 个键都有默认值：
 
