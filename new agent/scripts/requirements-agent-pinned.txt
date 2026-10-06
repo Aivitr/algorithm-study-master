@@ -1,0 +1,33 @@
+# 课堂小组分析 Agent（group_analysis_agent.py）运行所需的最小依赖
+# 版本与本机已验证可用的环境一致（Python 3.12 / Windows）
+#
+# 用法：
+#   powershell -ExecutionPolicy Bypass -File scripts\fetch_wheels.ps1
+#   python -m pip download --no-cache-dir -d wheels -r scripts\requirements-agent-pinned.txt
+#   python -m pip install --no-index --find-links wheels -r scripts\requirements-agent-pinned.txt
+#
+# 注意：
+#   * torch 的 wheel 约 118MB，下载耗时较长，它是声纹模块 resemblyzer 的依赖。
+#   * webrtcvad 在 Windows 上需要 MSVC 编译，装不上是正常的；
+#     用 compat/webrtcvad.py 这个纯 Python 实现顶上即可。
+#   * 不要安装 typing==3.7.x 这个旧 backport，它会遮蔽标准库 typing。
+#   * 研究增强模块（insightface / pyannote.audio / sentence-transformers / funasr 等）
+#     不是本 Agent 运行所必需，按需另行安装。
+
+fastapi==0.135.1
+uvicorn[standard]==0.41.0
+python-multipart==0.0.22
+sqlalchemy==2.0.48
+pymssql==2.3.13
+opencv-python==4.13.0.92
+numpy==2.4.3
+torch==2.14.0
+requests==2.32.5
+websocket-client==1.9.0
+openai==2.28.0
+oss2==2.19.1
+reportlab==4.4.10
+agora-token-builder==1.0.0
+librosa==1.0.0
+resemblyzer==0.1.4
+pillow==12.1.1

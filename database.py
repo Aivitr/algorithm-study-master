@@ -10,13 +10,18 @@ from datetime import datetime
 # 数据库配置 - 阿里云 RDS SQL Server
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./storage/app.db")
 
+# connect_args 需按方言区分：login_timeout 是 pymssql 专属参数，SQLite 不支持
+if SQLALCHEMY_DATABASE_URL.startswith("mssql"):
+    _connect_args = {'timeout': 10, 'login_timeout': 10}
+elif SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    _connect_args = {'timeout': 10}
+else:
+    _connect_args = {}
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     poolclass=NullPool,  # 无连接池
-    connect_args={
-        'timeout': 10,
-        'login_timeout': 10
-    }
+    connect_args=_connect_args
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -205,9 +210,12 @@ Index('idx_transcript_meeting_user', Transcript.meeting_id, Transcript.user_id)
 Index('idx_emotion_meeting_user', EmotionLog.meeting_id, EmotionLog.user_id)
 Index('idx_exercise_report', Exercise.report_id)
 
-# [EMOJI]
-# try: Base.metadata.create_all(bind=engine)
-# except: pass
+# 本地 SQLite 模式自动建表；远程 MSSQL 沿用既有表结构
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[DB_INIT] create_all skipped: {e}")
 
 
 def _ensure_transcripts_columns():

@@ -9,7 +9,10 @@ from typing import Dict, List, Optional
 
 
 def _has_module(name: str) -> bool:
-    return importlib.util.find_spec(name) is not None
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
 
 
 def _normalize_vector(vector) -> Optional[List[float]]:

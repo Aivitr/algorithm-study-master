@@ -1929,6 +1929,23 @@ async def register(
     except:
         print(f"[NOTE] Register request received")
 
+    # 未配置远程 MSSQL 时回退到本地 SQLite（默认 sqlite:///./storage/app.db）
+    if not (os.getenv("DB_HOST") and os.getenv("DB_NAME")):
+        db = SessionLocal()
+        try:
+            if db.query(User).filter(User.student_id == student_id).first():
+                return {"status": "error", "message": "学号/用户名已存在"}
+            db.add(User(student_id=student_id, username=username, password=password, role=role))
+            db.commit()
+            print("[OK] Registration successful (sqlite)")
+            return {"status": "success", "message": "注册成功"}
+        except Exception as e:
+            db.rollback()
+            print(f"[ERROR] Registration failed: {e}")
+            return {"status": "error", "message": f"注册失败: {e}"}
+        finally:
+            db.close()
+
     import pymssql
     try:
         conn = pymssql.connect(
@@ -1974,6 +1991,30 @@ async def api_login(
 ):
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
+
+    # 未配置远程 MSSQL 时回退到本地 SQLite（默认 sqlite:///./storage/app.db）
+    if not (os.getenv("DB_HOST") and os.getenv("DB_NAME")):
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.student_id == student_id).first()
+            if not user or user.password != password:
+                print(f"[ERROR] Invalid credentials: {student_id}")
+                return {"status": "error", "message": "学号/密码错误"}
+            print(f"[OK] Login success (sqlite): {user.username} ({user.role})")
+            return {
+                "status": "success",
+                "user": {
+                    "id": user.id,
+                    "student_id": user.student_id,
+                    "username": user.username,
+                    "role": user.role
+                }
+            }
+        except Exception as e:
+            print(f"[ERROR] Login failed: {e}")
+            return {"status": "error", "message": f"登录失败: {e}"}
+        finally:
+            db.close()
 
     import pymssql
     import time
@@ -5891,6 +5932,9 @@ async def get_student_quiz_history(user_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"[ERROR] student-quiz-history: {e}")
         return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/upload-report-template")
 async def upload_report_template(
     template_file: UploadFile = File(...),
     teacher_id: int = Form(...),
