@@ -250,7 +250,7 @@ def _ensure_transcripts_columns():
 
 _ensure_transcripts_columns()
 
-def get_db():
+def get_db(): 
     db = SessionLocal()
     try: yield db
     finally: db.close()
