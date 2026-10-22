@@ -22,6 +22,7 @@ from app.models import Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.knowledge_trace_service import KnowledgeTraceService
 from app.services.llm_service import llm
+from app.services.meeting_context_service import MeetingContextService
 from app.services.transcript_query_service import TranscriptQueryService
 
 router = APIRouter()
@@ -43,18 +44,8 @@ async def get_knowledge_graph(meeting_id: int, db: Session = Depends(get_db)):
 
 @router.get("/api/meeting/{meeting_id}")
 async def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
-    """获取课堂信息（包括目标）"""
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        return {"status": "error", "message": "课堂不存在"}
-
-    return {
-        "status": "success",
-        "meeting_id": meeting.id,
-        "topic": meeting.topic,
-        "goals": meeting.knowledge_points or [],
-        "teaching_design": meeting.teaching_design
-    }
+    """获取课堂信息（包括状态、时间与目标）"""
+    return MeetingContextService(db).build_response(meeting_id)
 
 
 @router.get("/api/transcripts/{meeting_id}")
