@@ -15,19 +15,20 @@
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.emotions import normalize_emotion_label
-from app.models import EmotionLog, KnowledgeGraph, Meeting, Transcript
+from app.models import EmotionLog, KnowledgeGraph, Meeting
 from app.services.knowledge_graph_service import kg_service
 from app.services.llm_service import llm
+from app.services.transcript_query_service import TranscriptQueryService
 
 router = APIRouter()
 
 @router.get("/summary")
 async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
-    transcripts = db.query(Transcript).filter(Transcript.meeting_id == meeting_id).all()
+    transcripts = TranscriptQueryService(db).list_for_meeting(meeting_id)
     emotions = db.query(EmotionLog).filter(EmotionLog.meeting_id == meeting_id).all()
     emo_stats = {}
     for e in emotions:
@@ -71,9 +72,9 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
     """获取课堂历史发言（用于前端对话栏展示）"""
     try:
         limit = max(1, min(int(limit), 2000))
-        transcripts = db.query(Transcript).options(joinedload(Transcript.user)).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.created_at.asc()).limit(limit).all()
+        transcripts = TranscriptQueryService(db).list_for_meeting(
+            meeting_id, limit=limit
+        )
 
         items = []
         for t in transcripts:
