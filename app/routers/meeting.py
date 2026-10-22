@@ -18,9 +18,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import KnowledgeGraph, Meeting
+from app.models import Meeting
 from app.services.class_stats_service import ClassStatsService
-from app.services.knowledge_graph_service import kg_service
+from app.services.knowledge_trace_service import KnowledgeTraceService
 from app.services.llm_service import llm
 from app.services.transcript_query_service import TranscriptQueryService
 
@@ -38,13 +38,7 @@ async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
 @router.get("/api/knowledge-graph/{meeting_id}")
 async def get_knowledge_graph(meeting_id: int, db: Session = Depends(get_db)):
     """获取知识图谱"""
-    kg = db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
-    if not kg:
-        return {"status": "empty", "data": {"nodes": [], "edges": []}}
-
-    # 生成可视化数据
-    viz_data = kg_service.generate_graph_visualization_data(kg.graph_data)
-    return {"status": "success", "data": viz_data}
+    return KnowledgeTraceService(db).visualize(meeting_id)
 
 
 @router.get("/api/meeting/{meeting_id}")
