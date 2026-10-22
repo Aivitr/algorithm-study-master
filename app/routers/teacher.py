@@ -9,10 +9,9 @@
     GET    /api/class-groups/{meeting_id}             某节课的分组
     GET    /api/all-student-reports/{teacher_id}      全班报告汇总
 
-`_build_meeting_window_map` / `_build_meeting_activity_map` 取自
-`app/services/meeting_metrics.py`——它们同时服务学生统计域
-（`/api/student-home-stats`），因此住在中立的服务模块里（不能 `from server import`，
-见 `app/routers/__init__.py`）。
+`ClassStatsService`（`app/services/class_stats_service.py`）提供课堂活跃度聚合与评分口径，
+同时服务学生统计域（`/api/student-home-stats`），因此住在中立的服务模块里
+（不能 `from server import`，见 `app/routers/__init__.py`）。
 
 `sa_func`（`sqlalchemy.func` 的别名）是模块级别名，本组有聚合查询用到它。
 漏掉这个导入不会导入失败，只会执行到那条路由时 NameError，再被处理器的
@@ -27,10 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import Exercise, LearningReport, Meeting, Transcript, User
-from app.services.meeting_metrics import (
-    _build_meeting_activity_map,
-    _build_meeting_window_map,
-)
+from app.services.class_stats_service import ClassStatsService
 
 router = APIRouter()
 
@@ -103,17 +99,14 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
                 User.role != "teacher"
             ).scalar() or 0
 
-            activity_map = _build_meeting_activity_map(db, meeting_ids, exclude_teacher=True)
+            stats_service = ClassStatsService(db)
+            activity_map = stats_service.activity_map(meeting_ids, exclude_teacher=True)
             total_score = 0
             for meeting_id in meeting_ids:
                 activity = activity_map.get(meeting_id, {})
                 speech_count = int(activity.get("speech_count", 0))
                 member_count = int(activity.get("member_count", 0))
-                avg_speech = speech_count / max(member_count, 1)
-                base = min(60.0, avg_speech * 12.0)
-                volume = min(30.0, speech_count * 0.8)
-                breadth = min(10.0, member_count * 1.0)
-                score = int(min(100.0, base + volume + breadth))
+                score = stats_service.class_score(speech_count, member_count)
                 total_score += score
                 if score < 60:
                     risk_groups += 1
@@ -144,8 +137,9 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
         ).order_by(Meeting.created_at.desc()).all()
 
         meeting_ids = [int(m.id) for m in meetings]
-        activity_map = _build_meeting_activity_map(db, meeting_ids, exclude_teacher=True)
-        window_map = _build_meeting_window_map(db, meeting_ids)
+        stats_service = ClassStatsService(db)
+        activity_map = stats_service.activity_map(meeting_ids, exclude_teacher=True)
+        window_map = stats_service.window_map(meeting_ids)
 
         classes = []
         for m in meetings:
@@ -153,29 +147,13 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
             speech_count = int(activity.get("speech_count", 0))
             member_count = int(activity.get("member_count", 0))
 
-            avg_speech = speech_count / max(member_count, 1)
-            base = min(60.0, avg_speech * 12.0)
-            volume = min(30.0, speech_count * 0.8)
-            breadth = min(10.0, member_count * 1.0)
-            score = int(min(100.0, base + volume + breadth))
-
-            if score >= 80:
-                score_level = '优秀'
-                score_color = 'green'
-            elif score >= 60:
-                score_level = '良好'
-                score_color = 'yellow'
-            else:
-                score_level = '待提高'
-                score_color = 'red'
+            score = stats_service.class_score(speech_count, member_count)
+            score_level, score_color = stats_service.score_level(score)
             
             window = window_map.get(int(m.id), {})
-            first_at = window.get("first_at")
-            last_at = window.get("last_at")
-            if first_at and last_at:
-                duration_minutes = max(0, int((last_at - first_at).total_seconds() / 60))
-            else:
-                duration_minutes = 0
+            duration_minutes = stats_service.window_duration_minutes(
+                window.get("first_at"), window.get("last_at")
+            )
 
             classes.append({
                 "meeting_id": m.id,

@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.emotions import normalize_emotion_label
-from app.models import EmotionLog, KnowledgeGraph, Meeting
+from app.models import KnowledgeGraph, Meeting
+from app.services.class_stats_service import ClassStatsService
 from app.services.knowledge_graph_service import kg_service
 from app.services.llm_service import llm
 from app.services.transcript_query_service import TranscriptQueryService
@@ -29,11 +29,7 @@ router = APIRouter()
 @router.get("/summary")
 async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
     transcripts = TranscriptQueryService(db).list_for_meeting(meeting_id)
-    emotions = db.query(EmotionLog).filter(EmotionLog.meeting_id == meeting_id).all()
-    emo_stats = {}
-    for e in emotions:
-        emotion_key = normalize_emotion_label(e.emotion_type)
-        emo_stats[emotion_key] = emo_stats.get(emotion_key, 0) + 1
+    emo_stats = ClassStatsService(db).emotion_counts(meeting_id)
     full_text = "\n".join([f"{t.user.username}: {t.content}" for t in transcripts])
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     return llm.analyze_emotion_and_summary(meeting.topic, full_text, emo_stats)
