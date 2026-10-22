@@ -7,6 +7,8 @@ from collections import OrderedDict
 from typing import Dict, List, Any, Optional
 from openai import OpenAI
 
+from app.services.context_builder import normalize_context_lines, normalize_text
+
 # DeepSeek API Key
 API_KEY = os.getenv("LLM_API_KEY", "")
 BASE_URL = "https://api.deepseek.com"
@@ -109,25 +111,10 @@ class LLMService:
             return None
 
     def _normalize_text(self, text: Any, max_len: int = 500) -> str:
-        if text is None:
-            return ""
-        if not isinstance(text, str):
-            text = json.dumps(text, ensure_ascii=False)
-        text = " ".join(text.split())
-        return text[:max_len]
+        return normalize_text(text, max_len)
 
     def _normalize_context_lines(self, items: List[Any], max_items: int = 8, each_len: int = 80, total_len: int = 500) -> str:
-        lines = []
-        for item in items[-max_items:]:
-            if isinstance(item, dict):
-                user = item.get("username") or item.get("student_name") or item.get("user") or "用户"
-                content = item.get("content") or item.get("text") or item.get("speech") or ""
-                line = f"{user}: {self._normalize_text(content, each_len)}"
-            else:
-                line = self._normalize_text(item, each_len)
-            if line.strip():
-                lines.append(line)
-        return "\n".join(lines)[:total_len]
+        return normalize_context_lines(items, max_items, each_len, total_len)
 
     def _get_cache_key(self, method: str, *args, **kwargs) -> str:
         def normalize(obj):
