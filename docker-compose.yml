@@ -105,6 +105,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
     image: algorithm-study-master:dev
 
     # 关键：等 db-init **成功退出**再起 app。不这么写的话，app 会先起来连上一个

@@ -18,6 +18,7 @@ FROM python:3.12-slim AS dev
 # pip 索引，默认清华镜像。换个网络环境时覆盖：
 #   docker build --build-arg PIP_INDEX_URL=https://pypi.org/simple .
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG DEBIAN_MIRROR=http://deb.debian.org/debian
 
 # PyTorch 单独一套索引：CPU-only 轮子只在 pytorch.org 上，PyPI 上是 CUDA 版。
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
@@ -52,7 +53,8 @@ ENV PYTHONUNBUFFERED=1 \
 #   tzdata                  TZ=Asia/Shanghai 要它才有意义
 #
 # 用 `--no-install-recommends` 是常规操作，砍掉字体、文档之类几百 MB。
-RUN apt-get update \
+RUN sed -i "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
         ffmpeg \
         libgl1 \
