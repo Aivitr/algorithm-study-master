@@ -6,17 +6,17 @@
     GET /api/student-home-stats/{user_id}   学生首页统计
     GET /api/active-groups/{teacher_id}     某教师名下仍在进行的分组
 
-它们共用 `_build_meeting_window_map`——该辅助**也**被教师域的
-`/api/teacher-classes` 使用，因此住在中立的 `app/services/meeting_metrics.py`，
-本模块从那里导入（不能 `from server import`，见 `app/routers/__init__.py`）。
+它们共用 `ClassStatsService`（`app/services/class_stats_service.py`）提供的课堂窗口与
+活跃度聚合——该服务**也**被教师域的 `/api/teacher-classes` 使用（不能
+`from server import`，见 `app/routers/__init__.py`）。
 """
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import LearningReport, Meeting, Transcript, User
-from app.services.meeting_metrics import _build_meeting_window_map
+from app.models import LearningReport, Meeting, Transcript
+from app.services.class_stats_service import ClassStatsService
 
 router = APIRouter()
 
@@ -38,30 +38,16 @@ async def get_class_history(user_id: int, db: Session = Depends(get_db)):
 
         all_meetings = list(set(user_meetings + created_meetings))
 
+        stats = ClassStatsService(db)
+        window_map = stats.window_map([int(m.id) for m in all_meetings])
+
         history = []
         for m in all_meetings:
-            # 统计参与人数
-            participant_count = db.query(Transcript.user_id).filter(
-                Transcript.meeting_id == m.id
-            ).distinct().count()
-
-            # 获取报告
-            first_transcript = db.query(Transcript).filter(
-                Transcript.meeting_id == m.id
-            ).order_by(Transcript.created_at).first()
-            
-            last_transcript = db.query(Transcript).filter(
-                Transcript.meeting_id == m.id
-            ).order_by(Transcript.created_at.desc()).first()
-            
-            start_time = first_transcript.created_at if first_transcript else m.created_at
-            end_time = last_transcript.created_at if last_transcript else m.created_at
-
-            # 查询该用户在此会议的发言数
-            user_speech_count = db.query(Transcript).filter(
-                Transcript.meeting_id == m.id,
-                Transcript.user_id == user_id
-            ).count()
+            window = window_map.get(int(m.id), {})
+            start_time = window.get("first_at") or m.created_at
+            end_time = window.get("last_at") or m.created_at
+            participant_count = stats.participant_count(m.id)
+            user_speech_count = stats.user_speech_count(m.id, user_id)
 
             # 查询是否有报告
             has_report = db.query(LearningReport).filter(
@@ -113,7 +99,7 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
             }
 
         meetings = db.query(Meeting).filter(Meeting.id.in_(meeting_ids)).all()
-        window_map = _build_meeting_window_map(db, meeting_ids)
+        window_map = ClassStatsService(db).window_map(meeting_ids)
 
         active_classes = 0
         completed_classes = 0
@@ -152,34 +138,22 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
             Meeting.status == "active"
         ).all()
 
+        meeting_ids = [int(m.id) for m in meetings]
+        stats = ClassStatsService(db)
+        activity_map = stats.activity_map(meeting_ids, exclude_teacher=True)
+
         groups = []
         for m in meetings:
-            # 统计发言数
-            speech_count = db.query(Transcript).join(User, User.id == Transcript.user_id).filter(
-                Transcript.meeting_id == m.id,
-                User.role != "teacher"
-            ).count()
-
-            # 参与成员数（排除老师）
-            member_count = db.query(Transcript.user_id).join(User, User.id == Transcript.user_id).filter(
-                Transcript.meeting_id == m.id,
-                User.role != "teacher"
-            ).distinct().count()
+            activity = activity_map.get(int(m.id), {})
+            speech_count = int(activity.get("speech_count", 0))
+            member_count = int(activity.get("member_count", 0))
 
             # 计算活跃度（避免轻易封顶 100）
             avg_speech = speech_count / max(member_count, 1)
-            base = min(60.0, avg_speech * 12.0)          # 0~60：人均发言贡献
-            volume = min(30.0, speech_count * 0.8)       # 0~30：总体发言量
-            breadth = min(10.0, member_count * 1.0)      # 0~10：参与广度
-            score = int(min(100.0, base + volume + breadth))
+            score = stats.class_score(speech_count, member_count)
 
             # 状态标签
-            if speech_count < 5:
-                status_tag = "冷清"
-            elif avg_speech < 2:
-                status_tag = "一般"
-            else:
-                status_tag = "活跃"
+            status_tag = stats.active_status_tag(speech_count, avg_speech)
 
             groups.append({
                 "meeting_id": m.id,
