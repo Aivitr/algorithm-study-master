@@ -265,14 +265,18 @@
   },
   "GET /api/meeting/1": {
     "content_type": "application/json",
-    "digest": "0fdad0681c28fa7a",
-    "length": 107,
+    "digest": "119edf9e8687ed7f",
+    "length": 216,
     "shape": {
+      "class_status": "str",
+      "created_at": "str",
+      "ended_at": "str",
       "goals": [
         "list[0]",
         null
       ],
       "meeting_id": "int",
+      "started_at": "null",
       "status": "str",
       "teaching_design": "null",
       "topic": "str"
