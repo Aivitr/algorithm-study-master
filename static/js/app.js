@@ -197,6 +197,7 @@ new Vue({
         voteCounts: {},   // {viewpoint_id: count}
         myVote: null,     // 我投给哪个
         voteConfirmed: false, // 是否已确认选择
+        voteClosing: false, // 教师正在提交关闭投票请求（防连点）
         confirmedMembers: [], // 已确认选择的成员列表
         voteDecomposing: false, // 正在分解任务
         onlineMembers: [], // 在线成员列表
@@ -3946,17 +3947,24 @@ new Vue({
         },
         // 结束投票(教师或达到条件时)
         async closeVote() {
-            if (!this.currentVoteId) return;
+            if (!this.currentVoteId || this.voteClosing) return;
+            this.voteClosing = true;
             try {
                 const formData = new FormData();
                 formData.append('vote_id', this.currentVoteId);
                 formData.append('meeting_id', this.meetingId);
                 const res = await axios.post('/api/close-vote', formData);
                 if (res.data.status === 'success') {
-                    console.log('✅ 投票结束');
+                    if (res.data.already_closed) {
+                        console.log('ℹ️ 投票已经关闭，未重复执行');
+                    } else {
+                        console.log('✅ 投票结束');
+                    }
                 }
             } catch(e) {
                 console.error('结束投票错误:', e.message);
+            } finally {
+                this.voteClosing = false;
             }
         },
         // 确认观点选择完毕

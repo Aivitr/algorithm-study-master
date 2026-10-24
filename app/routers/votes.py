@@ -29,6 +29,34 @@ from app.services.llm_service import llm
 
 router = APIRouter()
 
+
+def _claim_vote_close(
+    db: Session,
+    vote_id: int,
+    meeting_id: int,
+    winner_id: int | None,
+) -> bool:
+    """原子取得投票关闭权，确保关闭后的副作用只执行一次。"""
+    updated_rows = (
+        db.query(ViewpointVote)
+        .filter(
+            ViewpointVote.id == vote_id,
+            ViewpointVote.meeting_id == meeting_id,
+            ViewpointVote.status == "active",
+        )
+        .update(
+            {
+                ViewpointVote.status: "closed",
+                ViewpointVote.winner_viewpoint_id: winner_id,
+                ViewpointVote.closed_at: datetime.now(),
+            },
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    return updated_rows == 1
+
+
 @router.post("/api/cast-vote")
 async def cast_vote(
     vote_id: int = Form(...),
@@ -87,12 +115,27 @@ async def close_vote(
 ):
     """老师关闭投票"""
     try:
-        from datetime import datetime
-        vote_record = db.query(ViewpointVote).filter(ViewpointVote.id == vote_id).first()
+        vote_record = (
+            db.query(ViewpointVote)
+            .filter(
+                ViewpointVote.id == vote_id,
+                ViewpointVote.meeting_id == meeting_id,
+            )
+            .first()
+        )
         if not vote_record:
-            return {"status": "error", "message": "投票不存在"}
+            return {"status": "error", "message": "投票不存在或不属于当前课堂"}
+
+        if vote_record.status != "active":
+            return {
+                "status": "success",
+                "already_closed": True,
+                "message": "投票已经关闭，本次未重复执行",
+            }
         
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
 
         # 统计票数
         votes = vote_record.votes or {}
@@ -111,11 +154,22 @@ async def close_vote(
         if not winner_viewpoint:
             return {"status": "error", "message": "未找到获胜观点"}
 
-        # 先关闭投票
-        vote_record.status = "closed"
-        vote_record.winner_viewpoint_id = int(winner_id)
-        vote_record.closed_at = datetime.now()
-        db.commit()
+        # 原子取得关闭权，只有一个请求可以继续产生后续副作用
+        claimed = _claim_vote_close(
+            db=db,
+            vote_id=vote_id,
+            meeting_id=meeting_id,
+            winner_id=int(winner_id),
+        )
+        if not claimed:
+            return {
+                "status": "success",
+                "already_closed": True,
+                "message": "投票已经被其他请求关闭，本次未重复执行",
+            }
+
+        # 手动关闭后清理学生确认的内存状态
+        manager.vote_confirmations.pop(vote_id, None)
 
         # 立刻广播：关闭投票弹窗
         await manager.broadcast_to_meeting(meeting_id, {
@@ -191,9 +245,23 @@ async def confirm_vote(
 ):
     """成员确认观点选择完毕，当所有在线成员都确认后自动结束投票并重新生成任务分解"""
     try:
-        vote_record = db.query(ViewpointVote).filter(ViewpointVote.id == vote_id).first()
-        if not vote_record or vote_record.status != "active":
-            return {"status": "error", "message": "投票已结束或不存在"}
+        vote_record = (
+            db.query(ViewpointVote)
+            .filter(
+                ViewpointVote.id == vote_id,
+                ViewpointVote.meeting_id == meeting_id,
+            )
+            .first()
+        )
+        if not vote_record:
+            return {"status": "error", "message": "投票不存在或不属于当前课堂"}
+
+        if vote_record.status != "active":
+            return {
+                "status": "success",
+                "already_closed": True,
+                "message": "投票已经结束",
+            }
 
         # 记录确认
         if vote_id not in manager.vote_confirmations:
@@ -230,12 +298,22 @@ async def confirm_vote(
                         break
             print(f"[VOTE] winner_id={winner_id}, winner_viewpoint={winner_viewpoint}")
 
-            # 先关闭投票记录
-            vote_record.status = "closed"
-            if winner_id is not None:
-                vote_record.winner_viewpoint_id = int(winner_id)
-            vote_record.closed_at = datetime.now()
-            db.commit()
+            claimed = _claim_vote_close(
+                db=db,
+                vote_id=vote_id,
+                meeting_id=meeting_id,
+                winner_id=int(winner_id) if winner_id is not None else None,
+            )
+            if not claimed:
+                manager.vote_confirmations.pop(vote_id, None)
+                return {
+                    "status": "success",
+                    "already_closed": True,
+                    "message": "投票已经被其他请求关闭，本次未重复执行",
+                    "confirmed": confirmed,
+                    "total_online": len(online),
+                }
+
             manager.vote_confirmations.pop(vote_id, None)
 
             # 立刻广播：关闭投票弹窗

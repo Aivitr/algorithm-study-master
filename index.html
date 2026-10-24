@@ -2419,11 +2419,14 @@
                         </div>
                         <div class="flex items-center space-x-3">
                             <button v-if="currentUser.role === 'teacher'" @click="closeVote" 
+                                    :disabled="voteClosing"
+                                    :class="{ 'opacity-50 cursor-not-allowed': voteClosing }"
                                     class="text-white px-4 py-2 rounded-xl text-sm font-bold hover:shadow-lg transition-all"
                                     style="background: #0f8b8d;"
                                     onmouseover="this.style.background='#0c7678'"
                                     onmouseout="this.style.background='#0f8b8d'">
-                                <i class="fas fa-check mr-2"></i>结束投票
+                                <i :class="voteClosing ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-check mr-2'"></i>
+                                {{ voteClosing ? '正在结束...' : '结束投票' }}
                             </button>
                             <button @click="showViewpointVote = false" 
                                     class="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-800 transition-all">
