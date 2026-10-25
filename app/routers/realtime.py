@@ -32,7 +32,8 @@ from fastapi import APIRouter, Depends, Form, WebSocket
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
+from app.core.meeting_state import RUNNING, meeting_status_error
 from app.models import Meeting, Transcript
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
@@ -51,12 +52,24 @@ from app.services.llm_service import llm
 
 router = APIRouter()
 
+
+def _meeting_is_running(meeting_id: int) -> bool:
+    db = SessionLocal()
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        return bool(meeting and meeting.status == RUNNING)
+    finally:
+        db.close()
+
 @router.websocket("/ws-signal/{username}/{meeting_id}")
 async def websocket_signal_endpoint(websocket: WebSocket, username: str, meeting_id: int):
     """
     WebRTC 信令通道：转发 webrtc_offer / webrtc_answer / webrtc_ice / webrtc_hangup。
     from 字段强制为连接身份，防止伪造。
     """
+    if not _meeting_is_running(meeting_id):
+        await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
+        return
     await signal_manager.register(websocket, meeting_id, username)
     print(f"[SIGNAL] WebSocket: {username} -> meeting{meeting_id}")
     try:
@@ -86,6 +99,9 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
     将中间/最终识别结果广播给课堂所有成员。
     延迟启动：收到第一个音频包后才创建阿里云 NLS 会话。
     """
+    if not _meeting_is_running(meeting_id):
+        await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
+        return
     await websocket.accept()
     print(f"[ASR] WebSocket连接: {username} -> meeting{meeting_id}")
 
@@ -187,6 +203,9 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
 
 @router.websocket("/ws/{username}/{meeting_id}")
 async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: int):
+    if not _meeting_is_running(meeting_id):
+        await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
+        return
     await manager.connect(websocket, meeting_id, username)
     print(f"[OK] WebSocket连接成功: {username} -> 课堂{meeting_id}")
 
@@ -305,6 +324,8 @@ async def browser_asr_final(
     clean_text = str(text or "").strip()
     if not clean_text:
         return {"status": "ignored", "message": "empty text"}
+    if not _meeting_is_running(int(meeting_id)):
+        return {"status": "error", "message": "课堂尚未开始或已经结束"}
 
     prepared = await asyncio.to_thread(
         _create_realtime_transcript_entry,
@@ -340,6 +361,9 @@ async def check_silence(
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        state_error = meeting_status_error(meeting.status, {RUNNING})
+        if state_error:
+            return {"status": "error", "message": state_error}
 
         # 获取最近讨论上下文
         recents = db.query(Transcript).filter(
@@ -376,6 +400,9 @@ async def check_quiet_members(
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        state_error = meeting_status_error(meeting.status, {RUNNING})
+        if state_error:
+            return {"status": "error", "message": state_error}
 
         quiet_members = manager.get_quiet_members(meeting_id, threshold=2)
         if not quiet_members:

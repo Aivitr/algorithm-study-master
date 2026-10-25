@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.meeting_state import RUNNING
 from app.models import KnowledgeGraph, Meeting, Transcript
 from app.services.knowledge_graph_service import kg_service
 
@@ -24,6 +25,8 @@ def update_knowledge_graph(meeting_id: int, db: Session):
             return None
         
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting or meeting.status != RUNNING:
+            return None
 
         # 构建对话历史
         conversations = [

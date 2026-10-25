@@ -200,7 +200,7 @@ def test_ai_tutor_reports_error_when_llm_raises(seeded_client, llm, monkeypatch)
 
 def test_suggest_topic_returns_llm_suggestion(seeded_client, stub_chat_completion):
     """正常路径：把 LLM 的输出放进 `suggestion` 字段。"""
-    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 1})
+    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 2})
 
     assert response.status_code == 200
     assert response.json() == {"status": "success", "suggestion": "打桩生成的建议内容"}
@@ -214,10 +214,10 @@ def test_suggest_topic_prompt_includes_class_topic_and_transcripts(
 
     只看"返回了 200"是不够的：把 prompt 拼空的实现同样会返回 200。
     """
-    seeded_client.post("/api/suggest-topic", data={"meeting_id": 1})
+    seeded_client.post("/api/suggest-topic", data={"meeting_id": 2})
 
     prompt = stub_chat_completion[0]["messages"][0]["content"]
-    assert "测试课堂：光合作用" in prompt, "提示词缺少课程主题"
+    assert "测试课堂：细胞呼吸" in prompt, "提示词缺少课程主题"
     assert "李同学" in prompt, "提示词缺少近期发言"
 
 

@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.meeting_state import CREATED, ENDED
 from app.models import Meeting, User
 from app.services.llm_service import llm
 
@@ -175,13 +176,14 @@ async def login(
     if not user:
         return {"status": "error", "message": "用户不存在，请先注册"}
     
-    # ??
-    meeting = db.query(Meeting).filter(
-        Meeting.class_code == class_code, 
-        Meeting.status == "active"
-    ).first()
+    # 课堂码唯一：先查真实课堂，再按生命周期决定能否加入/复用。
+    meeting = db.query(Meeting).filter(Meeting.class_code == class_code).first()
     
     if meeting:
+        if meeting.status == ENDED:
+            return {"status": "error", "message": "课堂已经结束，不能再次加入"}
+        if user.role == "teacher" and meeting.teacher_id != user.id:
+            return {"status": "error", "message": "该课堂由其他教师创建，不能进入管理"}
         if str(meeting.class_code) == "100":
             kp = meeting.knowledge_points if isinstance(meeting.knowledge_points, list) else []
             trimmed = kp[:3]
@@ -195,11 +197,15 @@ async def login(
             "goals": meeting.knowledge_points,
             "topic": meeting.topic,
             "role": user.role,
-            "teaching_design": meeting.teaching_design
+            "teaching_design": meeting.teaching_design,
+            "meeting_status": meeting.status,
+            "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
+            "started_at": meeting.started_at.isoformat() if meeting.started_at else None,
+            "ended_at": meeting.ended_at.isoformat() if meeting.ended_at else None,
         }
     else:
         # 创建新会议
-        if role == "student":
+        if user.role != "teacher":
             return {"status": "error", "message": "课堂不存在，请联系老师"}
 
         # 验证主题
@@ -299,6 +305,7 @@ async def login(
             reference_materials=materials if materials else None,
             teaching_design=teaching_design,
             knowledge_points=goals,
+            status=CREATED,
             template_path=template_path  # 保存模板路径
         )
         db.add(meeting)
@@ -312,5 +319,9 @@ async def login(
             "topic": meeting.topic,
             "role": user.role,
             "teaching_design": teaching_design,
+            "meeting_status": meeting.status,
+            "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
+            "started_at": None,
+            "ended_at": None,
             "message": "课堂创建成功"
         }

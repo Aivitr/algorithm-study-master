@@ -2,7 +2,7 @@
 
 为什么值得单独测
 ----------------
-`docs/route-inventory.md` 把 59 条路由分成了只读 / 写 / 外部服务 / 推理 / WebSocket
+`docs/route-inventory.md` 把 60 条路由分成了只读 / 写 / 外部服务 / 推理 / WebSocket
 五类。前四类都有对应手段（冒烟基线、打桩、排除），**WebSocket 之前完全没有覆盖**——
 3 条 WS 路由一条都没测。而 `/ws/{username}/{meeting_id}` 是课堂实时链路的主干：
 成员上下线、音视频分片下发都走它。
@@ -21,6 +21,7 @@
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -229,7 +230,43 @@ def test_quiet_members_needs_at_least_two_people(fresh_manager):
 # ------------------------------------------------------- WebSocket 路由（真实握手）
 
 
-def test_websocket_join_broadcasts_member_update(local_app):
+@pytest.fixture
+def running_ws_meetings(local_app, seeded_ids):
+    """为真实握手测试建立运行中课堂；生命周期门禁不允许连接虚构课堂。"""
+    from app.core.database import SessionLocal
+    from app.models import Meeting
+
+    meeting_ids = [7001, 7002, 7003, 7004, 7005]
+    db = SessionLocal()
+    try:
+        for meeting_id in meeting_ids:
+            db.add(Meeting(
+                id=meeting_id,
+                class_code=f"WS-{meeting_id}",
+                teacher_id=seeded_ids["teacher_id"],
+                topic=f"WebSocket 测试课堂 {meeting_id}",
+                status="running",
+                started_at=datetime.now(),
+                knowledge_points=[],
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        yield meeting_ids
+    finally:
+        cleanup = SessionLocal()
+        try:
+            cleanup.query(Meeting).filter(Meeting.id.in_(meeting_ids)).delete(
+                synchronize_session=False
+            )
+            cleanup.commit()
+        finally:
+            cleanup.close()
+
+
+def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings):
     """连上即广播一条 `member_update / join`，含当前在线名单。"""
     with TestClient(local_app) as client:
         with client.websocket_connect("/ws/测试同学甲/7001") as ws:
@@ -241,7 +278,7 @@ def test_websocket_join_broadcasts_member_update(local_app):
     assert message["online_members"] == ["测试同学甲"]
 
 
-def test_websocket_ping_responds_pong(local_app):
+def test_websocket_ping_responds_pong(local_app, running_ws_meetings):
     """文本 `ping` 必须得到文本 `pong`——这是前端判活的心跳。"""
     with TestClient(local_app) as client:
         with client.websocket_connect("/ws/测试同学乙/7002") as ws:
@@ -252,7 +289,7 @@ def test_websocket_ping_responds_pong(local_app):
             assert ws.receive_text() == "pong"
 
 
-def test_two_clients_in_same_meeting_see_each_other(local_app):
+def test_two_clients_in_same_meeting_see_each_other(local_app, running_ws_meetings):
     """同课堂的两个连接互相可见。
 
     课堂隔离是这套系统的基本前提（`meeting_connections` 按 meeting_id 分桶），
@@ -273,7 +310,7 @@ def test_two_clients_in_same_meeting_see_each_other(local_app):
                 assert relayed["online_members"] == ["测试同学甲", "测试同学乙"]
 
 
-def test_clients_in_different_meetings_are_isolated(local_app):
+def test_clients_in_different_meetings_are_isolated(local_app, running_ws_meetings):
     """不同课堂的连接互相不可见——房间隔离的核心断言。
 
     若 `meeting_connections` 哪天被改成不按 meeting_id 分桶，第二个连接看到的

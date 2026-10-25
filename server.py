@@ -126,7 +126,7 @@ app.add_middleware(
 app.mount("/storage", StaticFiles(directory=os.path.join(BASE_DIR, "storage")), name="storage")
 
 # 前端外部依赖本地化的落点。与上面 /storage 同类：**框架级静态挂载，不计入
-# 59 个接口**，但同样钉在 tests_safe/test_route_contract.py 的 FRAMEWORK_ROUTES 里。
+# 60 个接口**，但同样钉在 tests_safe/test_route_contract.py 的 FRAMEWORK_ROUTES 里。
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 
@@ -233,7 +233,7 @@ from app.realtime.stream import process_user_stream_generator
 #
 # 连接管理器类定义在 app/realtime/，单例定义在 app/realtime/registry.py，
 # 此处**再导出**。路由模块不能 `from server import manager`（`python server.py`
-# 下会让本文件再执行一遍——重复建 app、重复注册全部 59 条路由，且不报错），
+# 下会让本文件再执行一遍——重复建 app、重复注册全部 60 条路由，且不报错），
 # 见 app/routers/__init__.py。
 #
 # 单例全局唯一：这里用 `from ... import` 再导出而非重新赋值，因此

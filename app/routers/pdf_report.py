@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.meeting_state import ENDED, meeting_status_error
 from app.core.paths import PROJECT_ROOT
 from app.models import LearningReport, Meeting, User
 
@@ -77,6 +78,11 @@ async def generate_pdf_report(
 
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         user = db.query(User).filter(User.id == user_id).first()
+        if not meeting or not user:
+            return {"status": "error", "message": "课堂或用户不存在"}
+        state_error = meeting_status_error(meeting.status, {ENDED})
+        if state_error:
+            return {"status": "error", "message": f"{state_error}，暂不能导出正式课后报告"}
 
         # 创建PDF文件
         pdf_dir = os.path.join(BASE_DIR, "storage", "reports")

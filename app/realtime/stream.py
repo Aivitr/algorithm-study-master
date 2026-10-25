@@ -27,6 +27,7 @@ import cv2
 
 from app.core.database import SessionLocal
 from app.core.emotions import normalize_emotion_label
+from app.core.meeting_state import RUNNING
 from app.core.oss import USE_OSS, get_oss_manager
 from app.core.paths import PROJECT_ROOT
 from app.models import AIInsight, EmotionLog, Meeting, Transcript
@@ -102,6 +103,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not user or not meeting:
             print(f"[WARN] 用户或课堂不存在: username={username}, meeting_id={meeting_id}")
+            return
+        if meeting.status != RUNNING:
+            print(f"[WARN] 非进行中课堂拒绝音视频写入: meeting_id={meeting_id}, status={meeting.status}")
             return
 
         ret, frame, vis_emotion, emotion_confidence, body_action = _detect_visual_state_from_video(v_path)

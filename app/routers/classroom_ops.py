@@ -1,8 +1,9 @@
 """课堂进行中的教师操作域。
 
-本组 5 条，都是"一堂课进行中教师端要触发的动作"：
+本组 6 条，覆盖课堂开始、课堂结束与课堂进行中的教师操作：
 
     GET  /api/agora-token          取 RTC 令牌/配置
+    POST /api/start-class          开始课堂（created -> running）
     POST /api/end-class            结束课堂
     POST /api/suggest-topic        学生"不知道说什么"时推话题建议（调 LLM）
     POST /api/quick-decompose      一键分解：跳过聚类投票直接生成子任务
@@ -20,6 +21,7 @@
 """
 
 import os
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Response
@@ -27,19 +29,42 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.http import NO_CACHE_HEADERS
+from app.core.meeting_state import CREATED, ENDED, RUNNING, meeting_status_error
 from app.models import Meeting, Transcript, User, ViewpointVote
 from app.realtime.registry import manager
 from app.services.llm_service import llm
+from app.services.meeting_lifecycle import claim_end, claim_start
 from app.services.research_runtime import research_runtime
 
 router = APIRouter()
 
 @router.get("/api/agora-token")
-async def get_agora_token(channel: str, uid: str = "0", _: Optional[str] = None, response: Response = None):
+async def get_agora_token(
+    channel: str,
+    uid: str = "0",
+    meeting_id: int = None,
+    _: Optional[str] = None,
+    response: Response = None,
+    db: Session = Depends(get_db),
+):
     """返回前端加入声网频道所需的 RTC 配置与 Token（如启用）。"""
     if response is not None:
         for key, value in NO_CACHE_HEADERS.items():
             response.headers[key] = value
+
+    target_meeting_id = meeting_id
+    if target_meeting_id is None:
+        try:
+            target_meeting_id = int(channel)
+        except (TypeError, ValueError):
+            target_meeting_id = None
+    meeting = (
+        db.query(Meeting).filter(Meeting.id == target_meeting_id).first()
+        if target_meeting_id is not None
+        else None
+    )
+    if not meeting or meeting.status != RUNNING:
+        return {"error": "课堂不存在或尚未开始/已经结束"}
 
     agora_config = _get_agora_rtc_config()
     response = {
@@ -81,6 +106,57 @@ async def get_agora_token(channel: str, uid: str = "0", _: Optional[str] = None,
         return response
 
 
+@router.post("/api/start-class")
+async def start_class(
+    meeting_id: int = Form(...),
+    username: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """教师开始课堂；重复请求只返回当前结果，不重复启动课堂副作用。"""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        return {"status": "error", "message": "课堂不存在"}
+
+    user = db.query(User).filter(User.student_id == username).first()
+    if not user or user.role != "teacher" or meeting.teacher_id != user.id:
+        return {"status": "error", "message": "只有本课堂教师可以开始课堂"}
+
+    if meeting.status == RUNNING:
+        return {
+            "status": "success",
+            "already_started": True,
+            "message": "课堂已经开始",
+            "meeting_status": RUNNING,
+            "started_at": meeting.started_at.isoformat() if meeting.started_at else None,
+        }
+    if meeting.status == ENDED:
+        return {"status": "error", "message": "课堂已经结束，不能重新开始"}
+    if meeting.status != CREATED:
+        return {"status": "error", "message": meeting_status_error(meeting.status, {CREATED})}
+
+    started_at = datetime.now()
+    if not claim_start(db, meeting_id, started_at):
+        db.expire_all()
+        current = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if current and current.status == RUNNING:
+            return {
+                "status": "success",
+                "already_started": True,
+                "message": "课堂已经开始",
+                "meeting_status": RUNNING,
+                "started_at": current.started_at.isoformat() if current.started_at else None,
+            }
+        return {"status": "error", "message": "课堂状态已经变化，请刷新后重试"}
+
+    return {
+        "status": "success",
+        "already_started": False,
+        "message": "课堂开始成功",
+        "meeting_status": RUNNING,
+        "started_at": started_at.isoformat(),
+    }
+
+
 @router.post("/api/end-class")
 async def end_class(
     meeting_id: int = Form(...),
@@ -95,12 +171,35 @@ async def end_class(
 
         # 验证是教师
         user = db.query(User).filter(User.student_id == username).first()
-        if not user or user.role != "teacher":
-            return {"status": "error", "message": "只有教师可以结束课堂"}
+        if not user or user.role != "teacher" or meeting.teacher_id != user.id:
+            return {"status": "error", "message": "只有本课堂教师可以结束课堂"}
 
-        # 更新课堂状态
-        meeting.status = "ended"
-        db.commit()
+        if meeting.status == ENDED:
+            return {
+                "status": "success",
+                "already_ended": True,
+                "message": "课堂已经结束",
+                "meeting_status": ENDED,
+                "ended_at": meeting.ended_at.isoformat() if meeting.ended_at else None,
+            }
+        if meeting.status == CREATED:
+            return {"status": "error", "message": "课堂尚未开始，不能结束；如需取消请使用取消课堂功能"}
+        if meeting.status != RUNNING:
+            return {"status": "error", "message": meeting_status_error(meeting.status, {RUNNING})}
+
+        ended_at = datetime.now()
+        if not claim_end(db, meeting_id, ended_at):
+            db.expire_all()
+            current = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+            if current and current.status == ENDED:
+                return {
+                    "status": "success",
+                    "already_ended": True,
+                    "message": "课堂已经结束",
+                    "meeting_status": ENDED,
+                    "ended_at": current.ended_at.isoformat() if current.ended_at else None,
+                }
+            return {"status": "error", "message": "课堂状态已经变化，请刷新后重试"}
 
         # 广播课堂结束通知到所有在线成员
         await manager.broadcast_to_meeting(meeting_id, {
@@ -119,7 +218,13 @@ async def end_class(
             manager.meeting_connections.pop(meeting_id, None)
 
         print(f"[OK] 课堂 {meeting_id} 已被教师 {username} 结束")
-        return {"status": "success", "message": "课堂已结束"}
+        return {
+            "status": "success",
+            "already_ended": False,
+            "message": "课堂已结束",
+            "meeting_status": ENDED,
+            "ended_at": ended_at.isoformat(),
+        }
     except Exception as e:
         print(f"[ERROR] end-class: {e}")
         return {"status": "error", "message": str(e)}
@@ -132,6 +237,9 @@ async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_d
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "会议不存在"}
+        state_error = meeting_status_error(meeting.status, {RUNNING})
+        if state_error:
+            return {"status": "error", "message": state_error}
 
         # 获取最近的发言记录
         recent = db.query(Transcript).filter(
@@ -182,6 +290,9 @@ async def quick_decompose(
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        state_error = meeting_status_error(meeting.status, {RUNNING})
+        if state_error:
+            return {"status": "error", "message": state_error}
 
         transcripts = db.query(Transcript).filter(
             Transcript.meeting_id == meeting_id
@@ -245,6 +356,9 @@ async def cluster_viewpoints(
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        state_error = meeting_status_error(meeting.status, {RUNNING})
+        if state_error:
+            return {"status": "error", "message": state_error}
 
         # 获取所有发言
         transcripts = db.query(Transcript).filter(

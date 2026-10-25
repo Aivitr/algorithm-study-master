@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.emotions import normalize_emotion_label
+from app.core.meeting_state import ENDED, meeting_status_error
 from app.models import (
     EmotionLog,
     Exercise,
@@ -77,6 +78,12 @@ async def generate_report_stream(
 
             if not meeting or not user:
                 yield f"data: {_json.dumps({'type': 'error', 'message': '课堂或用户不存在'}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            state_error = meeting_status_error(meeting.status, {ENDED})
+            if state_error:
+                message = f"{state_error}，暂不能生成正式课后报告"
+                yield f"data: {_json.dumps({'type': 'error', 'message': message}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
                 return
 

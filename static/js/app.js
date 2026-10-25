@@ -184,6 +184,7 @@ new Vue({
         browserAsrLastFinalAt: 0,
         showKnowledgeGraph: false, knowledgeGraphData: null, chartInstance: null,
         classStartTime: null, timerInterval: null, meetingId: null,
+        meetingStatus: null, meetingStartedAt: null, meetingEndedAt: null,
         // 新增: 观点聚类投票
         showViewpointVote: false,
         viewpoints: [],
@@ -199,6 +200,7 @@ new Vue({
         voteConfirmed: false, // 是否已确认选择
         confirmedMembers: [], // 已确认选择的成员列表
         voteDecomposing: false, // 正在分解任务
+        voteClosing: false, // 教师正在提交关闭投票请求
         onlineMembers: [], // 在线成员列表
         // 新增: 实时统计图表
         showStatsPanel: false,
@@ -512,8 +514,8 @@ new Vue({
                 };
             }
             const history = Array.isArray(this.classHistory) ? this.classHistory : [];
-            const activeClasses = history.filter(h => h.status === 'active').length;
-            const completedClasses = history.filter(h => h.status !== 'active').length;
+            const activeClasses = history.filter(h => h.status === 'running').length;
+            const completedClasses = history.filter(h => h.status === 'ended').length;
             const totalMinutes = history.reduce((sum, h) => sum + (Number(h.duration_minutes) || 0), 0);
             const studyHours = (totalMinutes / 60).toFixed(1);
             return {
@@ -1079,12 +1081,28 @@ new Vue({
                 let res = await axios.post('/login', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.meetingId = res.data.meeting_id; 
+                this.meetingStatus = res.data.meeting_status;
+                this.meetingStartedAt = res.data.started_at || null;
+                this.meetingEndedAt = res.data.ended_at || null;
                 this.goals = res.data.goals; 
                 this.currentTopic = this.displayTopicText(res.data.topic || this.classForm.topic, this.classForm.class_code);
+                if (this.meetingStatus !== 'running') {
+                    this.joined = false;
+                    this.showClassModal = false;
+                    this.loading = false;
+                    this.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
+                    this.uploadedFile = null;
+                    const waitingMessage = this.currentUser.role === 'teacher'
+                        ? '课堂已创建，请在课堂管理中点击“开始课堂”后进入。'
+                        : '课堂已创建但尚未开始，请等待教师开始课堂。';
+                    this.showAlert(waitingMessage, 'info', '课堂待开始');
+                    if (this.currentUser.role === 'teacher') this.loadTeacherClasses();
+                    return;
+                }
                 this.joined = true; 
                 this.pageState = 'classroom';
                 this.showClassModal = false;
-                this.classStartTime = Date.now();
+                this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
                 this.startTimer();
                 this.startSilenceChecks();
                 this.loading = false;
@@ -1366,12 +1384,16 @@ new Vue({
             // 返回主页
             this.currentView = 'main';
             this.meetingId = null;
+            this.meetingStatus = null;
+            this.meetingStartedAt = null;
+            this.meetingEndedAt = null;
             this.msgs = [];
             this.onlineMembers = [];
             this.hint = null;
             this.topicSuggestion.show = false;
         },
         startTimer() {
+            if (this.meetingStatus !== 'running' || !this.classStartTime) return;
             this.timerInterval = setInterval(() => {
                 if (!this.isPaused) {
                     const elapsed = Math.floor((Date.now() - this.classStartTime) / 1000);
@@ -1670,13 +1692,13 @@ new Vue({
             console.log('✅ Agora Client 初始化完成');
         },
         async _joinAgoraChannel() {
-            if (!this.meetingId || !this.currentUser || !this.localMediaStream) return;
+            if (this.meetingStatus !== 'running' || !this.meetingId || !this.currentUser || !this.localMediaStream) return;
             try {
                 const channel = String(this.meetingId);
                 const uid = String(this.currentUser.student_id);
                 // 从服务端获取 RTC 配置，避免前后端鉴权模式不一致
                 const tokenRes = await axios.get('/api/agora-token', {
-                    params: { channel, uid, _: Date.now() },
+                    params: { channel, uid, meeting_id: this.meetingId, _: Date.now() },
                     headers: { 'Cache-Control': 'no-cache' }
                 });
                 const rtcConfig = tokenRes.data || {};
@@ -2855,8 +2877,15 @@ new Vue({
                 // === 10.5 课堂结束通知 ===
                 else if (d.type === 'class_ended') {
                     console.log('🏁 课堂结束:', d);
+                    const endedMeetingId = this.meetingId;
+                    const endedUserId = this.currentUser?.id;
+                    const shouldGenerateReport = this.currentUser?.role === 'student';
+                    this.meetingStatus = 'ended';
                     this.showAlert(d.message || '课堂已结束', 'info', '课堂结束');
                     this._cleanupClassroom();
+                    if (shouldGenerateReport && endedMeetingId && endedUserId) {
+                        this.scheduleReportGeneration(endedMeetingId, endedUserId);
+                    }
                 }
 
                 // === 11. 话题建议推送 ===
@@ -2897,6 +2926,9 @@ new Vue({
                 let meetingRes = await axios.get(`/api/meeting/${meetingId}`);
                 if (meetingRes.data.status === 'success') {
                     this.goals = meetingRes.data.goals || [];
+                    this.meetingStatus = meetingRes.data.meeting_status;
+                    this.meetingStartedAt = meetingRes.data.started_at || null;
+                    this.meetingEndedAt = meetingRes.data.ended_at || null;
                 }
                 // 加载知识图谱
                 await this.loadKnowledgeGraph();
@@ -3605,6 +3637,10 @@ new Vue({
 
             // 重置课堂状态
             this.pageState = 'lobby';
+            this.meetingId = null;
+            this.meetingStatus = null;
+            this.meetingStartedAt = null;
+            this.meetingEndedAt = null;
             this.classroomTab = 'chat';
             this.joined = false;
             this.msgs = [];
@@ -3643,39 +3679,54 @@ new Vue({
                     fd.append('username', this.currentUser.student_id);
                     const res = await axios.post('/api/end-class', fd);
                     if (res.data.status === 'success') {
+                        this.meetingStatus = 'ended';
+                        this.meetingEndedAt = res.data.ended_at || this.meetingEndedAt;
                         this.showAlert('课堂已结束', 'success', '提示');
+                        this._cleanupClassroom();
+                        this.backToLobby();
                     } else {
                         this.showAlert(res.data.message || '结束课堂失败', 'error', '错误');
                     }
                 } catch (e) {
                     this.showAlert('结束课堂失败: ' + (e.message || e), 'error', '错误');
                 }
-                this._cleanupClassroom();
-                this.backToLobby();
             } else {
-                // 学生下课
-                if (!await this.showConfirm('确认下课吗？', '确认下课')) return;
+                // 学生只能退出正在进行的课堂；正式学习报告在教师结束课堂后生成。
+                if (!await this.showConfirm('确认退出课堂吗？', '退出课堂')) return;
                 const meetingId = this.meetingId;
                 const userId = this.currentUser.id;
-
-                const formData = new FormData();
-                formData.append('meeting_id', meetingId);
-                formData.append('user_id', userId);
+                const classHasEnded = this.meetingStatus === 'ended';
 
                 // 先清理资源再回首页
                 this._cleanupClassroom();
                 this.loading = false;
                 this.backToLobby();
 
-                // 延迟生成学习报告
-                const START_DELAY_MS = 15000;
-                console.log(`⏳ 下课后 ${START_DELAY_MS}ms 延迟生成学习报告...`);
-                this.reportGenerating = true;
-                this.reportProgress = '等待最后的发言入库...';
-                setTimeout(() => {
-                    this._streamReportGeneration(meetingId, userId);
-                }, START_DELAY_MS);
+                if (classHasEnded) {
+                    this.scheduleReportGeneration(meetingId, userId);
+                } else {
+                    this.showAlert('你已退出课堂；正式学习报告将在教师结束课堂后生成。', 'info', '提示');
+                }
             }
+        },
+        scheduleReportGeneration(meetingId, userId) {
+            const START_DELAY_MS = 15000;
+            console.log(`⏳ 课堂结束后 ${START_DELAY_MS}ms 延迟生成学习报告...`);
+            this.reportGenerating = true;
+            this.reportProgress = '等待最后的发言入库...';
+            setTimeout(() => {
+                this._streamReportGeneration(meetingId, userId);
+            }, START_DELAY_MS);
+        },
+        meetingStatusLabel(status) {
+            return ({ created: '待开始', running: '进行中', ended: '已结束' })[status] || '状态异常';
+        },
+        meetingStatusBadgeClass(status) {
+            return ({
+                created: 'bg-blue-100 text-blue-600',
+                running: 'bg-green-100 text-green-600',
+                ended: 'bg-gray-100 text-gray-500'
+            })[status] || 'bg-red-100 text-red-600';
         },
         // 格式化时间戳
         formatTime(timestamp) {
@@ -3700,9 +3751,10 @@ new Vue({
         },
         // 沉默检测和话题建议
         startSilenceChecks() {
+            if (this.meetingStatus !== 'running') return;
             // 每30秒检查一次全组沉默
             this.silenceCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined) return;
+                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
                 try {
                     const fd = new FormData();
                     fd.append('meeting_id', this.meetingId);
@@ -3712,7 +3764,7 @@ new Vue({
 
             // 每60秒检查一次沉默成员
             this.quietCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined) return;
+                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
                 try {
                     const fd = new FormData();
                     fd.append('meeting_id', this.meetingId);
@@ -3946,17 +3998,24 @@ new Vue({
         },
         // 结束投票(教师或达到条件时)
         async closeVote() {
-            if (!this.currentVoteId) return;
+            if (!this.currentVoteId || this.voteClosing) return;
+            this.voteClosing = true;
             try {
                 const formData = new FormData();
                 formData.append('vote_id', this.currentVoteId);
                 formData.append('meeting_id', this.meetingId);
                 const res = await axios.post('/api/close-vote', formData);
                 if (res.data.status === 'success') {
-                    console.log('✅ 投票结束');
+                    if (res.data.already_closed) {
+                        console.log('ℹ️ 投票已经关闭，未重复执行');
+                    } else {
+                        console.log('✅ 投票结束');
+                    }
                 }
             } catch(e) {
                 console.error('结束投票错误:', e.message);
+            } finally {
+                this.voteClosing = false;
             }
         },
         // 确认观点选择完毕
@@ -5844,13 +5903,19 @@ new Vue({
         },
         // 进入小组查看(教师)
         async enterGroupView(group) {
+            if (group.status && group.status !== 'running') {
+                this.showAlert(this.meetingStatusLabel(group.status), 'info', '当前课堂不可进入');
+                return;
+            }
             this.viewingGroupId = group.meeting_id;
             this.meetingId = group.meeting_id;
+            this.meetingStatus = 'running';
+            this.meetingStartedAt = group.started_at || null;
             this.currentTopic = this.displayTopicText(group.topic, group.class_code);
             this.classForm.class_code = group.class_code;
             this.joined = true;
             this.pageState = 'classroom';
-            this.classStartTime = Date.now();
+            this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
             this.startTimer();
             // 加载目标和图谱数据
             await this.loadClassroomData(group.meeting_id);
@@ -5859,12 +5924,18 @@ new Vue({
         },
         // 学生进入已加入的课堂
         async enterClassFromHistory(classItem) {
+            if (classItem.status !== 'running') {
+                this.showAlert(this.meetingStatusLabel(classItem.status), 'info', '当前课堂不可进入');
+                return;
+            }
             this.meetingId = classItem.meeting_id;
+            this.meetingStatus = classItem.status;
+            this.meetingStartedAt = classItem.started_at || classItem.start_time || null;
             this.currentTopic = this.displayTopicText(classItem.topic, classItem.class_code);
             this.classForm.class_code = classItem.class_code;
             this.joined = true;
             this.pageState = 'classroom';
-            this.classStartTime = Date.now();
+            this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
             this.startTimer();
             // 加载目标和图谱数据
             await this.loadClassroomData(classItem.meeting_id);
@@ -5873,12 +5944,18 @@ new Vue({
         },
         // 教师从课堂管理进入课堂
         async enterClassAsTeacher(cls) {
+            if (cls.status !== 'running') {
+                this.showAlert(this.meetingStatusLabel(cls.status), 'info', '当前课堂不可进入');
+                return;
+            }
             this.meetingId = cls.meeting_id;
+            this.meetingStatus = cls.status;
+            this.meetingStartedAt = cls.started_at || null;
             this.currentTopic = this.displayTopicText(cls.topic, cls.class_code);
             this.classForm.class_code = cls.class_code;
             this.joined = true;
             this.pageState = 'classroom';
-            this.classStartTime = Date.now();
+            this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
             this.startTimer();
             this.startSilenceChecks();
             // 加载目标和图谱数据
@@ -5890,6 +5967,26 @@ new Vue({
                 this._joinAgoraChannel();
             });
         },
+        // 教师从课堂管理开始课堂
+        async startClassFromManage(cls) {
+            try {
+                const fd = new FormData();
+                fd.append('meeting_id', cls.meeting_id);
+                fd.append('username', this.currentUser.student_id);
+                const res = await axios.post('/api/start-class', fd);
+                if (res.data.status !== 'success') {
+                    this.showAlert(res.data.message || '开始课堂失败', 'error', '错误');
+                    return;
+                }
+                cls.status = 'running';
+                cls.started_at = res.data.started_at || cls.started_at;
+                this.$forceUpdate();
+                this.showAlert(res.data.already_started ? '课堂已经开始' : '课堂开始成功', 'success', '提示');
+                await this.enterClassAsTeacher(cls);
+            } catch (e) {
+                this.showAlert('开始课堂失败: ' + (e.response?.data?.message || e.message || e), 'error', '错误');
+            }
+        },
         // 教师从课堂管理结束课堂
         async endClassFromManage(cls) {
             if (!confirm(`确定要结束课堂「${this.displayTopicText(cls.topic, cls.class_code)}」吗？所有学生将被断开。`)) return;
@@ -5899,8 +5996,11 @@ new Vue({
                 fd.append('username', this.currentUser.student_id);
                 const res = await axios.post('/api/end-class', fd);
                 if (res.data.status === 'success') {
+                    this.meetingStatus = 'ended';
+                    this.meetingEndedAt = res.data.ended_at || null;
                     this.showAlert('课堂已结束', 'success', '提示');
                     cls.status = 'ended';
+                    cls.ended_at = res.data.ended_at || cls.ended_at;
                     this.$forceUpdate();
                 } else {
                     this.showAlert(res.data.message || '结束失败', 'error', '错误');

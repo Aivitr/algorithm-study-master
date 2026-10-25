@@ -25,6 +25,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.meeting_state import CREATED
 from app.models import Exercise, LearningReport, Meeting, Transcript, User
 from app.services.class_stats_service import ClassStatsService
 
@@ -83,26 +84,27 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
     try:
         meetings = db.query(Meeting).filter(Meeting.teacher_id == teacher_id).all()
         meeting_ids = [int(m.id) for m in meetings]
+        analyzed_meeting_ids = [int(m.id) for m in meetings if m.status != CREATED]
         total_classes = len(meeting_ids)
 
         total_students = 0
         avg_score = 0
         risk_groups = 0
 
-        if meeting_ids:
+        if analyzed_meeting_ids:
             total_students = db.query(
                 sa_func.count(sa_func.distinct(Transcript.user_id))
             ).join(
                 User, User.id == Transcript.user_id
             ).filter(
-                Transcript.meeting_id.in_(meeting_ids),
+                Transcript.meeting_id.in_(analyzed_meeting_ids),
                 User.role != "teacher"
             ).scalar() or 0
 
             stats_service = ClassStatsService(db)
-            activity_map = stats_service.activity_map(meeting_ids, exclude_teacher=True)
+            activity_map = stats_service.activity_map(analyzed_meeting_ids, exclude_teacher=True)
             total_score = 0
-            for meeting_id in meeting_ids:
+            for meeting_id in analyzed_meeting_ids:
                 activity = activity_map.get(meeting_id, {})
                 speech_count = int(activity.get("speech_count", 0))
                 member_count = int(activity.get("member_count", 0))
@@ -111,8 +113,8 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
                 if score < 60:
                     risk_groups += 1
 
-            if total_classes > 0:
-                avg_score = int(total_score / total_classes)
+            if analyzed_meeting_ids:
+                avg_score = int(total_score / len(analyzed_meeting_ids))
         
         return {
             "status": "success",
@@ -152,7 +154,8 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
             
             window = window_map.get(int(m.id), {})
             duration_minutes = stats_service.window_duration_minutes(
-                window.get("first_at"), window.get("last_at")
+                m.started_at or window.get("first_at"),
+                m.ended_at or window.get("last_at"),
             )
 
             classes.append({
@@ -166,7 +169,9 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
                 "score": score,
                 "score_level": score_level,
                 "score_color": score_color,
-                "created_at": m.created_at.isoformat()
+                "created_at": m.created_at.isoformat(),
+                "started_at": m.started_at.isoformat() if m.started_at else None,
+                "ended_at": m.ended_at.isoformat() if m.ended_at else None,
             })
         
         return {"status": "success", "classes": classes}

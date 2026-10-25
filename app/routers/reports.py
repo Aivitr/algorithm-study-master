@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.emotions import normalize_emotion_label
+from app.core.meeting_state import ENDED, meeting_status_error
 from app.models import (
     EmotionLog,
     Exercise,
@@ -56,6 +57,9 @@ async def generate_learning_report(
 
         if not meeting or not user:
             return {"status": "error", "message": "课堂或用户不存在"}
+        state_error = meeting_status_error(meeting.status, {ENDED})
+        if state_error:
+            return {"status": "error", "message": f"{state_error}，暂不能生成正式课后报告"}
 
         # 获取“本轮课堂窗口”数据（上次报告之后）
         transcript_query = db.query(Transcript).filter(Transcript.meeting_id == meeting_id)

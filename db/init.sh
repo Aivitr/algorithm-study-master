@@ -39,6 +39,6 @@ done
 echo "[db-init] 执行 schema.sql（幂等，重复跑无副作用）..."
 # -f 65001：schema.sql 是 UTF-8 无 BOM，里面含中文注释，不指定代码页会被按控制台
 #   代码页误读。表名列名都是 ASCII，注释读花不影响执行，但没必要留这个坑。
-"$SQLCMD" -S "$DB_HOST" -U sa -P "$MSSQL_SA_PASSWORD" -C -b -f 65001 -i /db/schema.sql
+"$SQLCMD" -S "$MSSQL_HOST" -U sa -P "$MSSQL_SA_PASSWORD" -C -b -f 65001 -i /db/schema.sql
 
 echo "[db-init] 完成：${MSSQL_DB} 已建好/已是最新结构。"

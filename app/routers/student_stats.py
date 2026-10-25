@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.meeting_state import CREATED, ENDED, RUNNING
 from app.models import LearningReport, Meeting, Transcript
 from app.services.class_stats_service import ClassStatsService
 
@@ -44,8 +45,18 @@ async def get_class_history(user_id: int, db: Session = Depends(get_db)):
         history = []
         for m in all_meetings:
             window = window_map.get(int(m.id), {})
-            start_time = window.get("first_at") or m.created_at
-            end_time = window.get("last_at") or m.created_at
+            start_time = m.started_at or window.get("first_at") or m.created_at
+            end_time = m.ended_at or window.get("last_at")
+            if end_time is None and m.status == RUNNING:
+                last_transcript = db.query(Transcript).filter(
+                    Transcript.meeting_id == m.id
+                ).order_by(Transcript.created_at.desc()).first()
+                end_time = last_transcript.created_at if last_transcript else start_time
+            duration_minutes = (
+                max(0, int((end_time - start_time).total_seconds() / 60))
+                if start_time and end_time
+                else 0
+            )
             participant_count = stats.participant_count(m.id)
             user_speech_count = stats.user_speech_count(m.id, user_id)
 
@@ -60,9 +71,11 @@ async def get_class_history(user_id: int, db: Session = Depends(get_db)):
                 "class_code": m.class_code,
                 "topic": m.topic,
                 "status": m.status,
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "duration_minutes": int((end_time - start_time).total_seconds() / 60),
+                "start_time": start_time.isoformat() if start_time else None,
+                "end_time": end_time.isoformat() if end_time else None,
+                "started_at": m.started_at.isoformat() if m.started_at else None,
+                "ended_at": m.ended_at.isoformat() if m.ended_at else None,
+                "duration_minutes": duration_minutes,
                 "participant_count": participant_count,
                 "speech_count": user_speech_count,
                 "has_report": has_report,
@@ -94,6 +107,7 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
                 "stats": {
                     "activeClasses": 0,
                     "completedClasses": 0,
+                    "createdClasses": 0,
                     "studyHours": "0.0",
                 }
             }
@@ -101,25 +115,30 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
         meetings = db.query(Meeting).filter(Meeting.id.in_(meeting_ids)).all()
         window_map = ClassStatsService(db).window_map(meeting_ids)
 
+        created_classes = 0
         active_classes = 0
         completed_classes = 0
         total_minutes = 0
         for meeting in meetings:
-            if meeting.status == "active":
+            if meeting.status == CREATED:
+                created_classes += 1
+            elif meeting.status == RUNNING:
                 active_classes += 1
-            else:
+            elif meeting.status == ENDED:
                 completed_classes += 1
 
             window = window_map.get(int(meeting.id), {})
-            start_time = window.get("first_at") or meeting.created_at
-            end_time = window.get("last_at") or meeting.created_at
-            total_minutes += max(0, int((end_time - start_time).total_seconds() / 60))
+            start_time = meeting.started_at or window.get("first_at")
+            end_time = meeting.ended_at or window.get("last_at")
+            if start_time and end_time:
+                total_minutes += max(0, int((end_time - start_time).total_seconds() / 60))
 
         return {
             "status": "success",
             "stats": {
                 "activeClasses": active_classes,
                 "completedClasses": completed_classes,
+                "createdClasses": created_classes,
                 "studyHours": f"{(total_minutes / 60):.1f}",
             }
         }
@@ -135,7 +154,7 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
         # 查询活跃课堂
         meetings = db.query(Meeting).filter(
             Meeting.teacher_id == teacher_id,
-            Meeting.status == "active"
+            Meeting.status == RUNNING
         ).all()
 
         meeting_ids = [int(m.id) for m in meetings]
