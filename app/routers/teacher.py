@@ -149,8 +149,13 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
             speech_count = int(activity.get("speech_count", 0))
             member_count = int(activity.get("member_count", 0))
 
-            score = stats_service.class_score(speech_count, member_count)
-            score_level, score_color = stats_service.score_level(score)
+            if m.status == CREATED:
+                # 尚未开始的课不参与评分，避免展示成「0 分 / 风险 / 待提高」
+                score = None
+                score_level, score_color = ("待开始", "blue")
+            else:
+                score = stats_service.class_score(speech_count, member_count)
+                score_level, score_color = stats_service.score_level(score)
             
             window = window_map.get(int(m.id), {})
             duration_minutes = stats_service.window_duration_minutes(

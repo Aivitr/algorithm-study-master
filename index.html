@@ -806,10 +806,10 @@
                                             </span>
                                         </div>
                                         <div class="text-right">
-                                            <div class="text-3xl font-black" :class="cls.score < 60 ? 'text-red-500' : cls.score < 80 ? 'text-yellow-500' : 'text-green-500'">
-                                                {{ cls.score || 0 }}<span class="text-sm">分</span>
+                                            <div class="text-3xl font-black" :class="cls.score === null ? 'text-blue-500' : cls.score < 60 ? 'text-red-500' : cls.score < 80 ? 'text-yellow-500' : 'text-green-500'">
+                                                {{ cls.score === null ? '—' : cls.score }}<span v-if="cls.score !== null" class="text-sm">分</span>
                                             </div>
-                                            <div v-if="cls.score < 60" class="text-xs text-red-500 font-bold">
+                                            <div v-if="cls.score !== null && cls.score < 60" class="text-xs text-red-500 font-bold">
                                                 <i class="fas fa-exclamation-triangle mr-1"></i>风险警告
                                             </div>
                                             <div v-else-if="cls.score >= 80" class="text-xs text-green-500 font-bold">
@@ -827,7 +827,7 @@
                                             <div class="text-xs text-gray-500">发言数</div>
                                         </div>
                                         <div class="bg-white bg-opacity-60 p-3 rounded-lg text-center">
-                                            <div class="text-xl font-bold px-2 py-1 rounded" :class="cls.score_color === 'green' ? 'text-green-600' : cls.score_color === 'yellow' ? 'text-yellow-600' : 'text-red-600'">{{ displayScoreLevelText(cls.score_level, cls.score) }}</div>
+                                            <div class="text-xl font-bold px-2 py-1 rounded" :class="cls.score_color === 'green' ? 'text-green-600' : cls.score_color === 'yellow' ? 'text-yellow-600' : cls.score_color === 'blue' ? 'text-blue-600' : 'text-red-600'">{{ displayScoreLevelText(cls.score_level, cls.score) }}</div>
                                             <div class="text-xs text-gray-500">评价等级</div>
                                         </div>
                                     </div>
