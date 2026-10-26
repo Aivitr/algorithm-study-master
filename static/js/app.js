@@ -99,8 +99,6 @@ new Vue({
         voiceprintVerifyResult: null,
         // 学习报告列表
         myReports: [],
-        reportGenerating: false,
-        reportProgress: '',
         reportExercises: {},  // 缓存已加载的习题 {report_id: [exercises]}
         // 答题系统
         quizActive: false,
@@ -3071,72 +3069,6 @@ new Vue({
             }, speed || 30);
             target[timerKey] = timer;
         },
-        // 流式生成学习报告（SSE）
-        async _streamReportGeneration(meetingId, userId) {
-            const formData = new FormData();
-            formData.append('meeting_id', meetingId);
-            formData.append('user_id', userId);
-            this.reportGenerating = true;
-            this.reportProgress = '正在连接服务器...';
-
-            try {
-                const response = await fetch('/api/generate-report-stream', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-
-                    for (const line of lines) {
-                        if (!line.startsWith('data: ')) continue;
-                        const data = line.substring(6).trim();
-                        if (data === '[DONE]') {
-                            this.reportGenerating = false;
-                            this.reportProgress = '';
-                            return;
-                        }
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.type === 'progress') {
-                                this.reportProgress = parsed.message;
-                            } else if (parsed.type === 'complete') {
-                                this.reportProgress = '报告生成完毕！';
-                                await this.loadMyReports({force: true});
-                                await this.loadClassHistory({force: true});
-                                // 自动跳转到学习报告标签
-                                this.activeTab = 'report';
-                                setTimeout(() => {
-                                    this.reportGenerating = false;
-                                    this.reportProgress = '';
-                                }, 1500);
-                            } else if (parsed.type === 'error') {
-                                this.reportProgress = '生成失败: ' + parsed.message;
-                                setTimeout(() => {
-                                    this.reportGenerating = false;
-                                    this.reportProgress = '';
-                                }, 3000);
-                            }
-                        } catch (e) { /* ignore parse errors */ }
-                    }
-                }
-            } catch (e) {
-                console.error('报告流式生成失败:', e);
-                this.reportProgress = '网络错误，请稍后重试';
-                setTimeout(() => {
-                    this.reportGenerating = false;
-                    this.reportProgress = '';
-                }, 3000);
-            }
-        },
         // 加载习题详情
         async loadExercises(reportId) {
             if (this.reportExercises[reportId]) return; // 已缓存
@@ -3694,15 +3626,6 @@ new Vue({
                 this.backToLobby();
                 this.showAlert('你已退出课堂；正式学习报告将在教师结束课堂后生成，可稍后在报告页查看。', 'info', '提示');
             }
-        },
-        scheduleReportGeneration(meetingId, userId) {
-            const START_DELAY_MS = 15000;
-            console.log(`⏳ 课堂结束后 ${START_DELAY_MS}ms 延迟生成学习报告...`);
-            this.reportGenerating = true;
-            this.reportProgress = '等待最后的发言入库...';
-            setTimeout(() => {
-                this._streamReportGeneration(meetingId, userId);
-            }, START_DELAY_MS);
         },
         meetingStatusLabel(status) {
             return ({ created: '待开始', running: '进行中', ended: '已结束' })[status] || '状态异常';

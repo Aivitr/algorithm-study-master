@@ -41,13 +41,35 @@ from app.services.research_runtime import research_runtime
 router = APIRouter()
 
 
+_report_tasks: set[asyncio.Task] = set()
+
+
+def _run_one_report(meeting_id: int, user_id: int) -> None:
+    """在工作线程里生成一名学生的报告。
+
+    `generate_learning_report` 内部是同步 LLM 调用（无 await），必须放到线程里跑，
+    否则会堵住事件循环。数据库会话也在线程内创建，避免跨线程复用 Session。
+    """
+    from app.core.database import SessionLocal
+    from app.routers.reports import generate_learning_report
+
+    db = SessionLocal()
+    try:
+        asyncio.run(
+            generate_learning_report(
+                meeting_id=meeting_id, user_id=user_id, db=db
+            )
+        )
+    finally:
+        db.close()
+
+
 async def _generate_class_reports(meeting_id: int) -> None:
     """课后报告任务：为课堂内每名学生各生成一份报告。
 
     只由 end-class 在 CAS 取得结束权后触发一次；单名学生失败不影响其他人。
     """
     from app.core.database import SessionLocal
-    from app.routers.reports import generate_learning_report
 
     db = SessionLocal()
     try:
@@ -66,23 +88,21 @@ async def _generate_class_reports(meeting_id: int) -> None:
         db.close()
 
     for user_id in student_ids:
-        report_db = SessionLocal()
         try:
-            await generate_learning_report(
-                meeting_id=meeting_id, user_id=user_id, db=report_db
-            )
+            await asyncio.to_thread(_run_one_report, meeting_id, user_id)
         except Exception as exc:
             print(
                 f"[ERROR] 课后报告生成失败: meeting_id={meeting_id}, "
                 f"user_id={user_id}: {exc}"
             )
-        finally:
-            report_db.close()
 
 
 def schedule_class_reports(meeting_id: int) -> None:
     """结束课堂后触发一次课后报告任务（测试可替换此函数）。"""
-    asyncio.create_task(_generate_class_reports(meeting_id))
+    task = asyncio.create_task(_generate_class_reports(meeting_id))
+    # 事件循环只持弱引用；不留强引用的话任务可能在执行中被回收。
+    _report_tasks.add(task)
+    task.add_done_callback(_report_tasks.discard)
 
 @router.get("/api/agora-token")
 async def get_agora_token(

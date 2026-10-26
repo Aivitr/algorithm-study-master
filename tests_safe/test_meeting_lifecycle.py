@@ -281,6 +281,57 @@ def test_end_class_freezes_active_votes(
             cleanup.close()
 
 
+def test_end_class_closes_realtime_connections(
+    client, lifecycle_meeting, lifecycle_broadcasts, lifecycle_report_schedules,
+    monkeypatch,
+):
+    import app.routers.classroom_ops as classroom_ops
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.closed = False
+
+        async def close(self):
+            self.closed = True
+
+    class FakeASRManager:
+        def __init__(self, meeting_id, ws):
+            self.meeting_connections = {meeting_id: {"李同学": ws}}
+            self.stopped = []
+
+        async def stop_session(self, username, meeting_id, client_ws=None):
+            self.stopped.append((username, meeting_id))
+            self.meeting_connections.get(meeting_id, {}).pop(username, None)
+
+    class FakeSignalManager:
+        def __init__(self, meeting_id, ws):
+            self.meeting_connections = {meeting_id: {"李同学": ws}}
+
+    chat_ws = FakeWebSocket()
+    asr_ws = FakeWebSocket()
+    signal_ws = FakeWebSocket()
+    asr = FakeASRManager(lifecycle_meeting, asr_ws)
+    signal = FakeSignalManager(lifecycle_meeting, signal_ws)
+
+    monkeypatch.setattr(classroom_ops, "asr_manager", asr)
+    monkeypatch.setattr(classroom_ops, "signal_manager", signal)
+    classroom_ops.manager.meeting_connections[lifecycle_meeting] = {
+        "李同学": chat_ws
+    }
+
+    try:
+        assert _start(client, lifecycle_meeting).json()["status"] == "success"
+        assert _end(client, lifecycle_meeting).json()["status"] == "success"
+
+        assert chat_ws.closed is True
+        assert asr_ws.closed is True
+        assert signal_ws.closed is True
+        assert asr.stopped == [("李同学", lifecycle_meeting)]
+        assert lifecycle_meeting not in classroom_ops.manager.meeting_connections
+    finally:
+        classroom_ops.manager.meeting_connections.pop(lifecycle_meeting, None)
+
+
 def test_ended_class_cannot_be_restarted(client, lifecycle_meeting, lifecycle_broadcasts):
     assert _start(client, lifecycle_meeting).json()["status"] == "success"
     assert _end(client, lifecycle_meeting).json()["status"] == "success"
