@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from sqlalchemy import CheckConstraint
 from sqlalchemy import Column
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
@@ -11,10 +12,17 @@ from sqlalchemy import String
 from sqlalchemy import Text
 
 from app.models.base import Base
+from app.core.meeting_state import CREATED
 
 
 class Meeting(Base):
     __tablename__ = "meetings"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('created', 'running', 'ended')",
+            name="CK_meetings_status",
+        ),
+    )
     id = Column(Integer, primary_key=True, index=True)
     class_code = Column(String(50), unique=True, index=True)
     teacher_id = Column(Integer, ForeignKey("users.id"))
@@ -23,8 +31,9 @@ class Meeting(Base):
     teaching_design = Column(JSON, nullable=True)  # AI[EMOJI]
     knowledge_points = Column(JSON, default=list)  # [EMOJI]
     template_path = Column(String(500), nullable=True)  # [EMOJI]
-    status = Column(String(20), default="active")  # active/paused/ended
+    status = Column(String(20), default=CREATED, nullable=False)  # created/running/ended
     created_at = Column(DateTime, default=datetime.now)
+    started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
 
 # [EMOJI]: [EMOJI]([EMOJI])

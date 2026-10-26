@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "183bdaaef57b80dd",
-    "length": 254294,
+    "digest": "8efbda04502dcd19",
+    "length": 254137,
     "status": 200
   },
   "GET /api/active-groups/1": {
@@ -77,8 +77,8 @@
   },
   "GET /api/class-history/2": {
     "content_type": "application/json",
-    "digest": "9d6107aecb8e2cda",
-    "length": 592,
+    "digest": "8c26e9430f492b32",
+    "length": 713,
     "shape": {
       "history": [
         "list[2]",
@@ -87,11 +87,13 @@
           "created_at": "str",
           "duration_minutes": "int",
           "end_time": "str",
+          "ended_at": "null",
           "has_report": "bool",
           "meeting_id": "int",
           "participant_count": "int",
           "speech_count": "int",
           "start_time": "str",
+          "started_at": "str",
           "status": "str",
           "topic": "str"
         }
@@ -265,10 +267,9 @@
   },
   "GET /api/meeting/1": {
     "content_type": "application/json",
-    "digest": "119edf9e8687ed7f",
-    "length": 216,
+    "digest": "9eadeb979fab9aee",
+    "length": 235,
     "shape": {
-      "class_status": "str",
       "created_at": "str",
       "ended_at": "str",
       "goals": [
@@ -276,7 +277,8 @@
         null
       ],
       "meeting_id": "int",
-      "started_at": "null",
+      "meeting_status": "str",
+      "started_at": "str",
       "status": "str",
       "teaching_design": "null",
       "topic": "str"
@@ -726,12 +728,13 @@
   },
   "GET /api/student-home-stats/2": {
     "content_type": "application/json",
-    "digest": "3926f14e85cd2b46",
-    "length": 88,
+    "digest": "993b506dd670949b",
+    "length": 107,
     "shape": {
       "stats": {
         "activeClasses": "int",
         "completedClasses": "int",
+        "createdClasses": "int",
         "studyHours": "str"
       },
       "status": "str"
@@ -757,8 +760,8 @@
   },
   "GET /api/teacher-classes/1": {
     "content_type": "application/json",
-    "digest": "e518e436c72853d3",
-    "length": 523,
+    "digest": "ca1da65dca4a14d4",
+    "length": 644,
     "shape": {
       "classes": [
         "list[2]",
@@ -766,12 +769,14 @@
           "class_code": "str",
           "created_at": "str",
           "duration_minutes": "int",
+          "ended_at": "null",
           "meeting_id": "int",
           "member_count": "int",
           "score": "int",
           "score_color": "str",
           "score_level": "str",
           "speech_count": "int",
+          "started_at": "str",
           "status": "str",
           "topic": "str"
         }

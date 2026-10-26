@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.emotions import normalize_emotion_label
+from app.core.meeting_state import RUNNING
 from app.core.oss import USE_OSS, get_oss_manager
 from app.core.paths import PROJECT_ROOT
 from app.models import AIInsight, EmotionLog, Meeting, Transcript, User
@@ -172,6 +173,9 @@ def _create_realtime_transcript_entry(
         if not user or not meeting:
             print(f"[WARN] 用户或课堂不存在: username={username}, meeting_id={meeting_id}")
             return None
+        if meeting.status != RUNNING:
+            print(f"[WARN] 非进行中课堂拒绝保存发言: meeting_id={meeting_id}, status={meeting.status}")
+            return None
 
         media_state = _get_recent_media_state(meeting_id, username)
         emotion_tag = normalize_emotion_label(media_state.get("emotion_tag", "neutral"))
@@ -313,7 +317,7 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
 
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         trans = db.query(Transcript).filter(Transcript.id == transcript_id).first()
-        if not meeting or not trans:
+        if not meeting or meeting.status != RUNNING or not trans:
             return []
 
         recents = db.query(Transcript).filter(
@@ -479,7 +483,7 @@ def _stream_realtime_speech_analysis_events(prepared: Dict[str, Any]):
         asr_index = prepared.get("asr_index")
 
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
+        if not meeting or meeting.status != RUNNING:
             yield {"__combined": None}
             return
 

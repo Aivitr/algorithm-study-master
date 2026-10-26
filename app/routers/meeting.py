@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.meeting_state import ENDED, RUNNING, meeting_status_error
 from app.models import Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.knowledge_trace_service import KnowledgeTraceService
@@ -33,6 +34,11 @@ async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
     emo_stats = ClassStatsService(db).emotion_counts(meeting_id)
     full_text = "\n".join([f"{t.user.username}: {t.content}" for t in transcripts])
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        return {"status": "error", "message": "课堂不存在"}
+    state_error = meeting_status_error(meeting.status, {RUNNING, ENDED})
+    if state_error:
+        return {"status": "error", "message": state_error}
     return llm.analyze_emotion_and_summary(meeting.topic, full_text, emo_stats)
 
 

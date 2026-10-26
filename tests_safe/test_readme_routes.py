@@ -43,7 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 README = REPO_ROOT / "README.md"
 
 # 路由可能出现在这三处。`server.py` 与 `app/realtime/` 目前**一条也不贡献**
-# （实测 59 条全在 `app/routers/`），但仍然扫它们：将来有人图省事在入口文件里
+# （实测 60 条全在 `app/routers/`），但仍然扫它们：将来有人图省事在入口文件里
 # 挂一条 `@app.get`，那条就会绕过本断言。
 _ROUTE_SOURCES = (
     *sorted((REPO_ROOT / "app" / "routers").glob("*.py")),
@@ -64,8 +64,8 @@ _README_ROUTE_ROW = re.compile(
     re.MULTILINE,
 )
 
-# 源码侧下限。当前实测正好 59（GET 28 / POST 26 / DELETE 2 / WS 3），与
-# test_route_contract.py 冻死的"59 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
+# 源码侧下限。当前实测正好 60（GET 28 / POST 27 / DELETE 2 / WS 3），与
+# test_route_contract.py 冻死的"60 个接口"吻合。留出余量是为了让**新增路由**不必改这里，但抽取一旦
 # 整体失效，它会立刻跌到 0 而报红。
 _MIN_EXPECTED_ROUTES = 50
 

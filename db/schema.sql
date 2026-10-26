@@ -173,11 +173,95 @@ CREATE TABLE [dbo].[meetings] (
     [teaching_design] nvarchar(max) NULL,
     [knowledge_points] nvarchar(max) NULL,
     [template_path] varchar(500) NULL,
-    [status] varchar(20) NULL,
+    [status] varchar(20) NOT NULL CONSTRAINT [DF_meetings_status] DEFAULT ('created'),
     [created_at] datetime NULL,
+    [started_at] datetime NULL,
     [ended_at] datetime NULL,
+    CONSTRAINT [CK_meetings_status] CHECK ([status] IN ('created', 'running', 'ended')),
     CONSTRAINT [PK__meetings__3213E83FC1A105C7] PRIMARY KEY ([id])
 );
+END;
+GO
+
+-- 旧库幂等升级：补 started_at，并把旧课堂状态迁移到三阶段状态机。
+IF COL_LENGTH(N'dbo.meetings', N'started_at') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[meetings] ADD [started_at] datetime NULL;
+END;
+GO
+
+-- 旧 active/paused 都表示已经进入课堂；真实开始时间不可恢复，使用 created_at 近似回填。
+UPDATE [dbo].[meetings]
+SET [started_at] = COALESCE([started_at], [created_at])
+WHERE [status] IN ('active', 'paused', 'ended') AND [started_at] IS NULL;
+GO
+
+UPDATE [dbo].[meetings] SET [status] = 'running' WHERE [status] IN ('active', 'paused');
+UPDATE [dbo].[meetings] SET [status] = 'created' WHERE [status] IS NULL;
+GO
+
+-- 旧库可能已有 DEFAULT ('active')：先删除旧默认，再统一为 created。
+DECLARE @meetings_status_default sysname;
+SELECT @meetings_status_default = dc.name
+FROM sys.default_constraints dc
+INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+WHERE dc.parent_object_id = OBJECT_ID(N'dbo.meetings')
+  AND c.name = N'status'
+  AND dc.definition NOT LIKE N'%created%';
+
+IF @meetings_status_default IS NOT NULL
+BEGIN
+    DECLARE @drop_status_default_sql nvarchar(max);
+    SET @drop_status_default_sql =
+        N'ALTER TABLE [dbo].[meetings] DROP CONSTRAINT '
+        + QUOTENAME(@meetings_status_default);
+    EXEC sp_executesql @drop_status_default_sql;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.default_constraints dc
+    INNER JOIN sys.columns c
+        ON c.default_object_id = dc.object_id
+    WHERE dc.parent_object_id = OBJECT_ID(N'dbo.meetings')
+      AND c.name = N'status'
+)
+BEGIN
+    ALTER TABLE [dbo].[meetings]
+        ADD CONSTRAINT [DF_meetings_status] DEFAULT ('created') FOR [status];
+END;
+GO
+
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'dbo.meetings')
+      AND name = N'status'
+      AND is_nullable = 1
+)
+BEGIN
+    ALTER TABLE [dbo].[meetings] ALTER COLUMN [status] varchar(20) NOT NULL;
+END;
+GO
+
+IF EXISTS (
+    SELECT 1 FROM [dbo].[meetings]
+    WHERE [status] NOT IN ('created', 'running', 'ended')
+)
+BEGIN
+    THROW 50001, 'meetings.status contains values outside created/running/ended', 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.meetings')
+      AND name = N'CK_meetings_status'
+)
+BEGIN
+    ALTER TABLE [dbo].[meetings] WITH CHECK
+        ADD CONSTRAINT [CK_meetings_status]
+        CHECK ([status] IN ('created', 'running', 'ended'));
 END;
 GO
 IF OBJECT_ID(N'dbo.[member_connections]', N'U') IS NULL

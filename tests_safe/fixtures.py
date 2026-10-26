@@ -53,12 +53,13 @@ def seed_all(db) -> dict:
         id=1, class_code="CLS2026001", teacher_id=1,
         topic="测试课堂：光合作用", status="ended",
         knowledge_points=[], created_at=BASE_TIME,
+        started_at=BASE_TIME,
         ended_at=BASE_TIME + timedelta(hours=1),
     )
     db.add(meeting)
 
     # 第二节：**进行中**的课堂。
-    # `/api/active-groups/{teacher_id}` 只返回 `status == "active"` 的课，
+    # `/api/active-groups/{teacher_id}` 只返回 `status == "running"` 的课，
     # 只有 ended 的会议会让它恒返回空列表——那样基线就锁不住它的聚合逻辑。
     #
     # `created_at` 必须与第一节**不同**：`/api/class-history/{user_id}` 用它倒序
@@ -68,8 +69,9 @@ def seed_all(db) -> dict:
     # 取"晚一天"是顺带贴合语义的：进行中的课晚于已结束的课。
     db.add(Meeting(
         id=2, class_code="CLS2026002", teacher_id=1,
-        topic="测试课堂：细胞呼吸", status="active",
+        topic="测试课堂：细胞呼吸", status="running",
         knowledge_points=[], created_at=BASE_TIME + timedelta(days=1),
+        started_at=BASE_TIME + timedelta(days=1),
     ))
 
     for i, (uid, text) in enumerate([

@@ -30,7 +30,7 @@ class MeetingContextService:
             "status": "success",
             "meeting_id": meeting.id,
             "topic": meeting.topic,
-            "class_status": meeting.status,
+            "meeting_status": meeting.status,
             "created_at": self._iso(meeting.created_at),
             "started_at": self._iso(getattr(meeting, "started_at", None)),
             "ended_at": self._iso(meeting.ended_at),

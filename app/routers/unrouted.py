@@ -27,7 +27,7 @@
 
 `app/routers/` 下若有模块存在却没被装配，`tests_safe/test_routers_layout.py`
 会报红——所以这里必须保留一个（空的）`router` 并在 server.py 里 include。
-空 router 的 include 是空操作：展开后的路由表仍逐条一致（59 条）。
+空 router 的 include 是空操作：展开后的路由表仍逐条一致（60 条）。
 """
 
 import os

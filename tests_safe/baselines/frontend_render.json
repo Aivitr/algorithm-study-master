@@ -13,16 +13,16 @@
       "length": 4109
     },
     "大厅（学生）": {
-      "hash": "1898d6770071c849",
-      "length": 5454
+      "hash": "da35d8c4f4f61763",
+      "length": 5446
     },
     "大厅（教师）": {
-      "hash": "ec5cbf86bed4015a",
-      "length": 7008
+      "hash": "7976f6d11674c07b",
+      "length": 7000
     },
     "个人中心（学生）": {
-      "hash": "849c8d01a0b46248",
-      "length": 10438
+      "hash": "6967c40ec7216ad0",
+      "length": 10430
     },
     "课堂（学生）": {
       "hash": "1a09cbc701eecae1",
@@ -33,24 +33,24 @@
       "length": 8477
     },
     "AI 辅导弹窗": {
-      "hash": "35d6445f9c4800a1",
-      "length": 7223
+      "hash": "64c5c7fd537f5305",
+      "length": 7215
     },
     "进入课堂弹窗": {
-      "hash": "f8e0ba089d3b0463",
-      "length": 10256
+      "hash": "1ba7c059bebd783e",
+      "length": 10248
     },
     "小组报告弹窗": {
-      "hash": "743dbe8c11098275",
-      "length": 7810
+      "hash": "855eb9d7b600b783",
+      "length": 7802
     },
     "通用弹窗": {
-      "hash": "186c2f4c2c76bc95",
-      "length": 5806
+      "hash": "5e8a08ede64df754",
+      "length": 5798
     },
     "通用弹窗（确认）": {
-      "hash": "842a0e3541f2f818",
-      "length": 5853
+      "hash": "0ef96fa8932c78d6",
+      "length": 5845
     }
   },
   "clicks": {
@@ -110,5 +110,8 @@
     }
   },
   "notes": [],
-  "collisions": []
+  "collisions": [],
+  "watch_keys": [
+    "showKnowledgeGraph"
+  ]
 }
