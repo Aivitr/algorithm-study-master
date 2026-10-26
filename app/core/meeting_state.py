@@ -17,7 +17,6 @@ class MeetingStatus(str, Enum):
 CREATED = MeetingStatus.CREATED.value
 RUNNING = MeetingStatus.RUNNING.value
 ENDED = MeetingStatus.ENDED.value
-ALL_MEETING_STATUSES = frozenset({CREATED, RUNNING, ENDED})
 
 
 _STATUS_LABELS = {
