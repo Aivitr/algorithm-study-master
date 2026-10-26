@@ -14,7 +14,7 @@ def test_route_exposes_state_and_times(client, seeded_ids):
         "status",
         "meeting_id",
         "topic",
-        "class_status",
+        "meeting_status",
         "created_at",
         "started_at",
         "ended_at",
@@ -23,10 +23,10 @@ def test_route_exposes_state_and_times(client, seeded_ids):
     }, body
     assert body["status"] == "success"
     assert body["meeting_id"] == 1
-    assert body["class_status"] == "ended"
+    assert body["meeting_status"] == "ended"
     assert body["created_at"].startswith("2026-01-01T09:00:00")
     assert body["ended_at"].startswith("2026-01-01T10:00:00")
-    assert body["started_at"] is None  # 状态机任务（A2）尚未加字段
+    assert body["started_at"].startswith("2026-01-01T09:00:00")
     assert body["goals"] == []
     assert body["teaching_design"] is None
 
@@ -54,7 +54,7 @@ def test_to_dict_reads_started_at_when_present():
 
     body = svc.to_dict(meeting)
 
-    assert body["class_status"] == "running"
+    assert body["meeting_status"] == "running"
     assert body["started_at"] == started.isoformat()
     assert body["ended_at"] is None
     assert body["goals"] == [{"id": 1, "desc": "目标", "status": "pending"}]
@@ -83,4 +83,4 @@ def test_service_reads_meeting(seeded_ids):
 
     assert body["status"] == "success"
     assert body["topic"] == "测试课堂：光合作用"
-    assert body["class_status"] == "ended"
+    assert body["meeting_status"] == "ended"

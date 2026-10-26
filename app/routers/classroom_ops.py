@@ -20,6 +20,7 @@
 覆盖范围内——见 `docs/route-inventory.md`。
 """
 
+import asyncio
 import os
 from datetime import datetime
 from typing import Optional
@@ -31,12 +32,57 @@ from app.core.database import get_db
 from app.core.http import NO_CACHE_HEADERS
 from app.core.meeting_state import CREATED, ENDED, RUNNING, meeting_status_error
 from app.models import Meeting, Transcript, User, ViewpointVote
-from app.realtime.registry import manager
+from app.realtime.asr_manager import asr_manager
+from app.realtime.registry import manager, signal_manager
 from app.services.llm_service import llm
 from app.services.meeting_lifecycle import claim_end, claim_start
 from app.services.research_runtime import research_runtime
 
 router = APIRouter()
+
+
+async def _generate_class_reports(meeting_id: int) -> None:
+    """课后报告任务：为课堂内每名学生各生成一份报告。
+
+    只由 end-class 在 CAS 取得结束权后触发一次；单名学生失败不影响其他人。
+    """
+    from app.core.database import SessionLocal
+    from app.routers.reports import generate_learning_report
+
+    db = SessionLocal()
+    try:
+        student_ids = [
+            int(user_id)
+            for (user_id,) in db.query(Transcript.user_id)
+            .join(User, User.id == Transcript.user_id)
+            .filter(
+                Transcript.meeting_id == meeting_id,
+                User.role != "teacher",
+            )
+            .distinct()
+            .all()
+        ]
+    finally:
+        db.close()
+
+    for user_id in student_ids:
+        report_db = SessionLocal()
+        try:
+            await generate_learning_report(
+                meeting_id=meeting_id, user_id=user_id, db=report_db
+            )
+        except Exception as exc:
+            print(
+                f"[ERROR] 课后报告生成失败: meeting_id={meeting_id}, "
+                f"user_id={user_id}: {exc}"
+            )
+        finally:
+            report_db.close()
+
+
+def schedule_class_reports(meeting_id: int) -> None:
+    """结束课堂后触发一次课后报告任务（测试可替换此函数）。"""
+    asyncio.create_task(_generate_class_reports(meeting_id))
 
 @router.get("/api/agora-token")
 async def get_agora_token(
@@ -201,6 +247,31 @@ async def end_class(
                 }
             return {"status": "error", "message": "课堂状态已经变化，请刷新后重试"}
 
+        # 冻结仍在进行的投票，并清理本课堂的内存态
+        active_vote_ids = [
+            int(vote_id)
+            for (vote_id,) in db.query(ViewpointVote.id)
+            .filter(
+                ViewpointVote.meeting_id == meeting_id,
+                ViewpointVote.status == "active",
+            )
+            .all()
+        ]
+        if active_vote_ids:
+            db.query(ViewpointVote).filter(
+                ViewpointVote.id.in_(active_vote_ids)
+            ).update(
+                {
+                    ViewpointVote.status: "closed",
+                    ViewpointVote.closed_at: ended_at,
+                },
+                synchronize_session=False,
+            )
+            db.commit()
+        for vote_id in active_vote_ids:
+            manager.vote_confirmations.pop(vote_id, None)
+        manager.silence_notified.pop(meeting_id, None)
+
         # 广播课堂结束通知到所有在线成员
         await manager.broadcast_to_meeting(meeting_id, {
             "type": "class_ended",
@@ -216,6 +287,34 @@ async def end_class(
                 except:
                     pass
             manager.meeting_connections.pop(meeting_id, None)
+
+        # 关闭实时语音与信令连接（聊天连接已在上方关闭）
+        for member_name, asr_ws in list(
+            asr_manager.meeting_connections.get(meeting_id, {}).items()
+        ):
+            try:
+                await asr_manager.stop_session(
+                    member_name, meeting_id, client_ws=asr_ws
+                )
+            except Exception:
+                pass
+            try:
+                await asr_ws.close()
+            except Exception:
+                pass
+        asr_manager.meeting_connections.pop(meeting_id, None)
+
+        for signal_ws in list(
+            signal_manager.meeting_connections.get(meeting_id, {}).values()
+        ):
+            try:
+                await signal_ws.close()
+            except Exception:
+                pass
+        signal_manager.meeting_connections.pop(meeting_id, None)
+
+        # 课后报告由后端触发一次（CAS 已保证只有结束执行者走到这里）
+        schedule_class_reports(meeting_id)
 
         print(f"[OK] 课堂 {meeting_id} 已被教师 {username} 结束")
         return {

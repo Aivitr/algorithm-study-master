@@ -50,6 +50,16 @@ def lifecycle_broadcasts(monkeypatch):
     return broadcasts
 
 
+@pytest.fixture
+def lifecycle_report_schedules(monkeypatch):
+    """拦截课后报告任务，只记录触发次数。"""
+    import app.routers.classroom_ops as classroom_ops
+
+    scheduled = []
+    monkeypatch.setattr(classroom_ops, "schedule_class_reports", scheduled.append)
+    return scheduled
+
+
 def _start(client, meeting_id):
     return client.post(
         "/api/start-class",
@@ -185,7 +195,7 @@ def test_student_cannot_spoof_teacher_role_to_create_class(client, seeded_ids):
 
 
 def test_end_class_is_idempotent(
-    client, lifecycle_meeting, lifecycle_broadcasts
+    client, lifecycle_meeting, lifecycle_broadcasts, lifecycle_report_schedules
 ):
     from app.core.database import SessionLocal
     from app.models import Meeting
@@ -221,6 +231,54 @@ def test_end_class_is_idempotent(
         db.close()
 
     assert [payload["type"] for _, payload in lifecycle_broadcasts] == ["class_ended"]
+    # 课后报告任务只在第一次结束时触发一次
+    assert lifecycle_report_schedules == [lifecycle_meeting]
+
+
+def test_end_class_freezes_active_votes(
+    client, lifecycle_meeting, lifecycle_broadcasts, lifecycle_report_schedules
+):
+    from datetime import datetime
+
+    from app.core.database import SessionLocal
+    from app.models import ViewpointVote
+
+    db = SessionLocal()
+    vote = ViewpointVote(
+        meeting_id=lifecycle_meeting,
+        vote_session_id=f"V-{uuid4().hex[:8]}",
+        viewpoints=[{"id": 1, "text": "观点一"}],
+        votes={},
+        status="active",
+        created_at=datetime.now(),
+    )
+    db.add(vote)
+    db.commit()
+    vote_id = vote.id
+    db.close()
+
+    try:
+        assert _start(client, lifecycle_meeting).json()["status"] == "success"
+        assert _end(client, lifecycle_meeting).json()["status"] == "success"
+
+        db = SessionLocal()
+        try:
+            record = (
+                db.query(ViewpointVote).filter(ViewpointVote.id == vote_id).one()
+            )
+            assert record.status == "closed"
+            assert record.closed_at is not None
+        finally:
+            db.close()
+    finally:
+        cleanup = SessionLocal()
+        try:
+            cleanup.query(ViewpointVote).filter(
+                ViewpointVote.id == vote_id
+            ).delete()
+            cleanup.commit()
+        finally:
+            cleanup.close()
 
 
 def test_ended_class_cannot_be_restarted(client, lifecycle_meeting, lifecycle_broadcasts):

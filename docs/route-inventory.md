@@ -34,6 +34,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | POST | `/api/generate-pdf-report` | 写操作 |  |
 | POST | `/api/research-runtime/config` | 写操作 |  |
 | POST | `/api/research-runtime/prepare-layout` | 写操作 |  |
+| POST | `/api/start-class` | 写操作 |  |
 | POST | `/api/submit-answer` | 写操作 |  |
 | GET | `/api/download-exercises/{report_id}` | 写操作（有副作用） | ✅ |
 | GET | `/` | 只读本地 | ✅ |
@@ -84,7 +85,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 59 条：{'WebSocket': 3, '写操作': 8, '写操作（有副作用）': 1, '只读本地': 23, '外部服务': 18, '本地模型推理': 6}
+总计 60 条：{'WebSocket': 3, '写操作': 9, '写操作（有副作用）': 1, '只读本地': 23, '外部服务': 18, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖
@@ -111,9 +112,9 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | 3 条 WebSocket | 长连接，非请求-响应语义 |
 | `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError` |
 
-**覆盖率：25 / 59 ≈ 42%**。
+**覆盖率：25 / 60 ≈ 42%**。
 
-但这个分母没有意义——59 条里有 26 条 `POST`/`DELETE` 写操作、3 条 WebSocket、
+但这个分母没有意义——60 条里有 27 条 `POST`/`DELETE` 写操作、3 条 WebSocket、
 20 条外部服务依赖，它们本来就不可纳入。按"可纳入"的口径算：
 
 - `只读本地` 共 **23** 条，已纳入 **22** 条，唯一未纳入的是 `/voiceprint_register`

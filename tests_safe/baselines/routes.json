@@ -87,13 +87,13 @@
           "created_at": "str",
           "duration_minutes": "int",
           "end_time": "str",
-        "ended_at": "null",
+          "ended_at": "null",
           "has_report": "bool",
           "meeting_id": "int",
           "participant_count": "int",
           "speech_count": "int",
           "start_time": "str",
-        "started_at": "str",
+          "started_at": "str",
           "status": "str",
           "topic": "str"
         }
@@ -267,7 +267,7 @@
   },
   "GET /api/meeting/1": {
     "content_type": "application/json",
-    "digest": "6aacadb173adc3b9",
+    "digest": "9eadeb979fab9aee",
     "length": 235,
     "shape": {
       "created_at": "str",
@@ -769,14 +769,14 @@
           "class_code": "str",
           "created_at": "str",
           "duration_minutes": "int",
-        "ended_at": "null",
+          "ended_at": "null",
           "meeting_id": "int",
           "member_count": "int",
           "score": "int",
           "score_color": "str",
           "score_level": "str",
           "speech_count": "int",
-        "started_at": "str",
+          "started_at": "str",
           "status": "str",
           "topic": "str"
         }

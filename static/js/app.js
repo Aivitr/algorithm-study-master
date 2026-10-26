@@ -2877,15 +2877,10 @@ new Vue({
                 // === 10.5 课堂结束通知 ===
                 else if (d.type === 'class_ended') {
                     console.log('🏁 课堂结束:', d);
-                    const endedMeetingId = this.meetingId;
-                    const endedUserId = this.currentUser?.id;
-                    const shouldGenerateReport = this.currentUser?.role === 'student';
                     this.meetingStatus = 'ended';
                     this.showAlert(d.message || '课堂已结束', 'info', '课堂结束');
                     this._cleanupClassroom();
-                    if (shouldGenerateReport && endedMeetingId && endedUserId) {
-                        this.scheduleReportGeneration(endedMeetingId, endedUserId);
-                    }
+                    // 课后报告由后端在结束课堂时统一触发，前端不再重复生成
                 }
 
                 // === 11. 话题建议推送 ===
@@ -3693,20 +3688,11 @@ new Vue({
             } else {
                 // 学生只能退出正在进行的课堂；正式学习报告在教师结束课堂后生成。
                 if (!await this.showConfirm('确认退出课堂吗？', '退出课堂')) return;
-                const meetingId = this.meetingId;
-                const userId = this.currentUser.id;
-                const classHasEnded = this.meetingStatus === 'ended';
-
-                // 先清理资源再回首页
+                // 先清理资源再回首页；课后报告由后端在课堂结束时统一生成
                 this._cleanupClassroom();
                 this.loading = false;
                 this.backToLobby();
-
-                if (classHasEnded) {
-                    this.scheduleReportGeneration(meetingId, userId);
-                } else {
-                    this.showAlert('你已退出课堂；正式学习报告将在教师结束课堂后生成。', 'info', '提示');
-                }
+                this.showAlert('你已退出课堂；正式学习报告将在教师结束课堂后生成，可稍后在报告页查看。', 'info', '提示');
             }
         },
         scheduleReportGeneration(meetingId, userId) {
