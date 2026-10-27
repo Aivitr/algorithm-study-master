@@ -394,19 +394,16 @@ class TestComposePointsAtTheLocalDatabase:
             "有外键约束但没有 IF NOT EXISTS 守卫，重复执行会撞名"
         )
 
-    def test_app_waits_for_db_init(self):
-        """app 必须等 db-init **成功退出**，否则会连上一个还没建表的空库，
-        然后在注册时抛出一个和真实原因毫无关系的错。"""
-        app = _compose()["services"]["app"]
-        depends = app.get("depends_on") or {}
-        assert isinstance(depends, dict), (
-            "app 的 depends_on 写成了短格式（列表）—— 那种写法不支持 condition，"
-            "等价于只保证容器启动顺序，不保证 db-init 跑完。"
-        )
-        condition = (depends.get("db-init") or {}).get("condition")
-        assert condition == "service_completed_successfully", (
-            f"app 对 db-init 的 condition 是 {condition!r}，"
-            f"应为 'service_completed_successfully'。"
+    def test_local_db_is_opt_in(self):
+        """默认 `docker compose up` 只起 app；本地库必须显式 `--profile local-db`。"""
+        services = _compose()["services"]
+        for name in ("db", "db-init"):
+            assert "local-db" in (services[name].get("profiles") or []), (
+                f"{name} 没有放进 local-db profile —— 默认 up 会拉起本地 MSSQL"
+            )
+        app = services["app"]
+        assert "db-init" not in (app.get("depends_on") or {}), (
+            "app 仍依赖 db-init；默认启动会被本地库拖住"
         )
 
     def test_app_takes_db_config_from_the_env_layer(self):
@@ -467,15 +464,11 @@ class TestDevEnvLayer:
         return _parse_env_file(path)
 
     def test_declares_every_db_key(self, example):
-        """6 个键 + sa 口令，一个都不能少 —— 它们对应**读不同变量**的代码路径。
+        """6 个 DB 键一个都不能少 —— 它们对应**读不同变量**的代码路径。
 
-        注意这里刻意用变量下标而不是字面量 `example.get("MSSQL_SA_PASSWORD")`：
-        `tests_safe/test_env_docs.py` 把任何 `get("大写串")` 都当作"代码读取了
-        这个环境变量"，字面量写法会让 MSSQL_SA_PASSWORD 被误判成 app 的配置项，
-        进而要求它出现在 `.env.example` 里 —— 而它其实是 db 容器与 init.sh 的，
-        归属 `.env.dev.example`。
+        MSSQL_SA_PASSWORD 只在可选 local-db profile 里用，模板中已注释掉。
         """
-        required = ["MSSQL_SA_PASSWORD"] + list(_PROD_DB_KEYS)
+        required = list(_PROD_DB_KEYS)
         missing = [k for k in required if not example.get(k)]
         assert not missing, (
             f".env.dev.example 缺少这些键：{missing}。\n"
@@ -484,53 +477,42 @@ class TestDevEnvLayer:
             f"少任何一个，那条路径就连不上。"
         )
 
-    def test_points_at_the_compose_db_service(self, example):
-        """宿主名必须是服务名 `db`，端口必须是**容器内**的 1433。
-
-        这条防的是最常见的手误：照着本机联调的习惯写成 localhost:1433。
-        容器里的 localhost 是容器自己，没有任何东西监听。
-        """
-        assert example["DB_HOST"] == "db", (
-            f"DB_HOST 是 {example['DB_HOST']!r}，应为 'db'（compose 网络里的服务名）。\n"
-            f"写 localhost 的话，容器里的 localhost 是它自己。"
+    def test_points_at_a_remote_placeholder(self, example):
+        """默认模板指向远程库，且只放占位符。"""
+        assert example["DB_HOST"].startswith("<"), (
+            f"DB_HOST 是 {example['DB_HOST']!r}，应为远程占位符（如 <远程数据库主机名>）"
         )
-        assert example["DB_PORT"] == "1433", (
-            f"DB_PORT 是 {example['DB_PORT']!r}，应为容器内的 1433。"
+        assert example["DB_PORT"].startswith("<"), (
+            f"DB_PORT 是 {example['DB_PORT']!r}，应为远程占位符"
         )
-        assert example["DB_NAME"] == "cscl_db", (
-            f"DB_NAME 是 {example['DB_NAME']!r}，应与 db/schema.sql 建的库同名。"
+        assert example["DB_NAME"].startswith("<"), (
+            f"DB_NAME 是 {example['DB_NAME']!r}，应为远程占位符"
         )
 
-    def test_password_has_exactly_one_source(self, example):
-        """`MSSQL_SA_PASSWORD`、`DB_PASSWORD` 与 `DATABASE_URL` 里嵌的口令必须一致。
-
-        这三个值语义上是**同一个口令**：第一个是 db 容器初始化 sa 时设的，
-        后两个是 app 连它时提供的。改一个忘另两个的症状是"连不上库"，
-        而报错信息完全指不出病因。所以这里把"它们相等"从约定变成断言。
-        """
+    def test_remote_template_keeps_placeholders(self, example):
+        """口令与连接串必须是占位符，不能是真实凭据。"""
         from urllib.parse import unquote, urlsplit
 
-        sa = example["MSSQL_SA_PASSWORD"]
-        assert example["DB_PASSWORD"] == sa, (
-            f"DB_PASSWORD 与 MSSQL_SA_PASSWORD 不一致 —— app 会用错口令连 db"
+        assert example["DB_PASSWORD"].startswith("<"), (
+            "DB_PASSWORD 必须是占位符，不能写真实口令"
         )
         url = urlsplit(example["DATABASE_URL"])
-        assert unquote(url.password or "") == sa, (
-            f"DATABASE_URL 里嵌的口令与 MSSQL_SA_PASSWORD 不一致 —— "
-            f"ORM 那条路径会连不上（而注册/登录用的却是另一个口令，两边表现不一致，更难查）"
+        assert unquote(url.password or "").startswith("<"), (
+            "DATABASE_URL 里的口令必须是占位符"
         )
 
     def test_database_url_matches_the_same_target(self, example):
-        """DATABASE_URL 的方言、主机、端口、库名要与 DB_* 一致。"""
+        """DATABASE_URL 的方言必须正确；主机/口径用占位符。"""
         from urllib.parse import urlsplit
 
         url = urlsplit(example["DATABASE_URL"])
         assert url.scheme == "mssql+pymssql", (
             f"DATABASE_URL 的方言是 {url.scheme!r}，应为 mssql+pymssql"
         )
-        assert url.hostname == example["DB_HOST"], "DATABASE_URL 的主机与 DB_HOST 不一致"
-        assert str(url.port) == example["DB_PORT"], "DATABASE_URL 的端口与 DB_PORT 不一致"
-        assert url.path.lstrip("/") == example["DB_NAME"], "DATABASE_URL 的库名与 DB_NAME 不一致"
+        assert (url.hostname or "").startswith("<"), "DATABASE_URL 的主机必须是占位符"
+        assert (url.path.lstrip("/") or "").startswith("<"), (
+            "DATABASE_URL 的库名必须是占位符"
+        )
 
 
 # --------------------------------------------------------------------------
