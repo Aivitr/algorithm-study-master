@@ -1,12 +1,21 @@
-"""课堂级 Agent 工具使用的只读查询 Service。"""
+"""课堂级 Agent 工具使用的只读查询 Service。
+
+数据来源统一走已有的只读 Service：
+- 发言 / 统计：TranscriptQueryService、ClassStatsService
+- 知识图谱 / 目标覆盖：KnowledgeTraceService
+- GCA 六指标：gca_service
+"""
 
 from collections import Counter
 from typing import Any
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-from app.models import EmotionLog, KnowledgeGraph, Meeting, Transcript, User
-from app.services.knowledge_graph_service import kg_service
+from app.models import Meeting
+from app.services.class_stats_service import ClassStatsService
+from app.services.gca_service import analyze_meeting_metrics
+from app.services.knowledge_trace_service import KnowledgeTraceService
+from app.services.transcript_query_service import TranscriptQueryService
 
 
 def _milliseconds(value: Any) -> int | None:
@@ -27,15 +36,13 @@ class ClassroomAgentService:
         limit: int = 200,
     ) -> dict[str, Any]:
         limit = max(1, min(int(limit), 1000))
-        rows = (
-            db.query(Transcript)
-            .options(joinedload(Transcript.user))
-            .join(Transcript.user)
-            .filter(Transcript.meeting_id == meeting_id, User.role != "teacher")
-            .order_by(Transcript.created_at.asc(), Transcript.id.asc())
-            .limit(limit)
-            .all()
-        )
+        rows = [
+            row
+            for row in TranscriptQueryService(db).list_for_meeting(
+                meeting_id, limit=limit
+            )
+            if getattr(row.user, "role", None) != "teacher"
+        ]
         items = [
             {
                 "evidence_id": f"T#{row.id}",
@@ -56,12 +63,6 @@ class ClassroomAgentService:
 
     def get_statistics(self, db: Session, meeting_id: int) -> dict[str, Any]:
         transcripts = self.get_transcripts(db, meeting_id, limit=1000)["items"]
-        emotions = (
-            db.query(EmotionLog)
-            .filter(EmotionLog.meeting_id == meeting_id)
-            .order_by(EmotionLog.created_at.asc())
-            .all()
-        )
         speech_counts = Counter(item["speaker"] for item in transcripts)
         qualities = [
             item["quality_score"]
@@ -73,6 +74,7 @@ class ClassroomAgentService:
             for left, right in zip(transcripts, transcripts[1:])
             if left["speaker"] and right["speaker"] and left["speaker"] != right["speaker"]
         )
+        emotion_distribution = ClassStatsService(db).emotion_counts(meeting_id)
         return {
             "ok": True,
             "meeting_id": meeting_id,
@@ -86,49 +88,54 @@ class ClassroomAgentService:
             ],
             "average_quality": round(sum(qualities) / len(qualities), 2) if qualities else None,
             "quality_sample_size": len(qualities),
-            "emotion_count": len(emotions),
-            "emotion_distribution": dict(Counter(e.emotion_type or "unknown" for e in emotions)),
+            "emotion_count": sum(emotion_distribution.values()),
+            "emotion_distribution": emotion_distribution,
             "truncated": len(transcripts) == 1000,
         }
 
     def get_knowledge(self, db: Session, meeting_id: int) -> dict[str, Any]:
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if meeting is None:
+        coverage = KnowledgeTraceService(db).goal_coverage_for_meeting(meeting_id)
+        if coverage is None:
             return {"ok": False, "reason": "课堂不存在"}
 
-        goals = meeting.knowledge_points if isinstance(meeting.knowledge_points, list) else []
-        goal_labels = [label for item in goals if (label := _goal_label(item))]
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        visualization = KnowledgeTraceService(db).visualize(meeting_id)
         graph = (
-            db.query(KnowledgeGraph)
-            .filter(KnowledgeGraph.meeting_id == meeting_id)
-            .order_by(KnowledgeGraph.id.desc())
-            .first()
-        )
-        visualization = (
-            kg_service.generate_graph_visualization_data(graph.graph_data)
-            if graph and isinstance(graph.graph_data, dict)
+            visualization["data"]
+            if visualization["status"] == "success"
             else {"nodes": [], "links": [], "categories": []}
         )
-        node_labels = [
-            str(node.get("name") or "").strip()
-            for node in visualization.get("nodes", [])
-            if str(node.get("name") or "").strip()
-        ]
-        covered = [
-            goal
-            for goal in goal_labels
-            if any(goal in label or label in goal for label in node_labels)
-        ]
         return {
             "ok": True,
             "meeting_id": meeting_id,
-            "goals": goals,
-            "covered_goals": covered,
-            "untouched_goals": [goal for goal in goal_labels if goal not in covered],
-            "coverage_ratio": round(len(covered) / len(goal_labels), 3) if goal_labels else None,
-            "graph": visualization,
-            "data_gaps": [] if graph else ["课堂尚无知识图谱"],
+            "goals": meeting.knowledge_points if meeting else [],
+            "covered_goals": [_goal_label(item) for item in coverage["covered"]],
+            "untouched_goals": [_goal_label(item) for item in coverage["uncovered"]],
+            "coverage_ratio": (
+                round(coverage["covered_count"] / coverage["total"], 3)
+                if coverage["total"]
+                else None
+            ),
+            "graph": graph,
+            "data_gaps": [] if graph.get("nodes") else ["课堂尚无知识图谱"],
         }
+
+    def get_metrics(self, db: Session, meeting_id: int) -> dict[str, Any]:
+        result = analyze_meeting_metrics(meeting_id, db)
+        ok = result["status"] in {"success", "single_speaker"}
+        payload = {
+            "ok": ok,
+            "meeting_id": meeting_id,
+            "layer": "quality",
+            "status": result["status"],
+            "student_metrics": result["student_metrics"],
+            "group_metrics": result["group_metrics"],
+            "timeline": result["timeline"],
+            "warnings": result["warnings"],
+        }
+        if not ok:
+            payload["reason"] = result.get("error") or result["status"]
+        return payload
 
 
 classroom_agent_service = ClassroomAgentService()
