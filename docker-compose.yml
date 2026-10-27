@@ -1,22 +1,29 @@
 # ============================================================================
-# 本地开发编排：一条命令拉起整套系统（含数据库）。
+# 开发编排：默认只起 app，直接连远程数据库。
 #
-#   cp .env.dev.example .env.dev
+#   cp .env.dev.example .env.dev      # 填远程库连接
 #   docker compose up --build        浏览器开 http://localhost:8000
 #   docker compose run --rm app python -m pytest      （在容器里跑测试套件）
 #
-# 三个服务：
+# 默认服务：
+#   app      从本仓库 Dockerfile 构建，只负责连 .env.dev 里的远程数据库。
+#
+# 可选服务（本地 MSSQL，默认不启动）：
+#   docker compose --profile local-db up
 #   db       mcr.microsoft.com/mssql/server:2022-latest —— **registry 镜像，单独拉取**，
 #            不打包进 app 镜像；数据落在命名卷 mssql-data 里。约 2.31 GB / 常驻约 2 GB 内存。
 #   db-init  同一个镜像，一次性跑 db/schema.sql，跑完退出。
-#   app      从本仓库 Dockerfile 构建，只负责连过去，镜像里不含任何数据库。
 #
 # ---------------------------------------------------------------------------
 # 一、数据库配置按环境分层
 # ---------------------------------------------------------------------------
 #
-# 容器的库配置来自 .env.dev（**必填**，见下方 env_file）。六个别名齐全：
+# 默认（远程库）：库配置来自 .env.dev（**必填**，见下方 env_file）。六个别名齐全：
 # DATABASE_URL + DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME。
+# .env.dev 指向远程库时，db / db-init 不在默认 profile 里，不会被启动。
+#
+# 可选（本地库）：`--profile local-db` 会启动 db / db-init；此时 .env.dev 里的
+# 6 个键要指回 compose 的 db 服务（DB_HOST=db / DB_PORT=1433），否则 app 仍连远程。
 #
 # 为什么 6 个都要：ORM 读 DATABASE_URL，而 /api/register 与 /api/login
 # **不走 ORM** —— 它们直接 pymssql.connect(DB_HOST, DB_PORT, ...)，不读
@@ -29,6 +36,9 @@
 # ⚠️ 与分层配套的一条纪律：**本编排里的 ${...} 插值读的是仓库根的 .env**。
 # 所以这里**绝不插值 DB_\* / DATABASE_URL** —— 否则生产凭据会被拉进 compose。
 # .env 只装共享密钥（LLM/OSS/Agora/阿里云），库指向归 .env.dev / .env.prod。
+#
+# ⚠️ 直连远程库时，.env.dev 里请设 DB_AUTO_MIGRATE=0，避免 app 导入期对远程库
+# 执行 ALTER TABLE（见 app/core/database.py）。
 #
 # ---------------------------------------------------------------------------
 # 二、代码怎么进来的
@@ -49,6 +59,8 @@ name: algorithm-study-master
 
 services:
   db:
+    # 默认不启动；需要本地库时用 --profile local-db
+    profiles: ["local-db"]
     # registry 镜像，单独拉取：docker compose pull db
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
@@ -79,6 +91,8 @@ services:
       start_period: 40s
 
   db-init:
+    # 默认不启动；需要本地库时用 --profile local-db
+    profiles: ["local-db"]
     # 一次性建库。MSSQL 官方镜像没有 postgres/mysql 那种
     # /docker-entrypoint-initdb.d 自动执行目录，所以只能另起一个容器来跑脚本。
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -109,11 +123,7 @@ services:
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
     image: algorithm-study-master:dev
 
-    # 关键：等 db-init **成功退出**再起 app。不这么写的话，app 会先起来连上一个
-    # 还没建表的空库，然后在注册时抛出一个和真实原因毫无关系的错。
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
+    # 默认直连 .env.dev 里的远程库，不依赖本地 db / db-init。
 
     ports:
       # 宿主端口取自 .env 的 APP_PORT（没写就是 8000）。
@@ -123,7 +133,7 @@ services:
 
     # 顺序有意义：后面的覆盖前面的。
     #   .env      共享密钥（LLM/OSS/Agora/阿里云），缺了也不报错（required: false）
-    #   .env.dev  **开发库指向**，必填 —— 缺了就让 compose 立刻报错，
+    #   .env.dev  **数据库连接**，必填 —— 默认指向远程库；缺了就让 compose 立刻报错，
     #             而不是静默回落到 sqlite 再给一个莫名其妙的注册失败
     env_file:
       - path: .env

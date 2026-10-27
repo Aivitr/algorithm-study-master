@@ -51,7 +51,14 @@ def _ensure_transcripts_columns():
         print(f"[DB_MIGRATION] transcripts patch skipped: {e}")
 
 
-_ensure_transcripts_columns()
+def _auto_migrate_enabled() -> bool:
+    """导入期自动补列开关；默认开启，设 DB_AUTO_MIGRATE=0 关闭。"""
+    value = os.getenv("DB_AUTO_MIGRATE", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+if _auto_migrate_enabled():
+    _ensure_transcripts_columns()
 
 def get_db():
     db = SessionLocal()

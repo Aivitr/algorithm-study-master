@@ -8,12 +8,16 @@
 
 ```bash
 cp .env.example .env              # 填入密钥，见下方"必填项"
-cp .env.dev.example .env.dev      # 开发库指向，照抄即可，不用改
+cp .env.dev.example .env.dev      # 填入远程数据库连接
 docker compose up --build
 ```
 
-`up` 会按顺序拉起三个服务：`db`（SQL Server 2022，数据落命名卷）、
-`db-init`（一次性跑 `db/schema.sql` 建库，跑完退出）、`app`。
+`up` 默认只拉起 `app`，它直接连 `.env.dev` 里的远程数据库。
+不再需要本地 MSSQL。
+
+> 需要离线调试、想用本地库时，才加 `--profile local-db`：
+> `db`（SQL Server 2022，数据落命名卷）与 `db-init`（一次性跑 `db/schema.sql` 建库）
+> 会一起启动；此时把 `.env.dev` 的 `DB_HOST` 指回 `db`。
 
 打开 <http://127.0.0.1:8000>。
 
@@ -31,10 +35,11 @@ docker compose up --build
 | 位置 | 键 | 不填会怎样 |
 |---|---|---|
 | `.env` | `LLM_API_KEY` | `import server` 直接抛 `OpenAIError`，容器起不来。只想看看页面可以给假值 |
-| `.env.dev` | 整份 | compose 里是 `required: true`，缺了当场报错。`cp .env.dev.example .env.dev` 即可 |
+| `.env.dev` | 整份 | compose 里是 `required: true`，缺了当场报错。按模板填远程库连接 |
 
-数据库指向**按环境分层**：`.env.dev` 连本机容器（`dev`），`.env.prod` 连线上 RDS（`prod`），
-由 `APP_ENV` 选择。
+数据库指向**按环境分层**：`.env.dev` 与 `.env.prod` 都连远程库，
+由 `APP_ENV` 选择；开发/比赛用 `.env.dev`，线上用 `.env.prod`。
+两份模板里都设了 `DB_AUTO_MIGRATE=0`，启动时不会对远程库执行 `ALTER TABLE`。
 
 ### 本地开发怎么干活
 
@@ -51,11 +56,11 @@ docker compose exec app bash                      # 进容器（建表、查数�
 docker compose exec app python -m pytest          # 在容器里跑测试
 ```
 
-对着本地库查数据（`bash -c` 不能省——`$MSSQL_SA_PASSWORD` 只在**容器内**有值，
-宿主 shell 里是空的，省掉就会拿着空口令去连）：
+只有使用可选的本地库 profile 时，才需要对着本地容器查数据（`bash -c` 不能省——
+`$MSSQL_SA_PASSWORD` 只在**容器内**有值，宿主 shell 里是空的）：
 
 ```bash
-docker compose exec -T db bash -c \
+docker compose --profile local-db exec -T db bash -c \
   '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" \
    -C -b -d cscl_db -Q "SELECT COUNT(*) FROM users"'
 ```
