@@ -41,6 +41,20 @@ docker compose up --build
 由 `APP_ENV` 选择；开发/比赛用 `.env.dev`，线上用 `.env.prod`。
 两份模板里都设了 `DB_AUTO_MIGRATE=0`，启动时不会对远程库执行 `ALTER TABLE`。
 
+### 远程库结构不会自愈
+
+`DB_AUTO_MIGRATE=0` 意味着**库结构落后时应用不会自动补列**，接口会直接报
+`Invalid column name`。已有库升级要显式跑迁移；全新的空库仍用 `db/schema.sql`。
+
+```bash
+# 课堂三阶段生命周期：补 started_at，旧 active/paused 映射为 running
+sqlcmd -S <host> -U <user> -P <password> -d <db> -C -b \
+  -i db/migrations/20261024_meeting_lifecycle.sql
+```
+
+脚本可重复执行，缺列的旧库也能直接跑。迁移后 `meetings.status` 只有
+`created` / `running` / `ended` 三态。
+
 ### 本地开发怎么干活
 
 **仓库目录整份挂进了容器，改代码即时生效**——在宿主机上用你惯用的编辑器改
@@ -124,6 +138,8 @@ TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
 - **语音识别**: 阿里云语音识别服务,实时语音转文字
 - **视觉分析**: OpenCV + Haar级联分类器实现人脸检测和情绪识别
 - **知识图谱**: 自动从对话中提取概念和关系,构建可视化知识网络
+- **小组分析 Agent**: 基于课堂事实层与 GCA 质量层指标，输出结构化的发现、证据与干预建议
+- **GCA 小组协作指标**: participation / internal_cohesion / overall_responsivity / social_impact / newness / communication_density
 
 ## 使用示例
 
@@ -157,7 +173,7 @@ TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
 | 项 | 实际用的 |
 |---|---|
 | 框架 | FastAPI + Starlette + Uvicorn（含 WebSocket） |
-| 数据库 | **SQL Server 2022**（线上是远程实例），经 `pymssql` 走 **TDS** 协议 |
+| 数据库 | **SQL Server**（开发/比赛与线上都连远程实例，实测为 2019；可选本地 profile 是 2022），经 `pymssql` 走 **TDS** 协议 |
 | ORM | SQLAlchemy 2.x，模型在 `app/models/` |
 | 大模型 | DeepSeek API（走 `openai` SDK 的兼容接口） |
 | 语音识别 | 阿里云 NLS 实时转写，Token 的签发与刷新在 `app/services/ai_core.py`；另有浏览器端 Web Speech 兜底，见 `POST /api/browser-asr-final` |
@@ -193,11 +209,13 @@ algorithm-study-master/
 ├── Dockerfile / docker-compose.yml / .dockerignore
 ├── requirements*.txt              # 基础 / dev / lock / 两套可选运行时
 ├── app/                           # 应用代码
+│   ├── agents/                    # 小组分析 Agent：工具、状态门、结构化输出
 │   ├── core/                      # 配置、数据库、路径锚点
 │   ├── models/                    # ORM 模型
 │   ├── routers/                   # HTTP 路由
 │   ├── realtime/                  # WebSocket 与实时链路
 │   └── services/                  # LLM / 语音 / 视频 / 知识图谱等服务
+├── gca_engine/                    # GCA 小组协作分析引擎（从算法仓库迁入）
 ├── static/                        # 前端资源（css / js / img / vendor）
 ├── db/                            # schema.sql + init.sh（生产开发通用建库）
 ├── deploy/                        # 部署文档与配置模板
@@ -224,7 +242,7 @@ algorithm-study-master/
 
 ### 核心表
 - **users**: 用户信息 (支持teacher/student角色)
-- **meetings**: 课堂信息 (包含教学设计、知识点)
+- **meetings**: 课堂信息 (教学设计、知识点，状态为 created/running/ended 三阶段)
 - **transcripts**: 对话记录 (实时语音转文字)
 - **emotion_logs**: 情绪日志
 - **ai_insights**: AI提示记录
@@ -238,8 +256,9 @@ algorithm-study-master/
 - **student_answers**: 学生作答记录
 - **mental_health_assessments**: 心理健康评估
 
-建表脚本是 `db/schema.sql`（生产开发通用、可重复执行）。它是**从生产导出的冻结快照**，
-模型改了它不会跟着改；重新生成用 `python tools/export_prod_schema.py --yes`。
+建表脚本是 `db/schema.sql`（生产开发通用、可重复执行）。建表部分是从生产导出的快照，
+旧库升级段是手工追加的；模型改了它不会自动跟着改。重新导出用
+`python tools/export_prod_schema.py --yes`。
 
 ## 文档在哪
 
