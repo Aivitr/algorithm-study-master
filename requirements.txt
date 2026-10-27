@@ -7,9 +7,11 @@ torch
 torchvision
 torchaudio
 openai
+openai-agents==0.24.0
 requests
 websocket-client
-websockets
+# openai-agents 0.24.0 依赖 websockets<17
+websockets<17
 aiohttp
 python-multipart
 scipy

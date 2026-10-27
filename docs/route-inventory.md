@@ -39,6 +39,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/download-exercises/{report_id}` | 写操作（有副作用） | ✅ |
 | GET | `/` | 只读本地 | ✅ |
 | GET | `/api/active-groups/{teacher_id}` | 只读本地 | ✅ |
+| GET | `/api/agents/group-analysis/tools` | 只读本地 |  |
 | GET | `/api/all-student-reports/{teacher_id}` | 只读本地 | ✅ |
 | GET | `/api/class-groups/{meeting_id}` | 只读本地 | ✅ |
 | GET | `/api/class-history/{user_id}` | 只读本地 | ✅ |
@@ -61,6 +62,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/pcm-processor.js` | 只读本地 | ✅ |
 | GET | `/voiceprint_register` | 只读本地 |  |
 | GET | `/api/agora-token` | 外部服务：Agora |  |
+| POST | `/api/agents/group-analysis` | 外部服务：LLM |  |
 | POST | `/api/ai-tutor` | 外部服务：LLM |  |
 | POST | `/api/ai-tutor-stream` | 外部服务：LLM |  |
 | POST | `/api/check-quiet-members` | 外部服务：LLM |  |
@@ -85,7 +87,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 60 条：{'WebSocket': 3, '写操作': 9, '写操作（有副作用）': 1, '只读本地': 23, '外部服务': 18, '本地模型推理': 6}
+总计 62 条：{'WebSocket': 3, '写操作': 9, '写操作（有副作用）': 1, '只读本地': 24, '外部服务': 19, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖
@@ -112,9 +114,9 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | 3 条 WebSocket | 长连接，非请求-响应语义 |
 | `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError` |
 
-**覆盖率：25 / 60 ≈ 42%**。
+**覆盖率：25 / 62 ≈ 40%**。
 
-但这个分母没有意义——60 条里有 29 条 `POST`/`DELETE` 写操作、3 条 WebSocket、
+但这个分母没有意义——62 条里有 30 条 `POST`/`DELETE` 写操作、3 条 WebSocket、
 20 条外部服务依赖，它们本来就不可纳入。按"可纳入"的口径算：
 
 - `只读本地` 共 **23** 条，已纳入 **22** 条，唯一未纳入的是 `/voiceprint_register`

@@ -49,8 +49,20 @@ def get_classroom_knowledge(
     return classroom_agent_service.get_knowledge(ctx.context.db, meeting_id)
 
 
+@function_tool
+def get_class_metrics(
+    ctx: RunContextWrapper[ClassroomToolContext],
+    meeting_id: int,
+) -> dict[str, Any]:
+    """读取课堂 GCA 六指标（质量层）与时间窗口趋势。"""
+    if denied := require_tool_state("get_class_metrics", ctx.context.db, meeting_id):
+        return denied
+    return classroom_agent_service.get_metrics(ctx.context.db, meeting_id)
+
+
 CLASSROOM_TOOLS = (
     get_classroom_transcripts,
     get_classroom_statistics,
     get_classroom_knowledge,
+    get_class_metrics,
 )

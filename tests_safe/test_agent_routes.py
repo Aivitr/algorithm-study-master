@@ -1,16 +1,17 @@
 """课堂 Agent 两条 HTTP 接口的无网络契约测试。"""
 
 import app.routers.agents as agent_routes
-from app.agents.group_analysis_agent import GroupAnalysisOutput
+from app.agents.group_analysis_agent import GroupAnalysisOutput, StructureSummary
 
 
 def _output() -> GroupAnalysisOutput:
     return GroupAnalysisOutput(
         summary="测试摘要",
-        structure="测试结构",
+        structure=StructureSummary(),
         metrics_reading=[],
         findings=[],
         interventions=[],
+        product_metrics=[],
         data_gaps=[],
         unsupported_claims=[],
     )
@@ -25,6 +26,7 @@ def test_group_analysis_tools_endpoint(client):
         "get_classroom_transcripts",
         "get_classroom_statistics",
         "get_classroom_knowledge",
+        "get_class_metrics",
     ]
     assert all(tool["allowed_states"] == ["ended", "running"] for tool in tools)
 
