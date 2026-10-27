@@ -27,6 +27,7 @@ scenedetect
 tqdm
 gdown
 scikit-learn
+jieba>=0.42
 pandas
 huggingface-hub
 transformers
