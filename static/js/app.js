@@ -84,6 +84,17 @@ new Vue({
         classroomTab: 'chat',
         // 用户信息
         currentUser: null,
+        // 跨标签页会话锁：同一浏览器配置同时只允许一个账号在线
+        sessionId: null,
+        sessionChannel: null,
+        sessionInvalidated: false,
+        sessionClaimedAt: null,
+        tabId: null,
+        // 课堂锁：同一课堂只允许一个标签页进入（Web Locks，失败时降级 localStorage）
+        classroomLockRelease: null,
+        classroomLockMeetingId: null,
+        classroomLockFallbackKey: null,
+        classroomLockHeartbeat: null,
         // 声纹身份绑定
         voiceprintStatus: 'idle', // idle | loading | registered | unregistered | error
         voiceprintRecorder: null,
@@ -325,6 +336,9 @@ new Vue({
                 detail: '课堂结束后自动生成详细的学习分析报告，包括参与度、发言质量、情绪曲线等多维度数据。支持PDF导出和个性化模板定制。'
             }
         }
+    },
+    created() {
+        this.initSessionGuards();
     },
     computed: {
         currentQuizQ() {
@@ -908,6 +922,8 @@ new Vue({
                 let res = await axios.post('/api/login', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.currentUser = res.data.user;
+                this.claimSession(this.currentUser);
+                this.loginForm.password = '';
                 this.studentHomeSummary = null;
                 this.classHistory = [];
                 this.myReports = [];
@@ -972,6 +988,9 @@ new Vue({
         },
         // 退出登录
         logout() {
+            if (this.pageState === 'classroom') this._cleanupClassroom();
+            this.releaseClassroomLock();
+            this.releaseSession();
             this.cleanupVoiceprintRecorder();
             this.resetVoiceprintSample();
             this.voiceprintStatus = 'idle';
@@ -985,9 +1004,197 @@ new Vue({
             this.studentReportsLoaded = false;
             this.pageState = 'login';
             this.activeTab = 'home';
+            this.loginForm.password = '';
+            this.sessionInvalidated = false;
             this.stopBrowserSpeechRecognition();
             if(this.ws) this.ws.close();
             if(this.recorder) this.recorder.stop();
+        },
+        // ===== 跨标签页会话锁 =====
+        initSessionGuards() {
+            this.sessionId = this.newSessionId();
+            this.tabId = this.newSessionId();
+            if (window.BroadcastChannel) {
+                try {
+                    this.sessionChannel = new BroadcastChannel('smartclass-session');
+                    this.sessionChannel.onmessage = (event) => this.handleSessionEvent(event.data);
+                } catch (e) {
+                    console.warn('BroadcastChannel 不可用，降级 storage 事件:', e);
+                }
+            }
+            window.addEventListener('storage', this.handleStorageEvent);
+        },
+        newSessionId() {
+            if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+            return 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        },
+        readActiveSession() {
+            try {
+                return JSON.parse(localStorage.getItem('smartclass:session') || 'null');
+            } catch (e) {
+                return null;
+            }
+        },
+        claimSession(user) {
+            const active = this.readActiveSession();
+            if (active && String(active.userId) === String(user.id)) {
+                // 同一账号允许多标签；只有切换账号才让旧标签退出
+                this.sessionId = active.sessionId;
+                this.sessionClaimedAt = active.ts || Date.now();
+                const reused = { ...active, ts: Date.now() };
+                try {
+                    localStorage.setItem('smartclass:session', JSON.stringify(reused));
+                } catch (e) {}
+                this.sessionClaimedAt = reused.ts;
+                this.sessionInvalidated = false;
+                this.broadcastSession({ type: 'session-claimed', ...reused });
+                return;
+            }
+            this.sessionId = this.newSessionId();
+            this.sessionClaimedAt = Date.now();
+            const payload = {
+                sessionId: this.sessionId,
+                userId: user.id,
+                username: user.username,
+                ts: this.sessionClaimedAt
+            };
+            try {
+                localStorage.setItem('smartclass:session', JSON.stringify(payload));
+            } catch (e) {
+                console.warn('写入会话锁失败:', e);
+            }
+            this.sessionInvalidated = false;
+            this.broadcastSession({ type: 'session-claimed', ...payload });
+        },
+        broadcastSession(message) {
+            if (!this.sessionChannel) return;
+            try {
+                this.sessionChannel.postMessage(message);
+            } catch (e) {
+                console.warn('广播会话事件失败:', e);
+            }
+        },
+        handleSessionEvent(message) {
+            if (!message || !this.currentUser || this.sessionInvalidated) return;
+            if (message.type === 'session-claimed' && message.sessionId !== this.sessionId) {
+                if (message.ts && this.sessionClaimedAt && message.ts < this.sessionClaimedAt) return;
+                this.invalidateSession('该账号已在另一个窗口登录，本窗口已退出');
+            }
+        },
+        handleStorageEvent(event) {
+            if (event.key !== 'smartclass:session' || !this.currentUser || this.sessionInvalidated) return;
+            let active = null;
+            try {
+                active = JSON.parse(event.newValue || 'null');
+            } catch (e) {
+                return;
+            }
+            if (active && active.sessionId !== this.sessionId) {
+                if (active.ts && this.sessionClaimedAt && active.ts < this.sessionClaimedAt) return;
+                this.invalidateSession('该账号已在另一个窗口登录，本窗口已退出');
+            }
+        },
+        invalidateSession(message) {
+            if (this.sessionInvalidated) return;
+            this.sessionInvalidated = true;
+            this.releaseClassroomLock();
+            if (this.pageState === 'classroom') {
+                this._cleanupClassroom();
+            }
+            this.currentUser = null;
+            this.loginForm.password = '';
+            this.pageState = 'login';
+            this.showAlert(message, 'warning', '登录状态已失效');
+        },
+        releaseSession() {
+            if (this.sessionInvalidated) return;
+            const active = this.readActiveSession();
+            if (active && active.sessionId === this.sessionId) {
+                try {
+                    localStorage.removeItem('smartclass:session');
+                } catch (e) {}
+                this.broadcastSession({ type: 'session-released', sessionId: this.sessionId });
+            }
+        },
+        // ===== 课堂单标签页锁 =====
+        async acquireClassroomLock(meetingId) {
+            const id = Number(meetingId);
+            if (this.classroomLockMeetingId === id && this.classroomLockRelease) return true;
+            this.releaseClassroomLock();
+            const key = 'smartclass:classroom:' + id;
+
+            if (navigator.locks && navigator.locks.request) {
+                try {
+                    let release;
+                    const held = new Promise((resolve) => { release = resolve; });
+                    const acquired = await new Promise((resolve) => {
+                        navigator.locks.request(key, { ifAvailable: true }, (lock) => {
+                            if (!lock) {
+                                resolve(false);
+                                return;
+                            }
+                            this.classroomLockRelease = release;
+                            this.classroomLockMeetingId = id;
+                            resolve(true);
+                            return held;
+                        }).catch(() => resolve(false));
+                    });
+                    if (!acquired) {
+                        this.classroomLockRelease = null;
+                        this.classroomLockMeetingId = null;
+                    }
+                    return acquired;
+                } catch (e) {
+                    console.warn('Web Locks 不可用，降级 localStorage:', e);
+                }
+            }
+
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data.tabId !== this.tabId && Date.now() - (data.ts || 0) < 15000) {
+                        return false;
+                    }
+                }
+                localStorage.setItem(key, JSON.stringify({ tabId: this.tabId, ts: Date.now() }));
+                this.classroomLockFallbackKey = key;
+                this.classroomLockMeetingId = id;
+                this.classroomLockHeartbeat = setInterval(() => {
+                    if (!this.classroomLockFallbackKey) return;
+                    try {
+                        localStorage.setItem(this.classroomLockFallbackKey, JSON.stringify({
+                            tabId: this.tabId,
+                            ts: Date.now()
+                        }));
+                    } catch (e) {}
+                }, 5000);
+                return true;
+            } catch (e) {
+                console.warn('课堂锁获取失败:', e);
+                return false;
+            }
+        },
+        releaseClassroomLock() {
+            if (this.classroomLockRelease) {
+                const release = this.classroomLockRelease;
+                this.classroomLockRelease = null;
+                try { release(); } catch (e) {}
+            }
+            if (this.classroomLockHeartbeat) {
+                clearInterval(this.classroomLockHeartbeat);
+                this.classroomLockHeartbeat = null;
+            }
+            if (this.classroomLockFallbackKey) {
+                try {
+                    const raw = localStorage.getItem(this.classroomLockFallbackKey);
+                    if (raw && JSON.parse(raw).tabId === this.tabId) {
+                        localStorage.removeItem(this.classroomLockFallbackKey);
+                    }
+                } catch (e) {}
+                this.classroomLockFallbackKey = null;
+            }
+            this.classroomLockMeetingId = null;
         },
         // 处理文件上传
         handleFileUpload(event) {
@@ -1097,7 +1304,15 @@ new Vue({
                     if (this.currentUser.role === 'teacher') this.loadTeacherClasses();
                     return;
                 }
-                this.joined = true; 
+                if (!(await this.acquireClassroomLock(res.data.meeting_id))) {
+                    this.meetingId = null;
+                    this.joined = false;
+                    this.loading = false;
+                    this.showClassModal = false;
+                    this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                    return;
+                }
+                this.joined = true;
                 this.pageState = 'classroom';
                 this.showClassModal = false;
                 this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
@@ -1347,6 +1562,7 @@ new Vue({
         },
         // endClass 已移至下方统一版本
         _cleanupClassroom() {
+            this.releaseClassroomLock();
             // 停止录制和媒体
             if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop();
             if (this.localMediaStream) {
@@ -3479,6 +3695,7 @@ new Vue({
         },
         // 返回主界面
         backToLobby() {
+            this.releaseClassroomLock();
             // 清理定时器
             if (this.emotionRefreshTimer) {
                 clearInterval(this.emotionRefreshTimer);
@@ -5816,6 +6033,10 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(group.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.acquireClassroomLock(group.meeting_id))) {
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                return;
+            }
             this.viewingGroupId = group.meeting_id;
             this.meetingId = group.meeting_id;
             this.meetingStatus = 'running';
@@ -5837,6 +6058,10 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(classItem.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.acquireClassroomLock(classItem.meeting_id))) {
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                return;
+            }
             this.meetingId = classItem.meeting_id;
             this.meetingStatus = classItem.status;
             this.meetingStartedAt = classItem.started_at || classItem.start_time || null;
@@ -5855,6 +6080,10 @@ new Vue({
         async enterClassAsTeacher(cls) {
             if (cls.status !== 'running') {
                 this.showAlert(this.meetingStatusLabel(cls.status), 'info', '当前课堂不可进入');
+                return;
+            }
+            if (!(await this.acquireClassroomLock(cls.meeting_id))) {
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
                 return;
             }
             this.meetingId = cls.meeting_id;
@@ -6071,6 +6300,13 @@ new Vue({
         }
     },
     beforeDestroy() {
+        this.releaseClassroomLock();
+        window.removeEventListener('storage', this.handleStorageEvent);
+        if (this.sessionChannel) {
+            this.sessionChannel.close();
+            this.sessionChannel = null;
+        }
+        this.releaseSession();
         this.cleanupVoiceprintRecorder();
         this.resetVoiceprintSample();
         this.stopBrowserSpeechRecognition();
