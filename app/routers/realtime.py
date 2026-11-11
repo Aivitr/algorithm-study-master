@@ -49,6 +49,7 @@ from app.realtime.state import (
 )
 from app.realtime.stream import process_user_stream_generator
 from app.services.llm_service import llm
+from app.services.session_service import websocket_context
 
 router = APIRouter()
 
@@ -61,16 +62,54 @@ def _meeting_is_running(meeting_id: int) -> bool:
     finally:
         db.close()
 
+
+def _ws_authorized(websocket: WebSocket, username: str, meeting_id: int) -> bool:
+    """校验 token、用户身份与课堂占用锁；失败时不 accept。"""
+    token = websocket.query_params.get("token")
+    db = SessionLocal()
+    try:
+        ctx = websocket_context(db, token, meeting_id)
+        if ctx is None:
+            return False
+        return username in {ctx.user.username, ctx.user.student_id}
+    finally:
+        db.close()
+
+
+async def _watch_ws_session(websocket: WebSocket, token: str | None, meeting_id: int) -> None:
+    """会话被撤销/课堂锁被释放后，主动关闭已建立的 WS。"""
+    while True:
+        await asyncio.sleep(15)
+        db = SessionLocal()
+        try:
+            ok = websocket_context(db, token, meeting_id) is not None
+        except Exception:
+            ok = False
+        finally:
+            db.close()
+        if not ok:
+            try:
+                await websocket.close(code=1008, reason="登录已失效或课堂已在其他设备打开")
+            except Exception:
+                pass
+            return
+
 @router.websocket("/ws-signal/{username}/{meeting_id}")
 async def websocket_signal_endpoint(websocket: WebSocket, username: str, meeting_id: int):
     """
     WebRTC 信令通道：转发 webrtc_offer / webrtc_answer / webrtc_ice / webrtc_hangup。
     from 字段强制为连接身份，防止伪造。
     """
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await signal_manager.register(websocket, meeting_id, username)
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[SIGNAL] WebSocket: {username} -> meeting{meeting_id}")
     try:
         while True:
@@ -88,6 +127,7 @@ async def websocket_signal_endpoint(websocket: WebSocket, username: str, meeting
     except Exception as e:
         print(f"[SIGNAL] 断开: {username} - {type(e).__name__}: {e}")
     finally:
+        watcher.cancel()
         signal_manager.unregister(meeting_id, username)
 
 
@@ -99,10 +139,16 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
     将中间/最终识别结果广播给课堂所有成员。
     延迟启动：收到第一个音频包后才创建阿里云 NLS 会话。
     """
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await websocket.accept()
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[ASR] WebSocket连接: {username} -> meeting{meeting_id}")
 
     # 记录连接但不立即启动阿里云会话
@@ -198,15 +244,22 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
     except Exception as e:
         print(f"[ASR] WebSocket断开: {username} - {type(e).__name__}")
     finally:
+        watcher.cancel()
         await asr_manager.stop_session(username, meeting_id, websocket)
 
 
 @router.websocket("/ws/{username}/{meeting_id}")
 async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: int):
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await manager.connect(websocket, meeting_id, username)
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[OK] WebSocket连接成功: {username} -> 课堂{meeting_id}")
 
     # 广播成员加入
@@ -238,7 +291,6 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
                 if len(data) > 0:
                     # 处理音视频流
                     print(f"[PROCESS] 处理中...")
-                    import asyncio
                     import queue
 
                     result_queue = queue.Queue()
@@ -284,6 +336,8 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
             "username": username,
             "online_members": online_members
         })
+    finally:
+        watcher.cancel()
 
 
 @router.post("/api/ai-tutor")

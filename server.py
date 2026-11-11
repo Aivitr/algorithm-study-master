@@ -274,6 +274,11 @@ from app.routers.auth import router as auth_router
 app.include_router(auth_router)
 
 
+from app.routers.session import router as session_router
+
+app.include_router(session_router)
+
+
 from app.routers.pages import router as pages_router
 
 app.include_router(pages_router)

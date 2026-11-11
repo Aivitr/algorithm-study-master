@@ -41,4 +41,11 @@ echo "[db-init] 执行 schema.sql（幂等，重复跑无副作用）..."
 #   代码页误读。表名列名都是 ASCII，注释读花不影响执行，但没必要留这个坑。
 "$SQLCMD" -S "$MSSQL_HOST" -U sa -P "$MSSQL_SA_PASSWORD" -C -b -f 65001 -i /db/schema.sql
 
+echo "[db-init] 执行 db/migrations/（幂等升级）..."
+for migration in /db/migrations/*.sql; do
+    [ -e "$migration" ] || continue
+    echo "[db-init] migration: $(basename "$migration")"
+    "$SQLCMD" -S "$MSSQL_HOST" -U sa -P "$MSSQL_SA_PASSWORD" -C -b -f 65001 -i "$migration"
+done
+
 echo "[db-init] 完成：${MSSQL_DB} 已建好/已是最新结构。"

@@ -9,6 +9,8 @@
 from app.models.base import Base
 
 from app.models.user import User
+from app.models.session import ActiveClassroomSession
+from app.models.session import UserSession
 from app.models.classroom import Meeting
 from app.models.classroom import MemberConnection
 from app.models.transcript import Transcript
@@ -27,6 +29,7 @@ from app.models.vote import ViewpointVote
 __all__ = [
     "Base",
     "AIInsight",
+    "ActiveClassroomSession",
     "EmotionLog",
     "Exercise",
     "GraphEdge",
@@ -40,5 +43,6 @@ __all__ = [
     "StudentAnswer",
     "Transcript",
     "User",
+    "UserSession",
     "ViewpointVote",
 ]
