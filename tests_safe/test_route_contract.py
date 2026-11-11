@@ -24,11 +24,11 @@
 正因如此，「路由前缀契约……必须在测试中断言」。
 本文件即该项。
 
-62 这个数字
+66 这个数字
 -----------
-接口契约冻结的是「62 个接口」。实测枚举得 **59 条 HTTP + 3 条 WebSocket = 62**，
+接口契约冻结的是「66 个接口」。实测枚举得 **63 条 HTTP + 3 条 WebSocket = 66**，
 与 `docs/route-inventory.md` 一致。其余 5 条（`/storage` 挂载、`/docs`、
-`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 62，
+`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 66，
 但同样需要钉住——重构时误删 `app.mount("/storage", ...)` 会让所有 OSS 素材 404。
 """
 
@@ -125,6 +125,8 @@ HTTP_ROUTES = [
     ("POST", "/api/check-quiet-members"),
     ("POST", "/api/check-silence"),
     ("GET", "/api/class-groups/{meeting_id}"),
+    ("POST", "/api/classroom/enter"),
+    ("POST", "/api/classroom/leave"),
     ("GET", "/api/class-history/{user_id}"),
     ("POST", "/api/close-vote"),
     ("POST", "/api/cluster-viewpoints"),
@@ -141,6 +143,7 @@ HTTP_ROUTES = [
     ("POST", "/api/grade-short-answer"),
     ("GET", "/api/knowledge-graph/{meeting_id}"),
     ("POST", "/api/login"),
+    ("POST", "/api/logout"),
     ("GET", "/api/meeting-reports/{meeting_id}"),
     ("GET", "/api/meeting/{meeting_id}"),
     ("POST", "/api/quick-decompose"),
@@ -149,6 +152,7 @@ HTTP_ROUTES = [
     ("POST", "/api/register"),
     ("GET", "/api/reports/{user_id}"),
     ("GET", "/api/research-runtime"),
+    ("GET", "/api/session/validate"),
     ("POST", "/api/research-runtime/config"),
     ("POST", "/api/research-runtime/prepare-layout"),
     ("GET", "/api/snapshot/{meeting_id}"),
@@ -179,7 +183,7 @@ WS_ROUTES = [
     "/ws/{username}/{meeting_id}",
 ]
 
-# 框架自带（不计入冻结的 62，但误删同样是故障）
+# 框架自带（不计入冻结的 66，但误删同样是故障）
 FRAMEWORK_ROUTES = [
     ("Route", "", "/docs"),
     ("Route", "", "/docs/oauth2-redirect"),
@@ -205,14 +209,14 @@ def actual_routes(local_app):
     return _enumerate(local_app)
 
 
-def test_frozen_interface_count_is_62():
-    """契约冻结的「62 个接口」= 59 条 HTTP + 3 条 WebSocket。
+def test_frozen_interface_count_is_66():
+    """契约冻结的「66 个接口」= 63 条 HTTP + 3 条 WebSocket。
 
     这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
-    路由，这里会先失败，逼他确认"60"这个对外承诺是否也要改。
+    路由，这里会先失败，逼他确认"66"这个对外承诺是否也要改。
     """
-    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 62, (
-        f"契约冻结 62 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 66, (
+        f"契约冻结 66 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 

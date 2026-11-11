@@ -17,13 +17,14 @@
 import json
 import os
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import CREATED, ENDED
 from app.models import Meeting, User
 from app.services.llm_service import llm
+from app.services.session_service import create_session
 
 router = APIRouter()
 
@@ -80,8 +81,10 @@ async def register(
 
 @router.post("/api/login")
 async def api_login(
+    request: Request,
     student_id: str = Form(...),
-    password: str = Form(...)
+    password: str = Form(...),
+    device_id: str = Form(""),
 ):
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
@@ -128,6 +131,24 @@ async def api_login(
 
         total_time = time.time() - start_time
         print(f"[OK] Login success: {user['username']} ({user['role']}) - Time: {total_time:.2f}s")
+
+        session_db = SessionLocal()
+        try:
+            token, session_row = create_session(
+                session_db,
+                int(user["id"]),
+                device_id=device_id,
+                user_agent=request.headers.get("user-agent", ""),
+            )
+            session_payload = {
+                "session_token": token,
+                "session_id": session_row.id,
+                "device_id": session_row.device_id,
+                "expires_at": session_row.expires_at.isoformat() if session_row.expires_at else None,
+            }
+        finally:
+            session_db.close()
+
         return {
             "status": "success",
             "user": {
@@ -135,7 +156,8 @@ async def api_login(
                 "student_id": user['student_id'],
                 "username": user['username'],
                 "role": user['role']
-            }
+            },
+            **session_payload,
         }
     except Exception as e:
         error_msg = str(e)

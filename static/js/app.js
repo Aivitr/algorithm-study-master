@@ -90,6 +90,9 @@ new Vue({
         sessionInvalidated: false,
         sessionClaimedAt: null,
         tabId: null,
+        deviceId: null,
+        sessionToken: null,
+        sessionHeartbeatTimer: null,
         // 课堂锁：同一课堂只允许一个标签页进入（Web Locks，失败时降级 localStorage）
         classroomLockRelease: null,
         classroomLockMeetingId: null,
@@ -919,10 +922,14 @@ new Vue({
                 let d = new FormData();
                 d.append('student_id', this.loginForm.student_id);
                 d.append('password', this.loginForm.password);
+                d.append('device_id', this.deviceId || '');
                 let res = await axios.post('/api/login', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.currentUser = res.data.user;
                 this.claimSession(this.currentUser);
+                this.sessionToken = res.data.session_token || null;
+                this.applySessionToken();
+                this.startSessionHeartbeat();
                 this.loginForm.password = '';
                 this.studentHomeSummary = null;
                 this.classHistory = [];
@@ -989,6 +996,10 @@ new Vue({
         // 退出登录
         logout() {
             if (this.pageState === 'classroom') this._cleanupClassroom();
+            this.stopSessionHeartbeat();
+            this.revokeServerSession();
+            this.sessionToken = null;
+            this.applySessionToken();
             this.releaseClassroomLock();
             this.releaseSession();
             this.cleanupVoiceprintRecorder();
@@ -1014,6 +1025,16 @@ new Vue({
         initSessionGuards() {
             this.sessionId = this.newSessionId();
             this.tabId = this.newSessionId();
+            try {
+                let deviceId = localStorage.getItem('smartclass:device-id');
+                if (!deviceId) {
+                    deviceId = this.newSessionId();
+                    localStorage.setItem('smartclass:device-id', deviceId);
+                }
+                this.deviceId = deviceId;
+            } catch (e) {
+                this.deviceId = this.newSessionId();
+            }
             if (window.BroadcastChannel) {
                 try {
                     this.sessionChannel = new BroadcastChannel('smartclass-session');
@@ -1023,6 +1044,83 @@ new Vue({
                 }
             }
             window.addEventListener('storage', this.handleStorageEvent);
+            window.addEventListener('pagehide', this.handlePageHide);
+        },
+        handlePageHide() {
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+            this.revokeServerSession();
+        },
+        applySessionToken() {
+            if (this.sessionToken) {
+                axios.defaults.headers.common['Authorization'] = `Bearer ${this.sessionToken}`;
+            } else {
+                delete axios.defaults.headers.common['Authorization'];
+            }
+        },
+        startSessionHeartbeat() {
+            this.stopSessionHeartbeat();
+            if (!this.sessionToken) return;
+            this.sessionHeartbeatTimer = setInterval(async () => {
+                if (!this.sessionToken) return;
+                try {
+                    const res = await axios.get('/api/session/validate');
+                    if (!res.data || res.data.status !== 'success') {
+                        this.invalidateSession('登录已在其他设备失效，请重新登录');
+                    }
+                } catch (e) {
+                    if (e.response && [401, 403].includes(e.response.status)) {
+                        this.invalidateSession('登录已在其他设备失效，请重新登录');
+                    }
+                }
+            }, 15000);
+        },
+        stopSessionHeartbeat() {
+            if (this.sessionHeartbeatTimer) {
+                clearInterval(this.sessionHeartbeatTimer);
+                this.sessionHeartbeatTimer = null;
+            }
+        },
+        revokeServerSession() {
+            const token = this.sessionToken;
+            if (!token) return;
+            fetch('/api/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                keepalive: true
+            }).catch(() => {});
+        },
+        async claimServerClassroom(meetingId) {
+            if (!this.sessionToken) {
+                this.showAlert('登录状态无效，请重新登录', 'error', '无法进入课堂');
+                return false;
+            }
+            try {
+                await axios.post('/api/classroom/enter', { meeting_id: Number(meetingId) });
+                return true;
+            } catch (e) {
+                const status = e.response && e.response.status;
+                const message = (e.response && e.response.data && e.response.data.detail)
+                    || '无法进入课堂';
+                if (status === 401) {
+                    this.invalidateSession('登录已失效，请重新登录');
+                } else {
+                    this.showAlert(message, 'warning', '无法进入课堂');
+                }
+                return false;
+            }
+        },
+        releaseServerClassroom(meetingId) {
+            const token = this.sessionToken;
+            if (!token || !meetingId) return;
+            fetch('/api/classroom/leave', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ meeting_id: Number(meetingId) }),
+                keepalive: true
+            }).catch(() => {});
         },
         newSessionId() {
             if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -1097,6 +1195,9 @@ new Vue({
         invalidateSession(message) {
             if (this.sessionInvalidated) return;
             this.sessionInvalidated = true;
+            this.stopSessionHeartbeat();
+            this.sessionToken = null;
+            this.applySessionToken();
             this.releaseClassroomLock();
             if (this.pageState === 'classroom') {
                 this._cleanupClassroom();
@@ -1304,7 +1405,15 @@ new Vue({
                     if (this.currentUser.role === 'teacher') this.loadTeacherClasses();
                     return;
                 }
+                if (!(await this.claimServerClassroom(res.data.meeting_id))) {
+                    this.meetingId = null;
+                    this.joined = false;
+                    this.loading = false;
+                    this.showClassModal = false;
+                    return;
+                }
                 if (!(await this.acquireClassroomLock(res.data.meeting_id))) {
+                    this.releaseServerClassroom(res.data.meeting_id);
                     this.meetingId = null;
                     this.joined = false;
                     this.loading = false;
@@ -1562,6 +1671,7 @@ new Vue({
         },
         // endClass 已移至下方统一版本
         _cleanupClassroom() {
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
             this.releaseClassroomLock();
             // 停止录制和媒体
             if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop();
@@ -1756,7 +1866,7 @@ new Vue({
             }
             const seq = (this.asrWsSeq || 0) + 1;
             this.asrWsSeq = seq;
-            const ws = new WebSocket(`${protocol}://${location.host}/ws-asr/${this.currentUser.username}/${this.meetingId}`);
+            const ws = new WebSocket(`${protocol}://${location.host}/ws-asr/${this.currentUser.username}/${this.meetingId}?token=${encodeURIComponent(this.sessionToken || '')}`);
             this.asrWs = ws;
 
             ws.onopen = () => {
@@ -2662,7 +2772,7 @@ new Vue({
         },
         connectWs() {
             let protocol = location.protocol==="https:"?"wss":"ws";
-            this.ws = new WebSocket(`${protocol}://${location.host}/ws/${this.currentUser.username}/${this.meetingId}`);
+            this.ws = new WebSocket(`${protocol}://${location.host}/ws/${this.currentUser.username}/${this.meetingId}?token=${encodeURIComponent(this.sessionToken || '')}`);
 
             // 清除旧的心跳定时器
             if (this.wsHeartbeatTimer) {
@@ -3695,6 +3805,7 @@ new Vue({
         },
         // 返回主界面
         backToLobby() {
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
             this.releaseClassroomLock();
             // 清理定时器
             if (this.emotionRefreshTimer) {
@@ -6033,7 +6144,11 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(group.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.claimServerClassroom(group.meeting_id))) {
+                return;
+            }
             if (!(await this.acquireClassroomLock(group.meeting_id))) {
+                this.releaseServerClassroom(group.meeting_id);
                 this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
                 return;
             }
@@ -6058,7 +6173,11 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(classItem.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.claimServerClassroom(classItem.meeting_id))) {
+                return;
+            }
             if (!(await this.acquireClassroomLock(classItem.meeting_id))) {
+                this.releaseServerClassroom(classItem.meeting_id);
                 this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
                 return;
             }
@@ -6082,7 +6201,11 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(cls.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.claimServerClassroom(cls.meeting_id))) {
+                return;
+            }
             if (!(await this.acquireClassroomLock(cls.meeting_id))) {
+                this.releaseServerClassroom(cls.meeting_id);
                 this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
                 return;
             }
@@ -6300,8 +6423,12 @@ new Vue({
         }
     },
     beforeDestroy() {
+        this.stopSessionHeartbeat();
+        if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+        this.revokeServerSession();
         this.releaseClassroomLock();
         window.removeEventListener('storage', this.handleStorageEvent);
+        window.removeEventListener('pagehide', this.handlePageHide);
         if (this.sessionChannel) {
             this.sessionChannel.close();
             this.sessionChannel = null;

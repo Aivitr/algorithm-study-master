@@ -159,6 +159,7 @@ _REGEX_CAN_FOLLOW = set("(,=:[!&|?{};+-*%~^<>")
 _EXPECTED_ROOT_KEYS = (
     "el",
     "data",
+    "created",
     "computed",
     "watch",
     "methods",

@@ -260,6 +260,9 @@ algorithm-study-master/
 旧库升级段是手工追加的；模型改了它不会自动跟着改。重新导出用
 `python tools/export_prod_schema.py --yes`。
 
+登录会话与课堂占用锁需要额外执行
+`db/migrations/20261111_session_locks.sql`；在 `DB_AUTO_MIGRATE=0` 下不会自动建表。
+
 ## 文档在哪
 
 | 想看什么 | 去哪 |

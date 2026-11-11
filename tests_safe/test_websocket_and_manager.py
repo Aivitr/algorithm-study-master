@@ -266,10 +266,62 @@ def running_ws_meetings(local_app, seeded_ids):
             cleanup.close()
 
 
-def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings):
+@pytest.fixture
+def ws_auth(local_app, running_ws_meetings):
+    """为 WS 握手创建用户、服务端会话和课堂占用锁，返回 token 表。"""
+    from app.core.database import SessionLocal
+    from app.models import ActiveClassroomSession, User, UserSession
+    from app.services.session_service import create_session
+
+    accounts = [
+        ("测试同学甲", "WS-A", "ws-device-a"),
+        ("测试同学乙", "WS-B", "ws-device-b"),
+    ]
+    db = SessionLocal()
+    tokens = {}
+    try:
+        for username, student_id, device_id in accounts:
+            user = User(
+                student_id=student_id,
+                username=username,
+                password="test-only",
+                role="student",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            token, row = create_session(db, user.id, device_id)
+            tokens[username] = token
+            for meeting_id in running_ws_meetings:
+                db.add(ActiveClassroomSession(
+                    session_id=row.id,
+                    user_id=user.id,
+                    device_id=device_id,
+                    meeting_id=meeting_id,
+                    claimed_at=datetime.now(),
+                ))
+            db.commit()
+        yield tokens
+    finally:
+        db.query(ActiveClassroomSession).filter(
+            ActiveClassroomSession.meeting_id.in_(running_ws_meetings)
+        ).delete(synchronize_session=False)
+        db.query(UserSession).filter(
+            UserSession.device_id.in_([item[2] for item in accounts])
+        ).delete(synchronize_session=False)
+        db.query(User).filter(
+            User.student_id.in_([item[1] for item in accounts])
+        ).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
+def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings, ws_auth):
     """连上即广播一条 `member_update / join`，含当前在线名单。"""
     with TestClient(local_app) as client:
-        with client.websocket_connect("/ws/测试同学甲/7001") as ws:
+        with client.websocket_connect(
+            f"/ws/测试同学甲/7001?token={ws_auth['测试同学甲']}"
+        ) as ws:
             message = ws.receive_json()
 
     assert message["type"] == "member_update"
@@ -278,10 +330,12 @@ def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings)
     assert message["online_members"] == ["测试同学甲"]
 
 
-def test_websocket_ping_responds_pong(local_app, running_ws_meetings):
+def test_websocket_ping_responds_pong(local_app, running_ws_meetings, ws_auth):
     """文本 `ping` 必须得到文本 `pong`——这是前端判活的心跳。"""
     with TestClient(local_app) as client:
-        with client.websocket_connect("/ws/测试同学乙/7002") as ws:
+        with client.websocket_connect(
+            f"/ws/测试同学乙/7002?token={ws_auth['测试同学乙']}"
+        ) as ws:
             ws.receive_json()  # 先消费 join 广播
 
             ws.send_text("ping")
@@ -289,17 +343,23 @@ def test_websocket_ping_responds_pong(local_app, running_ws_meetings):
             assert ws.receive_text() == "pong"
 
 
-def test_two_clients_in_same_meeting_see_each_other(local_app, running_ws_meetings):
+def test_two_clients_in_same_meeting_see_each_other(local_app, running_ws_meetings, ws_auth):
     """同课堂的两个连接互相可见。
 
     课堂隔离是这套系统的基本前提（`meeting_connections` 按 meeting_id 分桶），
     这条确认分桶在真实握手下确实生效。
     """
+    token_a = ws_auth["测试同学甲"]
+    token_b = ws_auth["测试同学乙"]
     with TestClient(local_app) as client:
-        with client.websocket_connect("/ws/测试同学甲/7003") as ws_a:
+        with client.websocket_connect(
+            f"/ws/测试同学甲/7003?token={token_a}"
+        ) as ws_a:
             assert ws_a.receive_json()["online_members"] == ["测试同学甲"]
 
-            with client.websocket_connect("/ws/测试同学乙/7003") as ws_b:
+            with client.websocket_connect(
+                f"/ws/测试同学乙/7003?token={token_b}"
+            ) as ws_b:
                 joined = ws_b.receive_json()
                 assert joined["username"] == "测试同学乙"
                 assert joined["online_members"] == ["测试同学甲", "测试同学乙"]
@@ -310,7 +370,7 @@ def test_two_clients_in_same_meeting_see_each_other(local_app, running_ws_meetin
                 assert relayed["online_members"] == ["测试同学甲", "测试同学乙"]
 
 
-def test_clients_in_different_meetings_are_isolated(local_app, running_ws_meetings):
+def test_clients_in_different_meetings_are_isolated(local_app, running_ws_meetings, ws_auth):
     """不同课堂的连接互相不可见——房间隔离的核心断言。
 
     若 `meeting_connections` 哪天被改成不按 meeting_id 分桶，第二个连接看到的
@@ -320,11 +380,17 @@ def test_clients_in_different_meetings_are_isolated(local_app, running_ws_meetin
     消息"来证明，而 TestClient 的 `receive_json()` 会一直阻塞，断言不存在的消息
     等于让测试挂死。用「在线名单的构成」间接验证隔离，既充分又不会卡住。
     """
+    token_a = ws_auth["测试同学甲"]
+    token_b = ws_auth["测试同学乙"]
     with TestClient(local_app) as client:
-        with client.websocket_connect("/ws/测试同学甲/7004") as ws_a:
+        with client.websocket_connect(
+            f"/ws/测试同学甲/7004?token={token_a}"
+        ) as ws_a:
             assert ws_a.receive_json()["online_members"] == ["测试同学甲"]
 
-            with client.websocket_connect("/ws/测试同学乙/7005") as ws_b:
+            with client.websocket_connect(
+                f"/ws/测试同学乙/7005?token={token_b}"
+            ) as ws_b:
                 joined = ws_b.receive_json()
 
     assert joined["username"] == "测试同学乙"
