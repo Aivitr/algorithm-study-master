@@ -154,6 +154,7 @@ new Vue({
         registerForm: { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' },
         // 课堂表单
         classForm: { class_code: '', topic: '', materialUrl: '', templateId: '' },
+        classFormErrors: { class_code: '', topic: '' },
         // 上传的文件
         uploadedFile: null,
         // 弹窗状态
@@ -944,6 +945,7 @@ new Vue({
                 this.applySessionToken();
                 this.startSessionHeartbeat();
                 this.loginForm = { student_id: '', password: '' };
+                this.closeClassModal();
                 this.studentHomeSummary = null;
                 this.classHistory = [];
                 this.myReports = [];
@@ -1032,6 +1034,7 @@ new Vue({
             this.activeTab = 'home';
             this.loginForm = { student_id: '', password: '' };
             this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.closeClassModal();
             this.sessionInvalidated = false;
             this.stopBrowserSpeechRecognition();
             if(this.ws) this.ws.close();
@@ -1225,6 +1228,7 @@ new Vue({
             this.currentUser = null;
             this.loginForm = { student_id: '', password: '' };
             this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.closeClassModal();
             this.pageState = 'login';
             this.showAlert(message, 'warning', '登录状态已失效');
         },
@@ -1374,10 +1378,25 @@ new Vue({
                 console.error('加载课堂历史对话失败:', e);
             }
         },
+        // 关闭课堂弹窗并清掉上一轮输入
+        closeClassModal() {
+            this.showClassModal = false;
+            this.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
+            this.classFormErrors = { class_code: '', topic: '' };
+            this.uploadedFile = null;
+            if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+        },
         // 进入/创建课堂
         async enterClass() {
-            if(!this.classForm.class_code) return this.showAlert('请输入课堂号', 'warning', '提示');
-            if(this.currentUser.role === 'teacher' && !this.classForm.topic) return this.showAlert('教师创建课堂需要填写主题', 'warning', '提示');
+            this.classFormErrors = { class_code: '', topic: '' };
+            if(!this.classForm.class_code) {
+                this.classFormErrors.class_code = '请输入课堂号';
+                return;
+            }
+            if(this.currentUser.role === 'teacher' && !this.classForm.topic) {
+                this.classFormErrors.topic = '教师创建课堂需要填写主题';
+                return;
+            }
             this.loading = true;
             let d = new FormData();
             d.append('username', this.currentUser.username);
@@ -3952,6 +3971,7 @@ new Vue({
             this.joined = false;
             this.msgs = [];
             this.goals = [];
+            this.closeClassModal();
             this.currentRelevance = null;
             this.hint = null;
             this.topicSuggestion.show = false;

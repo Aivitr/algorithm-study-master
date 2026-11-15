@@ -125,7 +125,7 @@ const hash = text => crypto.createHash('sha256').update(text).digest('hex').slic
 const TOUCHED = [
   'currentUser', 'pageState', 'showAITutor', 'showClassModal',
   'viewingGroupReports', 'activeTab', 'globalModal',
-  'loginForm', 'registerForm',
+  'loginForm', 'registerForm', 'classForm', 'classFormErrors', 'uploadedFile',
 ];
 const INITIAL = Object.fromEntries(TOUCHED.map(key => [key, vm[key]]));
 
@@ -351,6 +351,29 @@ const CLICKS = [
     if (!el) return [why];
     el.click(); await tick();   // 目标是遮罩自身，@click.self 才会触发（showClassModal 那个 .fixed.inset-0）
     return vm.showClassModal === false ? null : ['点了遮罩但进入课堂弹窗没关'];
+  }],
+  ['进入课堂弹窗点“取消” → 关并清空表单', '进入课堂弹窗', async () => {
+    vm.classForm = { class_code: 'old-code', topic: 'old-topic', materialUrl: 'old-url', templateId: 'old-tpl' };
+    vm.classFormErrors = { class_code: 'old-err', topic: 'old-err' };
+    vm.uploadedFile = { name: 'old.pdf' };
+    const btn = buttonWith(/^取消$/);
+    if (!btn) return ['进入课堂弹窗上找不到“取消”'];
+    btn.click(); await tick();
+    if (vm.showClassModal !== false) return ['点了“取消”但弹窗没关'];
+    const dirty = vm.classForm.class_code || vm.classForm.topic || vm.classForm.materialUrl
+      || vm.classForm.templateId || vm.classFormErrors.class_code || vm.classFormErrors.topic
+      || vm.uploadedFile;
+    return dirty ? ['关闭后仍残留上一轮课堂表单'] : null;
+  }],
+  ['进入课堂弹窗空课堂号 → 字段旁报错', '进入课堂弹窗', async () => {
+    vm.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
+    const btn = buttonWith(/创建并进入/);
+    if (!btn) return ['进入课堂弹窗上找不到“创建并进入”'];
+    btn.click(); await tick();
+    if (vm.classFormErrors.class_code !== '请输入课堂号') return ['空课堂号没有写入字段错误'];
+    const shown = [...doc.querySelectorAll('.text-red-200')]
+      .some(el => el.textContent.includes('请输入课堂号'));
+    return shown ? null : ['课堂号错误没有渲染在输入框旁'];
   }],
   ['个人中心点“开始对话” → 开 AI 辅导弹窗', '个人中心（学生）', async () => {
     const btn = buttonWith(/开始对话/);
