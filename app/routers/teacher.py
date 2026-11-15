@@ -88,8 +88,9 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
         total_classes = len(meeting_ids)
 
         total_students = 0
-        avg_score = 0
+        avg_score = None
         risk_groups = 0
+        scored_meetings = 0
 
         if analyzed_meeting_ids:
             total_students = db.query(
@@ -108,13 +109,17 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
                 activity = activity_map.get(meeting_id, {})
                 speech_count = int(activity.get("speech_count", 0))
                 member_count = int(activity.get("member_count", 0))
+                # 没有发言样本的课不评分，避免空课堂被算成 0 分风险
+                if speech_count <= 0:
+                    continue
                 score = stats_service.class_score(speech_count, member_count)
                 total_score += score
+                scored_meetings += 1
                 if score < 60:
                     risk_groups += 1
 
-            if analyzed_meeting_ids:
-                avg_score = int(total_score / len(analyzed_meeting_ids))
+            if scored_meetings:
+                avg_score = int(total_score / scored_meetings)
         
         return {
             "status": "success",
@@ -153,6 +158,10 @@ async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
                 # 尚未开始的课不参与评分，避免展示成「0 分 / 风险 / 待提高」
                 score = None
                 score_level, score_color = ("待开始", "blue")
+            elif speech_count <= 0:
+                # running/ended 但没有发言样本：无数据，不判风险
+                score = None
+                score_level, score_color = ("暂无数据", "blue")
             else:
                 score = stats_service.class_score(speech_count, member_count)
                 score_level, score_color = stats_service.score_level(score)

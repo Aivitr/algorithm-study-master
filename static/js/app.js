@@ -169,7 +169,7 @@ new Vue({
         classroomAILoading: false,
         // 课堂状态
         joined: false, loading: false, isPaused: false, errorMsg: '', form: {username:'', class_code:'', topic:'', role:'student'},
-        currentTopic: '', goals: [], msgs: [], currentRelevance: 0, hint: null,
+        currentTopic: '', goals: [], msgs: [], currentRelevance: null, hint: null,
         ws: null, wsHeartbeatTimer: null, recorder: null, audioCtx: null, analyser: null, dataArray: null, volumeLevel: 0, silenceStart: null, isSpeaking: false, speakingStartTime: null, statusText: 'Listening...', recordingStartTime: null,
         localMediaStream: null,
         // ===== 声网 Agora SDK (替代 WebRTC Mesh) =====
@@ -272,7 +272,7 @@ new Vue({
         recommendedMaterials: [],
         showMaterialsPanel: false,
         // 教师端专属数据
-        teacherStats: { totalClasses: 0, totalStudents: 0, avgScore: 0, riskGroups: 0 },
+        teacherStats: { totalClasses: 0, totalStudents: 0, avgScore: null, riskGroups: 0 },
         teacherClasses: [],
         // 新增: 教师查看小组报告
         viewingGroupReports: false,
@@ -518,6 +518,11 @@ new Vue({
                 );
             }
             return reports;
+        },
+        // 历史记录只展示已结束课堂；进行中/待开始留在课堂管理
+        endedClassHistory() {
+            const history = Array.isArray(this.classHistory) ? this.classHistory : [];
+            return history.filter(h => h.status === 'ended');
         },
         // 学生首页统计（基于历史课堂）
         studentHomeStats() {
@@ -3935,7 +3940,7 @@ new Vue({
             this.joined = false;
             this.msgs = [];
             this.goals = [];
-            this.currentRelevance = 0;
+            this.currentRelevance = null;
             this.hint = null;
             this.topicSuggestion.show = false;
             this.classroomAIMessages = [];
