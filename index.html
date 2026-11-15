@@ -2241,8 +2241,8 @@
                 </div>
             </div>
             
-            <!-- 观点聚类按钮 -->
-            <div class="mt-4 space-y-2">
+            <!-- 观点聚类按钮（教师） -->
+            <div v-if="currentUser.role === 'teacher'" class="mt-4 space-y-2">
                 <button @click="quickDecompose" :disabled="viewpointLoading"
                         class="classroom-btn-solid w-full disabled:opacity-50 text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i :class="viewpointLoading ? 'fas fa-spinner fa-spin' : 'fas fa-bolt'" class="text-lg"></i>
@@ -2259,7 +2259,7 @@
             <div class="mt-2 space-y-3">
                 <button @click="endClass" class="classroom-btn-solid w-full text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i class="fas fa-door-open text-lg"></i>
-                    <span>下课</span>
+                    <span>{{ currentUser.role === 'teacher' ? '结束课堂' : '退出课堂' }}</span>
                 </button>
                 <button @click="backToLobby" class="w-full text-gray-700 py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-sm flex items-center justify-center space-x-2"
                         style="background: #e7ecef; border: 1px solid #d2dbe0;"
