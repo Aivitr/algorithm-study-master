@@ -197,6 +197,7 @@ new Vue({
         browserAsrLastFinal: '',
         browserAsrLastFinalAt: 0,
         showKnowledgeGraph: false, knowledgeGraphData: null, chartInstance: null,
+        knowledgeGraphLoading: false, knowledgeGraphError: '', knowledgeGraphGenerating: false,
         classStartTime: null, timerInterval: null, meetingId: null,
         meetingStatus: null, meetingStartedAt: null, meetingEndedAt: null,
         // 新增: 观点聚类投票
@@ -398,6 +399,11 @@ new Vue({
                 (voters || []).forEach(v => votedSet.add(v));
             });
             return votedSet.size;
+        },
+        hasKnowledgeGraphData() {
+            return !!(this.knowledgeGraphData
+                && Array.isArray(this.knowledgeGraphData.nodes)
+                && this.knowledgeGraphData.nodes.length);
         },
         videoMembers() {
             // 只显示实际加入 Agora 的用户（有视频流的用户）
@@ -3315,14 +3321,53 @@ new Vue({
             }, 5000);
         },
         async loadKnowledgeGraph() {
+            if (!this.meetingId) return;
+            this.disposeKnowledgeGraphChart();
+            this.knowledgeGraphLoading = true;
+            this.knowledgeGraphError = '';
             try {
-                let res = await axios.get(`/api/knowledge-graph/${this.meetingId}`);
-                if (res.data.status === 'success') {
+                const res = await axios.get(`/api/knowledge-graph/${this.meetingId}`);
+                if (res.data.status === 'success' && res.data.data && res.data.data.nodes && res.data.data.nodes.length) {
                     this.knowledgeGraphData = res.data.data;
                     this.renderKnowledgeGraph();
+                } else {
+                    this.knowledgeGraphData = null;
+                    this.disposeKnowledgeGraphChart();
+                    if (res.data.status === 'error') {
+                        this.knowledgeGraphError = res.data.message || '加载知识图谱失败';
+                    }
                 }
             } catch(e) {
+                this.knowledgeGraphData = null;
+                this.disposeKnowledgeGraphChart();
+                this.knowledgeGraphError = '加载知识图谱失败：' + (e.response?.data?.message || e.message);
                 console.error('加载知识图谱失败:', e);
+            } finally {
+                this.knowledgeGraphLoading = false;
+            }
+        },
+        async generateKnowledgeGraph() {
+            if (!this.meetingId || this.knowledgeGraphGenerating) return;
+            this.knowledgeGraphGenerating = true;
+            this.knowledgeGraphError = '';
+            try {
+                const res = await axios.post(`/api/knowledge-graph/${this.meetingId}/generate`);
+                if (res.data.status === 'success' && res.data.data) {
+                    this.knowledgeGraphData = res.data.data;
+                    this.renderKnowledgeGraph();
+                } else {
+                    this.knowledgeGraphError = res.data.message || '生成知识图谱失败';
+                }
+            } catch(e) {
+                this.knowledgeGraphError = '生成知识图谱失败：' + (e.response?.data?.message || e.message);
+            } finally {
+                this.knowledgeGraphGenerating = false;
+            }
+        },
+        disposeKnowledgeGraphChart() {
+            if (this.chartInstance) {
+                this.chartInstance.dispose();
+                this.chartInstance = null;
             }
         },
         async loadClassroomData(meetingId) {
@@ -3344,8 +3389,11 @@ new Vue({
             }
         },
         renderKnowledgeGraph() {
-            if (!this.knowledgeGraphData || !this.knowledgeGraphData.nodes) return;
-            
+            if (!this.hasKnowledgeGraphData) {
+                this.disposeKnowledgeGraphChart();
+                return;
+            }
+
             this.$nextTick(() => {
                 const chartDom = document.getElementById('knowledgeGraphChart');
                 if (!chartDom) return;
@@ -3434,6 +3482,7 @@ new Vue({
                 };
                 
                 this.chartInstance.setOption(option);
+                this.$nextTick(() => this.chartInstance && this.chartInstance.resize());
             });
         },
         async summary() { let res = await axios.get(`/summary?meeting_id=${this.meetingId}`); this.showAlert(JSON.stringify(res.data, null, 2), 'info', '会议总结'); },
@@ -6618,6 +6667,8 @@ new Vue({
                 this.loadKnowledgeGraph();
             } else if (newVal && this.knowledgeGraphData) {
                 this.renderKnowledgeGraph();
+            } else if (!newVal) {
+                this.disposeKnowledgeGraphChart();
             }
         }
     }

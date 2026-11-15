@@ -142,6 +142,7 @@ HTTP_ROUTES = [
     ("GET", "/api/get-video-context"),
     ("POST", "/api/grade-short-answer"),
     ("GET", "/api/knowledge-graph/{meeting_id}"),
+    ("POST", "/api/knowledge-graph/{meeting_id}/generate"),
     ("POST", "/api/login"),
     ("POST", "/api/logout"),
     ("GET", "/api/meeting-reports/{meeting_id}"),
@@ -209,14 +210,14 @@ def actual_routes(local_app):
     return _enumerate(local_app)
 
 
-def test_frozen_interface_count_is_66():
-    """契约冻结的「66 个接口」= 63 条 HTTP + 3 条 WebSocket。
+def test_frozen_interface_count_is_67():
+    """契约冻结的「67 个接口」= 64 条 HTTP + 3 条 WebSocket。
 
     这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
-    路由，这里会先失败，逼他确认"66"这个对外承诺是否也要改。
+    路由，这里会先失败，逼他确认"67"这个对外承诺是否也要改。
     """
-    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 66, (
-        f"契约冻结 66 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 67, (
+        f"契约冻结 67 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 
