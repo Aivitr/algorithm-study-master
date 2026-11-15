@@ -37,12 +37,19 @@ from app.realtime.registry import manager, signal_manager
 from app.services.llm_service import llm
 from app.services.meeting_lifecycle import claim_end, claim_start
 from app.services.research_runtime import research_runtime
-from app.services.session_service import release_all_for_meeting
+from app.services.session_service import SessionContext, release_all_for_meeting, require_session
 
 router = APIRouter()
 
 
 _report_tasks: set[asyncio.Task] = set()
+
+
+def _teacher_only(ctx: SessionContext, meeting: Meeting, action: str) -> Optional[dict]:
+    """教师操作只认服务端会话，不认客户端提交的 username。"""
+    if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+        return {"status": "error", "message": f"只有本课堂教师可以{action}"}
+    return None
 
 
 def _run_one_report(meeting_id: int, user_id: int) -> None:
@@ -178,15 +185,16 @@ async def start_class(
     meeting_id: int = Form(...),
     username: str = Form(...),
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """教师开始课堂；重复请求只返回当前结果，不重复启动课堂副作用。"""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         return {"status": "error", "message": "课堂不存在"}
 
-    user = db.query(User).filter(User.student_id == username).first()
-    if not user or user.role != "teacher" or meeting.teacher_id != user.id:
-        return {"status": "error", "message": "只有本课堂教师可以开始课堂"}
+    auth_error = _teacher_only(ctx, meeting, "开始课堂")
+    if auth_error:
+        return auth_error
 
     if meeting.status == RUNNING:
         return {
@@ -228,7 +236,8 @@ async def start_class(
 async def end_class(
     meeting_id: int = Form(...),
     username: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """教师结束课堂"""
     try:
@@ -236,10 +245,10 @@ async def end_class(
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
 
-        # 验证是教师
-        user = db.query(User).filter(User.student_id == username).first()
-        if not user or user.role != "teacher" or meeting.teacher_id != user.id:
-            return {"status": "error", "message": "只有本课堂教师可以结束课堂"}
+        auth_error = _teacher_only(ctx, meeting, "结束课堂")
+        if auth_error:
+            return auth_error
+        user = ctx.user
 
         if meeting.status == ENDED:
             return {
@@ -340,7 +349,7 @@ async def end_class(
         # 课后报告由后端触发一次（CAS 已保证只有结束执行者走到这里）
         schedule_class_reports(meeting_id)
 
-        print(f"[OK] 课堂 {meeting_id} 已被教师 {username} 结束")
+        print(f"[OK] 课堂 {meeting_id} 已被教师 {ctx.user.student_id} 结束")
         return {
             "status": "success",
             "already_ended": False,
@@ -354,7 +363,11 @@ async def end_class(
 
 
 @router.post("/api/suggest-topic")
-async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_db)):
+async def suggest_topic(
+    meeting_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """当学生说'不知道该说什么'时，AI自动总结当前情况并推送话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -406,13 +419,17 @@ async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_d
 @router.post("/api/quick-decompose")
 async def quick_decompose(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """一键分解：跳过聚类投票，直接分析发言并生成子任务"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        auth_error = _teacher_only(ctx, meeting, "执行任务分解")
+        if auth_error:
+            return auth_error
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
@@ -472,13 +489,17 @@ async def quick_decompose(
 @router.post("/api/cluster-viewpoints")
 async def cluster_viewpoints(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """聚类学生观点"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        auth_error = _teacher_only(ctx, meeting, "执行观点聚类")
+        if auth_error:
+            return auth_error
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
