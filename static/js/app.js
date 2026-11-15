@@ -1095,7 +1095,11 @@ new Vue({
                 return false;
             }
             try {
-                await axios.post('/api/classroom/enter', { meeting_id: Number(meetingId) });
+                await axios.post(
+                    '/api/classroom/enter',
+                    { meeting_id: Number(meetingId) },
+                    { headers: { 'Content-Type': 'application/json' } }
+                );
                 return true;
             } catch (e) {
                 const status = e.response && e.response.status;
@@ -1595,6 +1599,35 @@ new Vue({
             // --- 结束新增 ---
 
             this.recorder.start(); this.recordingStartTime = Date.now(); this.detectVolume();
+            } catch (e) {
+                const name = (e && e.name) || '';
+                let message = '无法开启摄像头/麦克风';
+                if (name === 'NotAllowedError') {
+                    message = '摄像头/麦克风权限被拒绝。请在浏览器地址栏允许权限后重试。';
+                } else if (name === 'NotFoundError') {
+                    message = '没有找到摄像头或麦克风，请检查设备连接。';
+                } else if (name === 'NotReadableError') {
+                    message = '摄像头/麦克风被其他程序占用，请关闭占用程序后重试。';
+                } else if (name === 'OverconstrainedError') {
+                    message = '当前摄像头/麦克风不满足请求参数，请更换设备。';
+                } else if (e && e.message) {
+                    message += '：' + e.message;
+                }
+                console.warn('⚠️ 开启音视频失败:', e);
+                // 失败发生在拿到流之后时，必须释放设备，否则摄像头/麦克风会一直被占用
+                if (this.localMediaStream) {
+                    this.localMediaStream.getTracks().forEach(t => t.stop());
+                    this.localMediaStream = null;
+                }
+                if (this.recorder && this.recorder.state !== 'inactive') {
+                    try { this.recorder.stop(); } catch (err) {}
+                    this.recorder = null;
+                }
+                if (this.audioCtx) {
+                    try { this.audioCtx.close(); } catch (err) {}
+                    this.audioCtx = null;
+                }
+                this.showAlert(message, 'error', '无法开启音视频');
             } finally {
                 this._startingMedia = false;
             }
@@ -1708,6 +1741,7 @@ new Vue({
             // 返回主页
             this.currentView = 'main';
             this.meetingId = null;
+            this.viewingGroupId = null;
             this.meetingStatus = null;
             this.meetingStartedAt = null;
             this.meetingEndedAt = null;
@@ -3893,6 +3927,7 @@ new Vue({
             // 重置课堂状态
             this.pageState = 'lobby';
             this.meetingId = null;
+            this.viewingGroupId = null;
             this.meetingStatus = null;
             this.meetingStartedAt = null;
             this.meetingEndedAt = null;
