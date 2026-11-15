@@ -105,8 +105,10 @@
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
                         <input v-model="registerForm.student_id" autocomplete="username"
+                               inputmode="numeric" pattern="[0-9]*"
+                               @input="registerForm.student_id = registerForm.student_id.replace(/\D/g, '')"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
-                               placeholder="请输入学号/工号">
+                               placeholder="请输入纯数字学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-user absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
@@ -2331,10 +2333,10 @@
                          class="video-grid-cell"
                          :class="{'is-speaking': speakingMembers[member], 'is-pinned': pinnedMember === member}"
                          @dblclick="pinnedMember = (pinnedMember === member ? null : member)"
-                         :title="member === currentUser.student_id ? '我（双击放大）' : member + '（双击放大）'">
+                         :title="member === effectiveLocalAgoraUid ? '我（双击放大）' : agoraMemberLabel(member) + '（双击放大）'">
 
                         <!-- 本人视频 -->
-                        <template v-if="member === currentUser.student_id">
+                        <template v-if="member === effectiveLocalAgoraUid">
                             <video id="localVideo" ref="video" autoplay muted playsinline
                                    class="w-full h-full object-cover transform scale-x-[-1]"></video>
                         </template>
@@ -2343,17 +2345,17 @@
                             <div :id="'agora-remote-' + member" class="w-full h-full"
                                  style="background:#1a1a2e;"></div>
                             <div v-if="!remoteStreams[member]" class="cell-avatar">
-                                <div class="avatar-circle">{{ member.charAt(0).toUpperCase() }}</div>
+                                <div class="avatar-circle">{{ agoraMemberLabel(member).charAt(0).toUpperCase() }}</div>
                             </div>
                         </template>
 
                         <!-- 名称条 -->
                         <div class="cell-name">
                             <i class="fas fa-microphone mic-icon" :class="{'active': speakingMembers[member]}"></i>
-                            <span>{{ member }}</span>
+                            <span>{{ agoraMemberLabel(member) }}</span>
                         </div>
                         <!-- 本人标记 -->
-                        <span v-if="member === currentUser.student_id" class="cell-me-badge">我</span>
+                        <span v-if="member === effectiveLocalAgoraUid" class="cell-me-badge">我</span>
                     </div>
                 </div>
             </div>

@@ -9,8 +9,8 @@
       "length": 2742
     },
     "注册页": {
-      "hash": "8e49f8683c292f50",
-      "length": 4209
+      "hash": "f098bd59cfbe3e47",
+      "length": 4249
     },
     "大厅（学生）": {
       "hash": "e612b2e2558819bc",
@@ -121,6 +121,9 @@
       "ok": true
     },
     "课堂（学生）点“退出课堂” → 打开确认": {
+      "ok": true
+    },
+    "Agora UID 非 ASCII → 合法 ASCII UID": {
       "ok": true
     },
     "大厅（教师）点“课堂管理” → 切到课堂管理页": {
