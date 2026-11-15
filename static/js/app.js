@@ -71,6 +71,9 @@ Vue.component('landing-page', {
     template: '#landing-page-tpl',
 });
 
+const SESSION_TOKEN_KEY = 'smartclass:session-token';
+const SESSION_USER_KEY = 'smartclass:session-user';
+
 new Vue({
     el: '#app',
     data: {
@@ -346,6 +349,7 @@ new Vue({
     },
     created() {
         this.initSessionGuards();
+        this.restoreSession();
         this._onWindowResize = () => {
             clearTimeout(this._resizeTimer);
             this._resizeTimer = setTimeout(() => this.resizeStatsCharts(), 120);
@@ -983,21 +987,8 @@ new Vue({
                 this.studentReportsLoaded = false;
                 this.pageState = 'lobby';
                 this.loading = false;
-                this.hydrateLobbyCache();
-                // 检查声纹状态
-                this.loadVoiceprintStatus();
-                if (this.currentUser.role === 'student') {
-                    this.loadStudentHomeStats().catch(e => console.warn('加载首页统计失败:', e));
-                    this.ensureClassHistory().catch(e => console.warn('加载历史失败:', e));
-                    this.ensureMyReports().catch(e => console.warn('加载报告失败:', e));
-                }
-                if (this.currentUser.role === 'teacher') {
-                    this.loadActiveGroups();
-                    this.loadTeacherStats();
-                    this.loadTeacherClasses();
-                    this.ensureAllStudentReports();
-                    this.loadTeacherTemplates();  // 加载模板
-                }
+                this.persistSession();
+                this.loadLobbyData();
             } catch(e) { this.showAlert('登录失败: ' + (e.response?.data?.message || e.message), 'error', '错误'); this.loading = false; }
         },
         // 用户注册
@@ -1048,6 +1039,7 @@ new Vue({
             this.revokeServerSession();
             this.sessionToken = null;
             this.applySessionToken();
+            this.clearPersistedSession();
             this.releaseClassroomLock();
             this.releaseSession();
             this.cleanupVoiceprintRecorder();
@@ -1097,8 +1089,8 @@ new Vue({
             window.addEventListener('pagehide', this.handlePageHide);
         },
         handlePageHide() {
+            // 刷新/关闭页面只释放课堂锁；登录会话保留，刷新后由 sessionStorage 恢复
             if (this.meetingId) this.releaseServerClassroom(this.meetingId);
-            this.revokeServerSession();
         },
         applySessionToken() {
             if (this.sessionToken) {
@@ -1187,6 +1179,80 @@ new Vue({
                 return null;
             }
         },
+        persistSession() {
+            if (!this.sessionToken || !this.currentUser) return;
+            try {
+                sessionStorage.setItem(SESSION_TOKEN_KEY, this.sessionToken);
+                sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(this.currentUser));
+            } catch (e) {
+                console.warn('写入登录态失败:', e);
+            }
+        },
+        readStoredSession() {
+            try {
+                const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+                const raw = sessionStorage.getItem(SESSION_USER_KEY);
+                if (!token || !raw) return null;
+                return { token, user: JSON.parse(raw) };
+            } catch (e) {
+                return null;
+            }
+        },
+        clearPersistedSession() {
+            try {
+                sessionStorage.removeItem(SESSION_TOKEN_KEY);
+                sessionStorage.removeItem(SESSION_USER_KEY);
+            } catch (e) {}
+        },
+        async restoreSession() {
+            const stored = this.readStoredSession();
+            if (!stored) return false;
+            this.sessionToken = stored.token;
+            this.applySessionToken();
+            try {
+                const res = await axios.get('/api/session/validate');
+                if (!res.data || res.data.status !== 'success') {
+                    throw new Error('会话已失效');
+                }
+                // 用户在恢复期间已开始登录/注册，不要强行拉回大厅
+                if (this.pageState !== 'landing') {
+                    this.clearPersistedSession();
+                    this.sessionToken = null;
+                    this.applySessionToken();
+                    return false;
+                }
+                this.currentUser = res.data.user;
+                this.claimSession(this.currentUser);
+                this.startSessionHeartbeat();
+                this.pageState = 'lobby';
+                this.persistSession();
+                this.loadLobbyData();
+                return true;
+            } catch (e) {
+                this.clearPersistedSession();
+                this.sessionToken = null;
+                this.currentUser = null;
+                this.applySessionToken();
+                return false;
+            }
+        },
+        loadLobbyData() {
+            if (!this.currentUser) return;
+            this.hydrateLobbyCache();
+            this.loadVoiceprintStatus();
+            if (this.currentUser.role === 'student') {
+                this.loadStudentHomeStats().catch(e => console.warn('加载首页统计失败:', e));
+                this.ensureClassHistory().catch(e => console.warn('加载历史失败:', e));
+                this.ensureMyReports().catch(e => console.warn('加载报告失败:', e));
+            }
+            if (this.currentUser.role === 'teacher') {
+                this.loadActiveGroups();
+                this.loadTeacherStats();
+                this.loadTeacherClasses();
+                this.ensureAllStudentReports();
+                this.loadTeacherTemplates();
+            }
+        },
         claimSession(user) {
             const active = this.readActiveSession();
             if (active && String(active.userId) === String(user.id)) {
@@ -1252,6 +1318,7 @@ new Vue({
             this.stopSessionHeartbeat();
             this.sessionToken = null;
             this.applySessionToken();
+            this.clearPersistedSession();
             this.releaseClassroomLock();
             if (this.pageState === 'classroom') {
                 this._cleanupClassroom();

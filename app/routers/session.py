@@ -32,6 +32,7 @@ def validate_session(ctx: SessionContext = Depends(require_session)) -> dict[str
             "student_id": ctx.user.student_id,
             "username": ctx.user.username,
             "role": ctx.user.role,
+            "created_at": ctx.user.created_at.isoformat() if ctx.user.created_at else None,
         },
         "session": {
             "id": ctx.session.id,
