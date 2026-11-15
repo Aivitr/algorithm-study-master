@@ -1612,12 +1612,14 @@ new Vue({
             try {
             // 教师:选择摄像头或屏幕共享
             let stream;
+            let screenSharing = false;
             if (this.currentUser.role === 'teacher') {
                 const choice = await this.showConfirm('点击”确定”共享屏幕，”取消”使用摄像头', '选择媒体方式');
                 if (choice) {
                     // 屏幕共享
                     try {
                         stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true});
+                        screenSharing = true;
                         this.statusText = 'Screen Sharing...';
                     } catch(e) {
                         console.warn('屏幕共享取消或失败，使用摄像头:', e);
@@ -1629,14 +1631,19 @@ new Vue({
             } else {
                 stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
             }
-            
-            // 屏幕共享可能没有音轨；补一路麦克风，补不到则继续纯视频
-            if (!stream.getAudioTracks().length) {
+
+            // 屏幕共享的系统音频不能替代人声；始终补一路麦克风用于 ASR/录音
+            if (screenSharing || !stream.getAudioTracks().length) {
                 try {
                     const micStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                    if (screenSharing) {
+                        stream.getAudioTracks().forEach(track => stream.removeTrack(track));
+                    }
                     micStream.getAudioTracks().forEach(track => stream.addTrack(track));
+                    console.log('🎤 已接入麦克风音轨');
                 } catch (micErr) {
-                    console.warn('⚠️ 未获取到麦克风音轨，继续纯视频:', micErr);
+                    console.warn('⚠️ 未获取到麦克风音轨:', micErr);
+                    this.showClassroomHint('⚠️ 麦克风未授权，语音识别与录音将不可用', 8000, { force: true });
                 }
             }
             this.localMediaStream = stream;
