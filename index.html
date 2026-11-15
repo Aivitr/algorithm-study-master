@@ -1977,33 +1977,39 @@
         </div>
 
         <!-- 进入课堂弹窗 -->
-        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="showClassModal = false">
+        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="closeClassModal">
             <div class="max-w-2xl w-full login-container">
                 <div class="login-content p-10">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-white">{{ currentUser.role === 'teacher' ? '创建课堂' : '加入课堂' }}</h2>
-                        <button @click="showClassModal = false" class="text-white text-opacity-80 hover:text-opacity-100">
+                        <button @click="closeClassModal" class="text-white text-opacity-80 hover:text-opacity-100">
                             <i class="fas fa-times text-2xl"></i>
                         </button>
                     </div>
-                    
+
                     <div class="space-y-5">
                         <div class="relative group">
                             <i class="fas fa-hashtag absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                            <input v-model="classForm.class_code"
+                            <input v-model="classForm.class_code" @input="classFormErrors.class_code = ''"
+                                   :aria-invalid="classFormErrors.class_code ? 'true' : 'false'"
+                                   aria-describedby="class-code-error"
                                    class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 text-center font-mono font-bold text-lg tracking-wider transition-all shadow-lg"
                                    style="border-color: var(--primary);"
                                    placeholder="请输入课堂号">
                         </div>
-                        
+                        <p v-if="classFormErrors.class_code" id="class-code-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.class_code }}</p>
+
                         <div v-if="currentUser.role === 'teacher'" class="relative group">
                             <i class="fas fa-book absolute left-4 top-4" style="color: var(--primary);"></i>
-                            <textarea v-model="classForm.topic" rows="3"
+                            <textarea v-model="classForm.topic" @input="classFormErrors.topic = ''" rows="3"
+                                      :aria-invalid="classFormErrors.topic ? 'true' : 'false'"
+                                      aria-describedby="class-topic-error"
                                       class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 transition-all resize-none shadow-lg"
                                       style="border-color: var(--primary);"
                                       placeholder="请输入课程主题(教师必填)">
                             </textarea>
                         </div>
+                        <p v-if="currentUser.role === 'teacher' && classFormErrors.topic" id="class-topic-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.topic }}</p>
                         
                         <!-- 教师上传资料 -->
                         <div v-if="currentUser.role === 'teacher'" class="space-y-4">
@@ -2065,12 +2071,18 @@
                             </div>
                         </div>
                         
-                        <button @click="enterClass" :disabled="loading"
-                                class="w-full btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
-                            <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
-                            <i v-else class="fas fa-door-open mr-2"></i>
-                            {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
-                        </button>
+                        <div class="flex space-x-3">
+                            <button @click="closeClassModal"
+                                    class="w-1/3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-4 rounded-xl font-bold text-lg transition-all">
+                                取消
+                            </button>
+                            <button @click="enterClass" :disabled="loading"
+                                    class="flex-1 btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
+                                <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
+                                <i v-else class="fas fa-door-open mr-2"></i>
+                                {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
