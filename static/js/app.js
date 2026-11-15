@@ -1563,6 +1563,15 @@ new Vue({
                 stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
             }
             
+            // 屏幕共享可能没有音轨；补一路麦克风，补不到则继续纯视频
+            if (!stream.getAudioTracks().length) {
+                try {
+                    const micStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                    micStream.getAudioTracks().forEach(track => stream.addTrack(track));
+                } catch (micErr) {
+                    console.warn('⚠️ 未获取到麦克风音轨，继续纯视频:', micErr);
+                }
+            }
             this.localMediaStream = stream;
             // 使用 getElementById 绑定（更可靠）
             this._bindLocalVideo();
@@ -1601,6 +1610,7 @@ new Vue({
                     });
                 }
             };
+            if (stream.getAudioTracks().length) {
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = this.audioCtx.createMediaStreamSource(stream); this.analyser = this.audioCtx.createAnalyser(); this.analyser.fftSize = 512; source.connect(this.analyser); this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
@@ -1662,6 +1672,9 @@ new Vue({
                         this.asrWs.send(result.buffer);
                     }
                 };
+            }
+            } else {
+                console.warn('⚠️ 无音轨，跳过音频分析与 ASR 采集');
             }
             // --- 结束新增 ---
 
@@ -1959,6 +1972,10 @@ new Vue({
             }
         },
         connectAsrWs() {
+            if (!this.localMediaStream || !this.localMediaStream.getAudioTracks().length) {
+                console.warn('⚠️ 无音轨，跳过 ASR 连接');
+                return;
+            }
             let protocol = location.protocol === 'https:' ? 'wss' : 'ws';
             if (this.asrWs) {
                 this.asrWs._manualClose = true;
@@ -2258,7 +2275,7 @@ new Vue({
         },
         // 保留本地音频活跃检测（自己的麦克风，用于本地 speaking 状态）
         startLocalAudioAnalysis() {
-            if (!this.localMediaStream) return;
+            if (!this.localMediaStream || !this.localMediaStream.getAudioTracks().length) return;
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = ctx.createMediaStreamSource(this.localMediaStream);
@@ -2267,7 +2284,7 @@ new Vue({
                 analyser.smoothingTimeConstant = 0.3;
                 source.connect(analyser);
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                const me = this.currentUser.student_id;
+                const me = this.effectiveLocalAgoraUid;
                 this._localAudioAnalysis = setInterval(() => {
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0;
