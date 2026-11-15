@@ -177,6 +177,7 @@ new Vue({
         // ===== 声网 Agora SDK (替代 WebRTC Mesh) =====
         agoraAppId: 'd3144900be6843d8a8c14271f1da8cdb',
         agoraClient: null,           // AgoraRTCClient 实例
+        localAgoraUid: null,         // 本地用户实际使用的 ASCII UID
         agoraLocalAudioTrack: null,  // 本地音频轨道
         agoraLocalVideoTrack: null,  // 本地视频轨道
         agoraRemoteUsers: {},        // {uid: {videoTrack, audioTrack}} 远端用户轨道
@@ -405,17 +406,22 @@ new Vue({
                 && Array.isArray(this.knowledgeGraphData.nodes)
                 && this.knowledgeGraphData.nodes.length);
         },
+        effectiveLocalAgoraUid() {
+            if (!this.currentUser) return '';
+            return String(this.localAgoraUid || this.agoraSafeUid(
+                this.currentUser.student_id || this.currentUser.username || this.currentUser.id
+            ));
+        },
         videoMembers() {
             // 只显示实际加入 Agora 的用户（有视频流的用户）
             const members = [];
+            const localUid = this.effectiveLocalAgoraUid;
             // 添加自己
-            if (this.currentUser && this.currentUser.student_id) {
-                members.push(String(this.currentUser.student_id));
-            }
+            if (localUid) members.push(localUid);
             // 添加远端用户（按 UID 排序保证顺序稳定）
             const remoteUids = Object.keys(this.agoraRemoteUsers || {}).sort();
             remoteUids.forEach(uid => {
-                if (uid && uid !== String(this.currentUser.student_id)) {
+                if (uid && uid !== localUid) {
                     members.push(uid);
                 }
             });
@@ -998,6 +1004,9 @@ new Vue({
         async register() {
             if(!this.registerForm.student_id || !this.registerForm.username || !this.registerForm.password) {
                 return this.showAlert('请填写完整信息', 'warning', '提示');
+            }
+            if (!/^\d+$/.test(this.registerForm.student_id)) {
+                return this.showAlert('学号/工号只能包含数字', 'warning', '提示');
             }
             // 密码强度校验：至少10位，包含大写、小写字母和数字
             const pwd = this.registerForm.password;
@@ -2107,11 +2116,30 @@ new Vue({
             });
             console.log('✅ Agora Client 初始化完成');
         },
+        // Agora 字符串 UID 只接受 1-255 位 ASCII；中文/空格/空值用稳定哈希兜底
+        agoraSafeUid(value) {
+            const raw = String(value ?? '').trim();
+            if (/^[A-Za-z0-9_.-]{1,255}$/.test(raw)) return raw;
+            let hash = 5381;
+            for (let i = 0; i < raw.length; i++) {
+                hash = ((hash << 5) + hash + raw.charCodeAt(i)) >>> 0;
+            }
+            return 'u' + hash.toString(36);
+        },
+        agoraMemberLabel(uid) {
+            if (uid === this.effectiveLocalAgoraUid && this.currentUser) {
+                return this.currentUser.student_id || this.currentUser.username || '我';
+            }
+            return String(uid);
+        },
         async _joinAgoraChannel() {
             if (this.meetingStatus !== 'running' || !this.meetingId || !this.currentUser || !this.localMediaStream) return;
             try {
                 const channel = String(this.meetingId);
-                const uid = String(this.currentUser.student_id);
+                const uid = this.agoraSafeUid(
+                    this.currentUser.student_id || this.currentUser.username || this.currentUser.id
+                );
+                this.localAgoraUid = uid;
                 // 从服务端获取 RTC 配置，避免前后端鉴权模式不一致
                 const tokenRes = await axios.get('/api/agora-token', {
                     params: { channel, uid, meeting_id: this.meetingId, _: Date.now() },
@@ -2214,6 +2242,7 @@ new Vue({
                     if (container) container.innerHTML = '';
                 });
                 this.agoraRemoteUsers = {};
+                this.localAgoraUid = null;
                 this.remoteStreams = {};
                 this.speakingMembers = {};
                 this.pinnedMember = null;

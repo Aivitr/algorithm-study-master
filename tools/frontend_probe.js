@@ -412,6 +412,13 @@ const CLICKS = [
     btn.click(); await tick();
     return vm.globalModal.show === true ? null : ['点了“退出课堂”但没出现确认弹窗'];
   }],
+  ['Agora UID 非 ASCII → 合法 ASCII UID', '课堂（学生）', async () => {
+    const hashed = vm.agoraSafeUid('张三');
+    if (!/^[A-Za-z0-9_.-]{1,255}$/.test(hashed)) return [`非法 UID: ${hashed}`];
+    if (vm.agoraSafeUid('张三') !== hashed) return ['同一输入生成了不同 UID'];
+    if (vm.agoraSafeUid('S2026001') !== 'S2026001') return ['合法 UID 被意外改写'];
+    return null;
+  }],
   // 侧栏里 7 个切页按钮只有 3 个是纯赋值，另外 4 个顺带调了触网方法
   // （studentReports / history / report / profile 那四个）——只取纯的那类。
   ['大厅（教师）点“课堂管理” → 切到课堂管理页', '大厅（教师）', async () => {

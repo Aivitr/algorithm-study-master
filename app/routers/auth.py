@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
@@ -36,6 +37,10 @@ async def register(
     role: str = Form("student")
 ):
     """User registration"""
+    student_id = student_id.strip()
+    if not re.fullmatch(r"[0-9]+", student_id):
+        return {"status": "error", "message": "学号/工号只能包含数字"}
+
     try:
         print(f"[NOTE] Register request - ID: {student_id}, Role: {role}")
     except:
