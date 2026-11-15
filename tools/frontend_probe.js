@@ -126,6 +126,7 @@ const TOUCHED = [
   'currentUser', 'pageState', 'showAITutor', 'showClassModal',
   'viewingGroupReports', 'activeTab', 'globalModal',
   'loginForm', 'registerForm', 'classForm', 'classFormErrors', 'uploadedFile',
+  'classroomPanelCollapsed',
 ];
 const INITIAL = Object.fromEntries(TOUCHED.map(key => [key, vm[key]]));
 
@@ -394,6 +395,22 @@ const CLICKS = [
     if (!el) return [why];
     el.click(); await tick();   // 同上（showAITutor 那个 .fixed.inset-0）
     return vm.showAITutor === false ? null : ['点了遮罩但 AI 辅导弹窗没关'];
+  }],
+  // 窄屏才能看到的两个动作：面板折叠与学生退出。桌面 CSS 隐藏它们，
+  // 但接线必须在 DOM 里真实存在，否则手机上按钮会出现却没反应。
+  ['课堂（教师）点“收起面板” → 折叠右栏', '课堂（教师）', async () => {
+    const btn = [...doc.querySelectorAll('.classroom-mobile-only')]
+      .find(el => el.textContent.trim() === '收起面板');
+    if (!btn) return ['课堂顶部找不到“收起面板”'];
+    btn.click(); await tick();
+    return vm.classroomPanelCollapsed === true ? null : ['点了“收起面板”但右栏状态没变'];
+  }],
+  ['课堂（学生）点“退出课堂” → 打开确认', '课堂（学生）', async () => {
+    const btn = [...doc.querySelectorAll('.classroom-mobile-only')]
+      .find(el => el.textContent.trim() === '退出课堂');
+    if (!btn) return ['课堂顶部找不到“退出课堂”'];
+    btn.click(); await tick();
+    return vm.globalModal.show === true ? null : ['点了“退出课堂”但没出现确认弹窗'];
   }],
   // 侧栏里 7 个切页按钮只有 3 个是纯赋值，另外 4 个顺带调了触网方法
   // （studentReports / history / report / profile 那四个）——只取纯的那类。
