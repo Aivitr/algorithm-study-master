@@ -112,7 +112,7 @@ async def api_login(
         print("[QUERY] Querying user...")
         query_start = time.time()
         cursor.execute(
-            "SELECT TOP 1 id, student_id, username, password, role FROM users WHERE student_id = %s",
+            "SELECT TOP 1 id, student_id, username, password, role, created_at FROM users WHERE student_id = %s",
             (student_id,)
         )
         user = cursor.fetchone()
@@ -155,7 +155,8 @@ async def api_login(
                 "id": user['id'],
                 "student_id": user['student_id'],
                 "username": user['username'],
-                "role": user['role']
+                "role": user['role'],
+                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
             },
             **session_payload,
         }
