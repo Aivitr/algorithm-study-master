@@ -125,6 +125,7 @@ const hash = text => crypto.createHash('sha256').update(text).digest('hex').slic
 const TOUCHED = [
   'currentUser', 'pageState', 'showAITutor', 'showClassModal',
   'viewingGroupReports', 'activeTab', 'globalModal',
+  'loginForm', 'registerForm',
 ];
 const INITIAL = Object.fromEntries(TOUCHED.map(key => [key, vm[key]]));
 
@@ -245,6 +246,33 @@ const CLICKS = [
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
   }],
 
+  // 登录/注册切换必须把两边的凭据一起清掉：否则切换账号时旧学号/密码
+  // 会留在隐藏的表单里，再切回来就带出来了。
+  ['登录页点“立即注册” → 注册页并清空表单', '登录页', async () => {
+    vm.loginForm = { student_id: 'old-id', password: 'old-pass' };
+    vm.registerForm = { student_id: 'old-id', username: 'old', password: 'old-pass', confirmPassword: 'old-pass', role: 'teacher' };
+    const btn = buttonWith(/立即注册/);
+    if (!btn) return ['登录页上找不到“立即注册”'];
+    btn.click(); await tick();
+    if (vm.pageState !== 'register') return [`pageState 应为 register，实为 ${vm.pageState}`];
+    const dirty = vm.loginForm.student_id || vm.loginForm.password
+      || vm.registerForm.student_id || vm.registerForm.username
+      || vm.registerForm.password || vm.registerForm.confirmPassword;
+    return dirty ? ['切换后仍残留上一份登录/注册凭据'] : null;
+  }],
+  ['注册页点“立即登录” → 登录页并清空表单', '注册页', async () => {
+    vm.loginForm = { student_id: 'old-id', password: 'old-pass' };
+    vm.registerForm = { student_id: 'old-id', username: 'old', password: 'old-pass', confirmPassword: 'old-pass', role: 'teacher' };
+    const btn = buttonWith(/立即登录/);
+    if (!btn) return ['注册页上找不到“立即登录”'];
+    btn.click(); await tick();
+    if (vm.pageState !== 'login') return [`pageState 应为 login，实为 ${vm.pageState}`];
+    const dirty = vm.loginForm.student_id || vm.loginForm.password
+      || vm.registerForm.student_id || vm.registerForm.username
+      || vm.registerForm.password || vm.registerForm.confirmPassword;
+    return dirty ? ['切换后仍残留上一份登录/注册凭据'] : null;
+  }],
+
   // 通用弹窗：全应用约 40 处调用 showAlert/showConfirm，靠的是"弹窗把 Promise
   // 兑现掉"这个契约。契约断了，那些调用点不会报错——它们只是永远 await 下去。
   ['通用弹窗点“确定” → 关闭', '通用弹窗', async () => {
@@ -344,13 +372,13 @@ const CLICKS = [
     el.click(); await tick();   // 同上（showAITutor 那个 .fixed.inset-0）
     return vm.showAITutor === false ? null : ['点了遮罩但 AI 辅导弹窗没关'];
   }],
-  // 侧栏里 8 个切页按钮只有 4 个是纯赋值，另外 4 个顺带调了触网方法
+  // 侧栏里 7 个切页按钮只有 3 个是纯赋值，另外 4 个顺带调了触网方法
   // （studentReports / history / report / profile 那四个）——只取纯的那类。
-  ['大厅（教师）点“设置” → 切到设置页', '大厅（教师）', async () => {
-    const btn = buttonWith(/^设置$/);
-    if (!btn) return ['侧栏上找不到文字恰为“设置”的按钮（切页那一列里那颗）'];
+  ['大厅（教师）点“课堂管理” → 切到课堂管理页', '大厅（教师）', async () => {
+    const btn = buttonWith(/^课堂管理$/);
+    if (!btn) return ['侧栏上找不到文字恰为“课堂管理”的按钮（切页那一列里那颗）'];
     btn.click(); await tick();
-    return vm.activeTab === 'settings' ? null : [`activeTab 应为 settings，实为 ${vm.activeTab}`];
+    return vm.activeTab === 'classManage' ? null : [`activeTab 应为 classManage，实为 ${vm.activeTab}`];
   }],
 ];
 

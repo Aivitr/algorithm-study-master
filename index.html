@@ -44,13 +44,13 @@
                 <div class="space-y-5">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.student_id"
+                        <input v-model="loginForm.student_id" autocomplete="username"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.password" type="password"
+                        <input v-model="loginForm.password" type="password" autocomplete="current-password"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入密码">
                     </div>
@@ -77,7 +77,7 @@
                 <div class="absolute inset-0 opacity-70" style="background: linear-gradient(to top, var(--primary-dark), transparent, transparent);"></div>
                 <div class="absolute bottom-10 left-10 right-10 text-white">
                     <h3 class="text-3xl font-bold mb-3">赋能协作学习</h3>
-                    <p class="text-white text-opacity-90">加入成千上万的学生和教师，一起体验未来教育</p>
+                    <p class="text-white text-opacity-90">连接学生与教师，一起体验未来教育</p>
                 </div>
             </div>
         </div>
@@ -104,26 +104,26 @@
                 <div class="space-y-4">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.student_id"
+                        <input v-model="registerForm.student_id" autocomplete="username"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-user absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.username"
+                        <input v-model="registerForm.username" autocomplete="name"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入姓名">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.password" type="password"
+                        <input v-model="registerForm.password" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="至少10位，含大小写字母和数字">
                     </div>
                     <p class="text-xs text-gray-400 -mt-1 ml-1">密码需包含大写字母、小写字母和数字，不少于10位</p>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.confirmPassword" type="password"
+                        <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请再次输入密码">
                     </div>
@@ -258,19 +258,12 @@
                             <i class="fas fa-chart-line text-xl" :style="activeTab === 'report' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">学习报告</span>
                         </button>
-                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()" 
+                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()"
                                 :class="activeTab === 'profile' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
                                 :style="activeTab === 'profile' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
                                 class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
                             <i class="fas fa-user-circle text-xl" :style="activeTab === 'profile' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">个人中心</span>
-                        </button>
-                        <button @click="activeTab = 'settings'" 
-                                :class="activeTab === 'settings' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
-                                :style="activeTab === 'settings' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
-                                class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
-                            <i class="fas fa-cog text-xl" :style="activeTab === 'settings' ? 'color: var(--primary);' : ''"></i>
-                            <span class="text-base">设置</span>
                         </button>
                     </div>
                 </div>
@@ -3030,7 +3023,6 @@
                     <a href="#home" class="lp-nav-link">首页</a>
                     <a href="#features" class="lp-nav-link">核心优势</a>
                     <a href="#benefits" class="lp-nav-link">平台优势</a>
-                    <a href="#testimonials" class="lp-nav-link">用户评价</a>
                 </div>
                 <div class="flex items-center gap-4">
                     <button @click="$emit('go', 'login')" class="lp-login-btn">登录</button>
@@ -3058,10 +3050,10 @@
                 <p class="lp-hero-sub">AI驱动，实时追踪情绪，深度分析互动，让每一次协作产生价值</p>
                 <div class="lp-btn-row">
                     <button @click="$emit('go', 'register')" class="lp-btn-primary flex items-center gap-2">
-                        <span>开始体验</span>
+                        <span>注册账号</span>
                         <i class="fas fa-arrow-right"></i>
                     </button>
-                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">免费试用</button>
+                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">登录</button>
                 </div>
             </div>
         </section>
@@ -3141,50 +3133,6 @@
             </div>
         </section>
 
-        <section id="testimonials" class="lp-section pb-14">
-            <div class="lp-shell">
-                <div class="lp-title lp-reveal">
-                    <h2>深受教育工作者喜爱</h2>
-                    <p>教师、学生一致好评</p>
-                </div>
-                <div class="lp-testimonial-grid lp-reveal" data-delay="1">
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>这个平台真的很好用！能够帮助我更好地管理课程，学生的学习进度也一目了然。强烈推荐给所有教育工作者！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">张</div>
-                            <div>
-                                <div class="font-bold text-gray-700">张老师</div>
-                                <div class="text-sm text-gray-500">高中数学教师</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>AI推荐功能太棒了，能够推送我需要的学习资料。界面简洁清晰，学习体验非常好。</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">李</div>
-                            <div>
-                                <div class="font-bold text-gray-700">李同学</div>
-                                <div class="text-sm text-gray-500">大学在读</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>数据分析功能非常强大，帮助我深入了解学生学习情况，及时调整教学策略。是现代教育的好帮手！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">王</div>
-                            <div>
-                                <div class="font-bold text-gray-700">王教授</div>
-                                <div class="text-sm text-gray-500">大学教授</div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </div>
-        </section>
-
         <section class="lp-cta-wrap">
             <div class="lp-shell">
                 <div class="lp-cta-card lp-reveal" data-delay="2">
@@ -3211,12 +3159,6 @@
                         <a href="#features">课程管理</a>
                         <a href="#benefits">题库系统</a>
                         <a href="#home">AI辅导</a>
-                    </div>
-                    <div class="lp-footer-col">
-                        <h4>支持</h4>
-                        <a href="#">帮助中心</a>
-                        <a href="#">联系我们</a>
-                        <a href="#">用户反馈</a>
                     </div>
                 </div>
                 <div class="lp-footer-bottom">© 2026 智慧教学平台 版权所有 · 隐私政策 · 服务条款</div>

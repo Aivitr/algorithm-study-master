@@ -916,9 +916,17 @@ new Vue({
         
         // ===下面是原有方法===
         // 切换到注册页
-        showRegister() { this.pageState = 'register'; },
+        showRegister() {
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.pageState = 'register';
+        },
         // 切换到登录页
-        showLogin() { this.pageState = 'login'; },
+        showLogin() {
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.pageState = 'login';
+        },
         // 用户登录
         async login() {
             if(!this.loginForm.student_id || !this.loginForm.password) return this.showAlert('请填写完整信息', 'warning', '提示');
@@ -935,7 +943,7 @@ new Vue({
                 this.sessionToken = res.data.session_token || null;
                 this.applySessionToken();
                 this.startSessionHeartbeat();
-                this.loginForm.password = '';
+                this.loginForm = { student_id: '', password: '' };
                 this.studentHomeSummary = null;
                 this.classHistory = [];
                 this.myReports = [];
@@ -994,6 +1002,8 @@ new Vue({
                 let res = await axios.post('/api/register', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.showAlert('注册成功，请登录', 'success', '注册成功');
+                this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+                this.loginForm = { student_id: '', password: '' };
                 this.pageState = 'login';
                 this.loading = false;
             } catch(e) { this.showAlert('注册失败: ' + (e.response?.data?.message || e.message), 'error', '错误'); this.loading = false; }
@@ -1020,7 +1030,8 @@ new Vue({
             this.studentReportsLoaded = false;
             this.pageState = 'login';
             this.activeTab = 'home';
-            this.loginForm.password = '';
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
             this.sessionInvalidated = false;
             this.stopBrowserSpeechRecognition();
             if(this.ws) this.ws.close();
@@ -1212,7 +1223,8 @@ new Vue({
                 this._cleanupClassroom();
             }
             this.currentUser = null;
-            this.loginForm.password = '';
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
             this.pageState = 'login';
             this.showAlert(message, 'warning', '登录状态已失效');
         },

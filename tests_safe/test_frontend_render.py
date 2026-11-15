@@ -87,7 +87,7 @@ EXIT_MISSING_JSDOM = 5
 # 这两个下限是**跟着基线一起长**的：加了覆盖面就把它抬上去，否则新加的用例
 # 被悄悄删掉时这里不会响——下限停在旧数字上，测的就不是"覆盖面还在不在"了。
 MIN_STATES = 13
-MIN_CLICKS = 18
+MIN_CLICKS = 20
 
 TIMEOUT_SECONDS = 180
 

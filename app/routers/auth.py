@@ -123,11 +123,11 @@ async def api_login(
 
         if not user:
             print(f"[ERROR] User not found: {student_id}")
-            return {"status": "error", "message": "学号/密码错误"}
+            return {"status": "error", "message": "学号或密码错误"}
 
         if user['password'] != password:
             print(f"[ERROR] Wrong password: {student_id}")
-            return {"status": "error", "message": "密码错误"}
+            return {"status": "error", "message": "学号或密码错误"}
 
         total_time = time.time() - start_time
         print(f"[OK] Login success: {user['username']} ({user['role']}) - Time: {total_time:.2f}s")
