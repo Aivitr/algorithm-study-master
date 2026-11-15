@@ -2299,6 +2299,10 @@
                     <i class="fas fa-users mr-2"></i>
                     <span>{{ onlineMembers.length }} 人在线</span>
                 </div>
+                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: rgba(217,119,6,0.9);">
+                    <i class="fas fa-eye mr-2"></i>
+                    <span>小组查看模式 · 不发布本地音视频</span>
+                </div>
             </div>
 
             <!-- 暂停/播放按钮 -->
