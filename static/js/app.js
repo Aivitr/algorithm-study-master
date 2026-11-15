@@ -82,6 +82,7 @@ new Vue({
         activeTab: 'home',
         // 课堂标签页: 'chat' | 'history' | 'summary' | 'ai'
         classroomTab: 'chat',
+        classroomPanelCollapsed: false,
         // 用户信息
         currentUser: null,
         // 跨标签页会话锁：同一浏览器配置同时只允许一个账号在线

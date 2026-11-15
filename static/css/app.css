@@ -1054,7 +1054,102 @@
             background: #ffffff;
             z-index: 5;
         }
-        
+
+        /* ===== 课堂响应式：右栏可折叠，窄屏改为纵向滚动 ===== */
+        .page-classroom .classroom-mobile-only {
+            display: none;
+        }
+
+        @media (max-width: 1024px) {
+            .page-classroom {
+                flex-direction: column;
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+
+            .page-classroom .classroom-stage {
+                order: 1;
+                flex-shrink: 0;
+                min-height: 62vh;
+                padding: 12px;
+            }
+
+            .page-classroom .classroom-sidebar {
+                order: 3;
+                flex-shrink: 0;
+                width: 100%;
+                padding: 16px;
+                border-right: none;
+                border-top: 1px solid var(--classroom-border-soft);
+            }
+
+            .page-classroom .classroom-rightpanel {
+                order: 2;
+                flex-shrink: 0;
+                width: 100%;
+                max-height: 80vh;
+                border-left: none;
+                border-top: 1px solid #dbe4e8;
+            }
+
+            .page-classroom .classroom-rightpanel.is-collapsed {
+                display: none;
+            }
+
+            .page-classroom .classroom-mobile-only {
+                display: inline-flex;
+            }
+
+            .page-classroom .classroom-statusbar {
+                position: static;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-bottom: 8px;
+                max-width: 100%;
+            }
+
+            .page-classroom .classroom-statusbar > * {
+                margin-left: 0 !important;
+            }
+
+            .page-classroom .classroom-statusbar .status-badge {
+                max-width: 100%;
+                white-space: normal;
+            }
+
+            .page-classroom .classroom-pause-btn {
+                top: auto;
+                bottom: 12px;
+                right: 12px;
+            }
+
+            .page-classroom .classroom-end-btn {
+                top: auto;
+                bottom: 12px;
+                right: 76px;
+                height: 44px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page-classroom .classroom-stage {
+                min-height: 70vh;
+            }
+
+            .page-classroom .classroom-sidebar {
+                padding: 12px;
+            }
+
+            .page-classroom .classroom-rightpanel {
+                max-height: none;
+            }
+
+            .page-classroom .classroom-statusbar .status-badge {
+                font-size: 11px;
+                padding: 6px 8px;
+            }
+        }
+
         /* 🎴 Bento Grid 卡片样式（Landing首屏专用） */
         .bento-card {
             background: rgba(255, 255, 255, 0.08);
