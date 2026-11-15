@@ -1612,7 +1612,7 @@
                                     </div>
                                     <div>
                                         <p class="text-gray-500 text-sm">加入时间</p>
-                                        <p class="font-bold text-gray-800 text-lg">2024-01</p>
+                                        <p class="font-bold text-gray-800 text-lg">{{ currentUser.created_at ? formatDate(currentUser.created_at).split(' ')[0] : '—' }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1700,8 +1700,8 @@
                                     <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.duration_minutes || 0), 0) }} 分钟</p>
                                 </div>
                                 <div class="p-4 rounded-lg border" style="background: var(--primary-soft); border-color: #c1d8d4;">
-                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">总学生人数</h4>
-                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.member_count || 0), 0) }} 人</p>
+                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">参与学生数</h4>
+                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherStats.totalStudents || 0 }} 人</p>
                                 </div>
                                 <div v-if="teacherClasses.length === 0" class="text-center text-gray-400 mt-4">
                                     <i class="fas fa-chart-line text-4xl mb-3 opacity-30"></i>

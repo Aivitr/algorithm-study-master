@@ -134,6 +134,7 @@ def test_api_login_issues_session_token(client, seeded_ids, monkeypatch):
                 "username": "李同学",
                 "password": "not-a-real-hash",
                 "role": "student",
+                "created_at": datetime(2026, 1, 1, 9, 0, 0),
             }
 
         def close(self):
@@ -155,6 +156,7 @@ def test_api_login_issues_session_token(client, seeded_ids, monkeypatch):
     })
     body = res.json()
     assert body["status"] == "success"
+    assert body["user"]["created_at"] == "2026-01-01T09:00:00"
     assert body["session_token"]
     headers = {"Authorization": f"Bearer {body['session_token']}"}
     assert client.get("/api/session/validate", headers=headers).status_code == 200
