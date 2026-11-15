@@ -14,16 +14,20 @@
 见 `app/routers/__init__.py`。
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.meeting_state import ENDED, RUNNING, meeting_status_error
-from app.models import Meeting
+from app.models import KnowledgeGraph, Meeting
 from app.services.class_stats_service import ClassStatsService
+from app.services.knowledge_graph_service import kg_service
 from app.services.knowledge_trace_service import KnowledgeTraceService
 from app.services.llm_service import llm
 from app.services.meeting_context_service import MeetingContextService
+from app.services.session_service import SessionContext, require_session
 from app.services.transcript_query_service import TranscriptQueryService
 
 router = APIRouter()
@@ -46,6 +50,48 @@ async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
 async def get_knowledge_graph(meeting_id: int, db: Session = Depends(get_db)):
     """获取知识图谱"""
     return KnowledgeTraceService(db).visualize(meeting_id)
+
+
+@router.post("/api/knowledge-graph/{meeting_id}/generate")
+async def generate_knowledge_graph(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
+    """用课堂转写现场构建知识图谱并保存；没有发言时不调用 LLM。"""
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以生成知识图谱"}
+        state_error = meeting_status_error(meeting.status, {RUNNING, ENDED})
+        if state_error:
+            return {"status": "error", "message": state_error}
+
+        service = KnowledgeTraceService(db)
+        graph = service.build_from_transcripts(meeting_id)
+        if not graph or not graph.get("nodes"):
+            return {"status": "error", "message": "暂无可用发言，无法生成知识图谱"}
+
+        row = db.query(KnowledgeGraph).filter(
+            KnowledgeGraph.meeting_id == meeting_id
+        ).first()
+        if row:
+            row.graph_data = graph
+            row.updated_at = datetime.now()
+        else:
+            db.add(KnowledgeGraph(meeting_id=meeting_id, graph_data=graph))
+        db.commit()
+
+        return {
+            "status": "success",
+            "data": kg_service.generate_graph_visualization_data(graph),
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"[ERROR] 生成知识图谱失败: {e}")
+        return {"status": "error", "message": "生成知识图谱失败，请稍后重试"}
 
 
 @router.get("/api/meeting/{meeting_id}")
