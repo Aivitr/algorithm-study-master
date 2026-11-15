@@ -419,6 +419,29 @@ const CLICKS = [
     if (vm.agoraSafeUid('S2026001') !== 'S2026001') return ['合法 UID 被意外改写'];
     return null;
   }],
+  ['登录态写入 sessionStorage 并可清除', '课堂（学生）', async () => {
+    const oldToken = vm.sessionToken;
+    vm.sessionToken = 'probe-token';
+    vm.currentUser = { id: 2, student_id: 'probe001', username: '探针', role: 'student' };
+    vm.persistSession();
+    const stored = vm.readStoredSession();
+    const ok = stored && stored.token === 'probe-token' && stored.user.student_id === 'probe001';
+    vm.clearPersistedSession();
+    const cleared = vm.readStoredSession() === null;
+    vm.sessionToken = oldToken;
+    return ok && cleared ? null : ['sessionStorage 持久化/清理失败'];
+  }],
+  ['刷新页面不撤销登录会话', '课堂（学生）', async () => {
+    let revoked = false;
+    const originalRevoke = vm.revokeServerSession;
+    const originalMeeting = vm.meetingId;
+    vm.revokeServerSession = () => { revoked = true; };
+    vm.meetingId = null;
+    vm.handlePageHide();
+    vm.revokeServerSession = originalRevoke;
+    vm.meetingId = originalMeeting;
+    return revoked ? ['pagehide 仍在撤销登录会话'] : null;
+  }],
   // 侧栏里 7 个切页按钮只有 3 个是纯赋值，另外 4 个顺带调了触网方法
   // （studentReports / history / report / profile 那四个）——只取纯的那类。
   ['大厅（教师）点“课堂管理” → 切到课堂管理页', '大厅（教师）', async () => {

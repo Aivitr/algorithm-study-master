@@ -159,7 +159,9 @@ def test_api_login_issues_session_token(client, seeded_ids, monkeypatch):
     assert body["user"]["created_at"] == "2026-01-01T09:00:00"
     assert body["session_token"]
     headers = {"Authorization": f"Bearer {body['session_token']}"}
-    assert client.get("/api/session/validate", headers=headers).status_code == 200
+    validated = client.get("/api/session/validate", headers=headers)
+    assert validated.status_code == 200
+    assert validated.json()["user"]["created_at"] == "2026-01-01T09:00:00"
 
 
 def test_session_routes_validate_enter_conflict_and_logout(client, seeded_ids):

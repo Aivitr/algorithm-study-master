@@ -126,6 +126,12 @@
     "Agora UID 非 ASCII → 合法 ASCII UID": {
       "ok": true
     },
+    "登录态写入 sessionStorage 并可清除": {
+      "ok": true
+    },
+    "刷新页面不撤销登录会话": {
+      "ok": true
+    },
     "大厅（教师）点“课堂管理” → 切到课堂管理页": {
       "ok": true
     }
