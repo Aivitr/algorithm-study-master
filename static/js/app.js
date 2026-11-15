@@ -344,6 +344,11 @@ new Vue({
     },
     created() {
         this.initSessionGuards();
+        this._onWindowResize = () => {
+            clearTimeout(this._resizeTimer);
+            this._resizeTimer = setTimeout(() => this.resizeStatsCharts(), 120);
+        };
+        window.addEventListener('resize', this._onWindowResize);
     },
     computed: {
         currentQuizQ() {
@@ -616,6 +621,16 @@ new Vue({
                     this.loadRealtimeStats();
                     this.loadEmotionDetails();
                 }, 100);
+            });
+        },
+        // 窄屏折叠/展开右侧面板；展开时补渲染和 resize，避免隐藏期间尺寸为 0
+        toggleClassroomPanel() {
+            this.classroomPanelCollapsed = !this.classroomPanelCollapsed;
+            if (this.classroomPanelCollapsed) return;
+            this.$nextTick(() => {
+                this.renderStatsCharts();
+                this.renderEmotionCharts();
+                this.resizeStatsCharts();
             });
         },
         // === 通用弹窗方法 ===
@@ -4874,6 +4889,7 @@ new Vue({
         // 渲染群体情绪图（多条折线，每个成员一条）
         renderGroupEmotionChart() {
             try {
+                if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
                 const el = document.getElementById('groupEmotionChart');
                 if (!el) return;
 
@@ -4952,7 +4968,16 @@ new Vue({
 
                 // 如果没有数据
                 if (!this.allIndividualEmotions || Object.keys(this.allIndividualEmotions).length === 0) {
-                    chart.setOption({ series: [], legend: { data: [] } }, false);
+                    chart.setOption({
+                        title: {
+                            text: '暂无群体情绪数据',
+                            left: 'center',
+                            top: 'middle',
+                            textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
+                        },
+                        series: [],
+                        legend: { data: [] }
+                    }, false);
                     return;
                 }
 
@@ -4993,7 +5018,15 @@ new Vue({
                 });
 
                 // 只更新数据部分，不覆盖用户的 dataZoom 位置
-                chart.setOption({ series: series, legend: { data: legendData } }, false);
+                chart.setOption({
+                    title: {
+                        text: '群体情绪波动',
+                        left: 'center',
+                        textStyle: { fontSize: 16, color: '#065f46', fontWeight: 'bold' }
+                    },
+                    series,
+                    legend: { data: legendData }
+                }, false);
                 // 确保图表尺寸正确（v-show 切换后可能需要重新计算）
                 this.$nextTick(() => chart.resize());
 
@@ -5004,6 +5037,7 @@ new Vue({
         // 渲染个体情绪图
         renderIndividualEmotionChart() {
             try {
+                if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
                 const el = document.getElementById('individualEmotionChart');
                 if (!el) {
                     console.log('⚠️ 个体情绪图表元素不存在');
@@ -5166,6 +5200,7 @@ new Vue({
         },
         // 渲染统计图表
         renderStatsCharts() {
+            if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
             console.log('🎨 开始渲染统计图表...');
             console.log('  - pieChartData:', this.pieChartData);
             console.log('  - interactionData:', this.interactionData);
@@ -5202,17 +5237,17 @@ new Vue({
                         label: { show: true, formatter: '{b}\n{d}%', fontSize: 10 },
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
                     }],
-                    // 数据为空时显示提示
-                    graphic: chartData.length === 0 ? [{
+                    // 常驻空态文字：有数据时置空，避免合并更新后旧文字残留
+                    graphic: [{
                         type: 'text',
                         left: 'center',
                         top: 'middle',
                         style: {
-                            text: '暂无数据',
+                            text: chartData.length === 0 ? '暂无数据' : '',
                             fontSize: 14,
                             fill: '#999'
                         }
-                    }] : []
+                    }]
                 }, false);  // notMerge: false
             }
             
@@ -5255,17 +5290,17 @@ new Vue({
                         },
                         label: { show: true, position: 'top', fontSize: 10, color: '#333' }
                     }],
-                    // 数据为空时显示提示
-                    graphic: chartData.length === 0 ? [{
+                    // 常驻空态文字：有数据时置空，避免合并更新后旧文字残留
+                    graphic: [{
                         type: 'text',
                         left: 'center',
                         top: 'middle',
                         style: {
-                            text: '暂无数据',
+                            text: chartData.length === 0 ? '暂无数据' : '',
                             fontSize: 14,
                             fill: '#999'
                         }
-                    }] : []
+                    }]
                 }, false);
             }
 
@@ -5389,6 +5424,12 @@ new Vue({
                         top: 6,
                         textStyle: { fontSize: 13, color: '#4b5563', fontWeight: 'bold' }
                     },
+                    graphic: members.length ? [] : [{
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: '暂无互动数据', fontSize: 13, fill: '#9ca3af' }
+                    }],
                     tooltip: {
                         trigger: 'item',
                         formatter: params => {
@@ -5423,15 +5464,29 @@ new Vue({
                     
             // ✅ 关键修复：渲染完成后调用resize()确保图表占据全宽
             this.$nextTick(() => {
-                if (this.chartInstances.pieChart) this.chartInstances.pieChart.resize();
-                if (this.chartInstances.barChart) this.chartInstances.barChart.resize();
-                if (this.chartInstances.avgLearningChart) this.chartInstances.avgLearningChart.resize();
-                if (this.chartInstances.graphChart) this.chartInstances.graphChart.resize();
+                this.resizeStatsCharts();
                 console.log('✅ 所有图表已resize');
             });
-                    
+
             // 旧的情绪波动图（已废弃，不再渲染）
             // 情绪相关的图表现在由独立的方法处理
+        },
+        resizeStatsCharts() {
+            Object.values(this.chartInstances || {}).forEach(chart => {
+                if (chart && !chart.isDisposed()) chart.resize();
+            });
+        },
+        setChartEmpty(chart, text) {
+            if (!chart || chart.isDisposed()) return;
+            chart.setOption({
+                title: {
+                    text,
+                    left: 'center',
+                    top: 'middle',
+                    textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
+                },
+                series: []
+            }, true);
         },
         // ===== 教师数据看板方法 =====
         // 打开数据看板
@@ -5578,6 +5633,7 @@ new Vue({
                     this.tdChartInstances.pieChart = echarts.init(pieEl);
                 }
                 this.tdChartInstances.pieChart.setOption({
+                    title: { text: '' },
                     tooltip: { trigger: 'item', formatter: '{b}: {c}次 ({d}%)' },
                     color: ['#3E8E91', '#2D6A6D', '#5FA8AB', '#4BA3B0', '#E88C5D', '#6B9396'],
                     series: [{
@@ -5589,6 +5645,11 @@ new Vue({
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
                     }]
                 }, false);
+            } else if (pieEl) {
+                if (!this.tdChartInstances.pieChart || this.tdChartInstances.pieChart.isDisposed()) {
+                    this.tdChartInstances.pieChart = echarts.init(pieEl);
+                }
+                this.setChartEmpty(this.tdChartInstances.pieChart, '暂无发言数据');
             }
 
             // 柱状图
@@ -5600,6 +5661,7 @@ new Vue({
                 const names = this.tdPieData.map(d => d.name);
                 const values = this.tdPieData.map(d => d.value);
                 this.tdChartInstances.barChart.setOption({
+                    title: { text: '' },
                     tooltip: { trigger: 'axis', formatter: '{b}: {c}次' },
                     xAxis: {
                         type: 'category',
@@ -5626,6 +5688,11 @@ new Vue({
                         label: { show: true, position: 'top', fontSize: 11, color: '#333' }
                     }]
                 }, false);
+            } else if (barEl) {
+                if (!this.tdChartInstances.barChart || this.tdChartInstances.barChart.isDisposed()) {
+                    this.tdChartInstances.barChart = echarts.init(barEl);
+                }
+                this.setChartEmpty(this.tdChartInstances.barChart, '暂无发言数据');
             }
 
             // 小组成员平均学习状态曲线
@@ -5747,6 +5814,12 @@ new Vue({
                         top: 10,
                         textStyle: { fontSize: 15, color: '#4b5563', fontWeight: 'bold' }
                     },
+                    graphic: members.length ? [] : [{
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: '暂无互动数据', fontSize: 13, fill: '#9ca3af' }
+                    }],
                     tooltip: {
                         trigger: 'item',
                         formatter: params => {
@@ -6502,6 +6575,12 @@ new Vue({
         this.releaseClassroomLock();
         window.removeEventListener('storage', this.handleStorageEvent);
         window.removeEventListener('pagehide', this.handlePageHide);
+        if (this._onWindowResize) {
+            window.removeEventListener('resize', this._onWindowResize);
+        }
+        if (this._resizeTimer) {
+            clearTimeout(this._resizeTimer);
+        }
         if (this.sessionChannel) {
             this.sessionChannel.close();
             this.sessionChannel = null;
