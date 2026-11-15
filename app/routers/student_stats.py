@@ -167,12 +167,16 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
             speech_count = int(activity.get("speech_count", 0))
             member_count = int(activity.get("member_count", 0))
 
-            # 计算活跃度（避免轻易封顶 100）
+            # 计算活跃度（避免轻易封顶 100）；无发言样本不评分
             avg_speech = speech_count / max(member_count, 1)
-            score = stats.class_score(speech_count, member_count)
+            score = stats.class_score(speech_count, member_count) if speech_count > 0 else None
 
             # 状态标签
-            status_tag = stats.active_status_tag(speech_count, avg_speech)
+            status_tag = (
+                stats.active_status_tag(speech_count, avg_speech)
+                if score is not None
+                else "暂无数据"
+            )
 
             groups.append({
                 "meeting_id": m.id,
@@ -184,8 +188,8 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
                 "status_tag": status_tag
             })
 
-        # 按分数排序
-        groups.sort(key=lambda x: x['score'], reverse=True)
+        # 按分数排序（暂无数据的课堂排最后）
+        groups.sort(key=lambda x: x["score"] if x["score"] is not None else -1, reverse=True)
 
         return {"status": "success", "groups": groups}
     except Exception as e:
