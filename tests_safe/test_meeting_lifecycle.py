@@ -194,7 +194,7 @@ def test_other_teacher_cannot_start_class(client, lifecycle_meeting):
             cleanup.close()
 
 
-def test_student_cannot_spoof_teacher_role_to_create_class(client, seeded_ids):
+def test_student_cannot_spoof_teacher_role_to_create_class(client, seeded_ids, student_headers):
     response = client.post(
         "/login",
         data={
@@ -204,9 +204,25 @@ def test_student_cannot_spoof_teacher_role_to_create_class(client, seeded_ids):
             "role": "teacher",
             "topic": "不应被创建的课堂",
         },
+        headers=student_headers,
     )
     assert response.status_code == 200
     assert response.json() == {"status": "error", "message": "课堂不存在，请联系老师"}
+
+
+def test_login_requires_session(client, seeded_ids):
+    response = client.post(
+        "/login",
+        data={
+            "username": "李同学",
+            "student_id": "S2026001",
+            "class_code": f"NOAUTH-{uuid4().hex[:10]}",
+            "role": "teacher",
+            "topic": "未登录不应创建课堂",
+        },
+        headers={"Authorization": ""},
+    )
+    assert response.status_code == 401
 
 
 def test_end_class_is_idempotent(
