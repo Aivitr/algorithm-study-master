@@ -194,9 +194,7 @@ def test_other_teacher_cannot_start_class(client, lifecycle_meeting):
             cleanup.close()
 
 
-def test_student_cannot_spoof_teacher_role_to_create_class(
-    client, seeded_ids, student_headers
-):
+def test_student_cannot_spoof_teacher_role_to_create_class(client, seeded_ids, student_headers):
     response = client.post(
         "/login",
         data={
