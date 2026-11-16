@@ -25,6 +25,19 @@ exec >>"$LOG_FILE" 2>&1
 echo "=== $(date -Is) deploy target=$TARGET_REF ==="
 
 cd "$APP_DIR"
+
+git_fetch() {
+    local ref="$1" attempt
+    for attempt in 1 2 3; do
+        if git -c http.version=HTTP/1.1 fetch --depth 1 origin "$ref"; then
+            return 0
+        fi
+        echo "git fetch $ref failed (attempt $attempt/3); retrying..."
+        sleep 5
+    done
+    return 1
+}
+
 # 生产用独立编排；--project-directory 让 .env/.env.prod/build context 相对仓库根解析
 COMPOSE=(docker compose --project-directory . -f deploy/docker-compose.prod.yml)
 
@@ -39,7 +52,7 @@ if [ "${CONFIRM_DB_BACKUP:-}" != "1" ]; then
     exit 1
 fi
 
-git fetch --depth 1 origin "$BRANCH"
+git_fetch "$BRANCH"
 PREV="$(git rev-parse HEAD)"
 
 if [ "$TARGET_REF" = "$BRANCH" ] || [ "$TARGET_REF" = "origin/$BRANCH" ]; then
@@ -48,7 +61,7 @@ if [ "$TARGET_REF" = "$BRANCH" ] || [ "$TARGET_REF" = "origin/$BRANCH" ]; then
     git checkout -f -B "$BRANCH" "$TARGET_REF"
 else
     if ! git cat-file -e "${TARGET_REF}^{commit}" 2>/dev/null; then
-        git fetch --depth 1 origin "$TARGET_REF"
+        git_fetch "$TARGET_REF"
     fi
     git checkout -f "$TARGET_REF"
 fi

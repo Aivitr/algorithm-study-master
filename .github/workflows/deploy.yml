@@ -35,6 +35,7 @@ jobs:
           username: ${{ vars.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -euo pipefail
             if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
               echo "RDS backup not confirmed"
               exit 1
@@ -42,6 +43,16 @@ jobs:
             cd ${{ vars.DEPLOY_PATH }}
             # 先更新到最新 main 再执行 deploy.sh：否则 Bash 会继续运行服务器上
             # 旧版脚本，脚本内部的 checkout 无法影响已经在执行的进程。
-            git fetch --depth 1 origin main
+            # 服务器到 GitHub 偶尔出现 HTTP/2 framing 错误，固定 HTTP/1.1 并重试。
+            for attempt in 1 2 3; do
+              if git -c http.version=HTTP/1.1 fetch --depth 1 origin main; then
+                break
+              fi
+              if [ "$attempt" = "3" ]; then
+                echo "git fetch failed after 3 attempts"
+                exit 1
+              fi
+              sleep 5
+            done
             git checkout -f -B main origin/main
-            CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh ${{ github.event.inputs.ref }}
+            CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh "${{ github.event.inputs.ref }}"
