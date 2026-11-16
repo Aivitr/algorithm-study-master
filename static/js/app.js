@@ -73,6 +73,18 @@ Vue.component('landing-page', {
 
 const SESSION_TOKEN_KEY = 'smartclass:session-token';
 const SESSION_USER_KEY = 'smartclass:session-user';
+// 仅用于本地界面验收：网址带 ?gca_demo=1 时读取静态合成数据，绝不写数据库。
+const GCA_DEMO_MODE = new URLSearchParams(window.location.search).get('gca_demo') === '1';
+const GCA_DEMO_DATA_URL = '/static/mock/gca-dashboard-demo.json';
+const STUDENT_GCA_DEMO_DATA_URL = '/static/mock/gca-student-view-demo.json';
+const GCA_METRIC_DEFINITIONS = [
+    { key: 'participation', label: '主动参与', description: '学生参与讨论和表达的程度' },
+    { key: 'internal_cohesion', label: '表达连贯', description: '当前表达与自己先前观点的延续程度' },
+    { key: 'overall_responsivity', label: '回应同伴', description: '发言与其他成员观点的关联程度' },
+    { key: 'social_impact', label: '推动讨论', description: '发言引发其他成员后续回应的程度' },
+    { key: 'newness', label: '新观点贡献', description: '相对于已有讨论带来的新信息' },
+    { key: 'communication_density', label: '信息表达密度', description: '单位表达中包含的语义信息' },
+];
 
 new Vue({
     el: '#app',
@@ -228,6 +240,27 @@ new Vue({
         emotionTimeline: {},
         memberScores: [], // 成员打分数据
         statsLoading: false,
+        // 教师端 GCA 协作分析看板
+        gcaDashboardVisible: false,
+        gcaDashboardLoading: false,
+        gcaDashboardError: '',
+        gcaDashboardData: null,
+        gcaActiveTab: 'overview',
+        gcaSelectedStudentId: '',
+        gcaLastUpdatedAt: '',
+        gcaDashboardStale: false,
+        gcaRequestController: null,
+        gcaDemoMode: GCA_DEMO_MODE,
+        gcaMetricDefinitions: GCA_METRIC_DEFINITIONS,
+        // 学生端：只展示本人指标与匿名课堂数据
+        studentGcaVisible: false,
+        studentGcaLoading: false,
+        studentGcaError: '',
+        studentGcaData: null,
+        studentGcaActiveTab: 'personal',
+        studentGcaLastUpdatedAt: '',
+        studentGcaStale: false,
+        studentGcaRequestController: null,
         // 新增: 情绪分析
         showEmotionDetails: false,  // 是否展示情绪详情
         individualEmotions: {},      // 个体情绪数据（学生端只有自己）
@@ -352,7 +385,11 @@ new Vue({
         this.restoreSession();
         this._onWindowResize = () => {
             clearTimeout(this._resizeTimer);
-            this._resizeTimer = setTimeout(() => this.resizeStatsCharts(), 120);
+            this._resizeTimer = setTimeout(() => {
+                this.resizeStatsCharts();
+                this.resizeGcaCharts();
+                this.resizeStudentGcaCharts();
+            }, 120);
         };
         window.addEventListener('resize', this._onWindowResize);
     },
@@ -647,6 +684,405 @@ new Vue({
                 this.renderStatsCharts();
                 this.renderEmotionCharts();
                 this.resizeStatsCharts();
+            });
+        },
+        // === 教师端 GCA 协作分析看板 ===
+        async openGcaDashboard() {
+            if (!this.currentUser || this.currentUser.role !== 'teacher' || !this.meetingId) return;
+            this.gcaDashboardVisible = true;
+            this.gcaActiveTab = 'overview';
+            await this.loadGcaDashboard();
+        },
+        closeGcaDashboard() {
+            this.gcaDashboardVisible = false;
+            if (this.gcaRequestController) {
+                this.gcaRequestController.abort();
+                this.gcaRequestController = null;
+            }
+            this.disposeGcaCharts();
+        },
+        async loadGcaDashboard() {
+            if (!this.meetingId || !this.currentUser || this.currentUser.role !== 'teacher') return;
+            if (this.gcaRequestController) this.gcaRequestController.abort();
+            this.gcaRequestController = new AbortController();
+            this.gcaDashboardLoading = true;
+            this.gcaDashboardError = '';
+            try {
+                const dataUrl = this.gcaDemoMode
+                    ? GCA_DEMO_DATA_URL
+                    : `/api/gca-dashboard/${this.meetingId}`;
+                const response = await axios.get(dataUrl, {
+                    signal: this.gcaRequestController.signal,
+                    timeout: 120000,
+                });
+                this.gcaDashboardData = response.data;
+                this.gcaLastUpdatedAt = this.gcaDemoMode
+                    ? new Date().toISOString()
+                    : (response.data.generated_at || new Date().toISOString());
+                this.gcaDashboardStale = false;
+                const students = response.data.students || [];
+                if (!students.some(student => String(student.id) === String(this.gcaSelectedStudentId))) {
+                    this.gcaSelectedStudentId = students.length ? String(students[0].id) : '';
+                }
+                this.$nextTick(() => setTimeout(() => this.renderGcaActiveCharts(), 80));
+            } catch (error) {
+                if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
+                const detail = error.response && error.response.data && error.response.data.detail;
+                this.gcaDashboardError = detail || error.message || '协作分析加载失败';
+            } finally {
+                this.gcaDashboardLoading = false;
+                this.gcaRequestController = null;
+            }
+        },
+        refreshGcaDashboard() {
+            return this.loadGcaDashboard();
+        },
+        switchGcaTab(tab) {
+            this.gcaActiveTab = tab;
+            this.$nextTick(() => setTimeout(() => this.renderGcaActiveCharts(), 60));
+        },
+        selectGcaStudent(studentId) {
+            this.gcaSelectedStudentId = String(studentId || '');
+            this.$nextTick(() => this.renderGcaStudentRadar());
+        },
+        focusGcaStudent(studentIds) {
+            const first = Array.isArray(studentIds) && studentIds.length ? studentIds[0] : '';
+            if (!first) return;
+            this.gcaSelectedStudentId = String(first);
+            this.switchGcaTab('individual');
+        },
+        gcaMetricStats(metricKey) {
+            const metrics = (this.gcaDashboardData && this.gcaDashboardData.group_metrics) || {};
+            return metrics[metricKey] || {};
+        },
+        gcaMetricValue(value) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number.toFixed(3) : '—';
+        },
+        gcaStatusText() {
+            const status = this.gcaDashboardData && this.gcaDashboardData.status;
+            const labels = {
+                success: '分析正常',
+                empty_transcript: '暂无学生发言',
+                single_speaker: '目前只有一名学生发言',
+                insufficient_data: '数据不足',
+                invalid_input: '输入数据异常',
+                not_found: '课堂不存在',
+                internal_error: '分析暂时不可用',
+            };
+            return labels[status] || '等待分析';
+        },
+        gcaCanShowMetrics() {
+            const status = this.gcaDashboardData && this.gcaDashboardData.status;
+            return status === 'success' || status === 'single_speaker';
+        },
+        gcaFormattedUpdatedAt() {
+            if (!this.gcaLastUpdatedAt) return '尚未更新';
+            const date = new Date(this.gcaLastUpdatedAt);
+            return Number.isNaN(date.getTime()) ? this.gcaLastUpdatedAt : date.toLocaleTimeString('zh-CN', { hour12: false });
+        },
+        gcaDurationText(seconds) {
+            const total = Math.max(0, Number(seconds) || 0);
+            const minutes = Math.floor(total / 60);
+            const rest = Math.round(total % 60);
+            return minutes ? `${minutes}分${rest}秒` : `${rest}秒`;
+        },
+        gcaSelectedStudent() {
+            const students = (this.gcaDashboardData && this.gcaDashboardData.students) || [];
+            return students.find(student => String(student.id) === String(this.gcaSelectedStudentId)) || null;
+        },
+        gcaSignalClass(level) {
+            return `gca-signal-${level || 'info'}`;
+        },
+        gcaSignalIcon(level) {
+            if (level === 'warning') return 'fas fa-exclamation-triangle';
+            if (level === 'success') return 'fas fa-check-circle';
+            return 'fas fa-info-circle';
+        },
+        gcaWarningCount() {
+            const signals = (this.gcaDashboardData && this.gcaDashboardData.signals) || [];
+            return signals.filter(signal => signal.level === 'warning').length;
+        },
+        gcaHeatStyle(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return {};
+            const intensity = Math.max(0.08, Math.min(0.72, number * 0.64 + 0.08));
+            return { backgroundColor: `rgba(15, 139, 141, ${intensity})`, color: intensity > 0.42 ? '#fff' : '#163238' };
+        },
+        renderGcaActiveCharts() {
+            if (!this.gcaDashboardVisible || !this.gcaCanShowMetrics()) return;
+            if (this.gcaActiveTab === 'overview') this.renderGcaOverviewCharts();
+            if (this.gcaActiveTab === 'individual') this.renderGcaStudentRadar();
+        },
+        renderGcaOverviewCharts() {
+            const data = this.gcaDashboardData || {};
+            const timeline = data.timeline || {};
+            const windows = (timeline.sliding_5min || []).filter(window => window && window.group_metrics);
+            const trendEl = document.getElementById('gcaTrendChart');
+            if (trendEl) {
+                const chart = echarts.getInstanceByDom(trendEl) || echarts.init(trendEl);
+                this.chartInstances.gcaTrendChart = chart;
+                const metrics = [
+                    ['overall_responsivity', '回应同伴', '#0f8b8d'],
+                    ['newness', '新观点贡献', '#d97706'],
+                    ['social_impact', '推动讨论', '#6366f1'],
+                ];
+                chart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    legend: { top: 0, data: metrics.map(item => item[1]) },
+                    grid: { left: 48, right: 22, top: 42, bottom: 42 },
+                    xAxis: {
+                        type: 'category',
+                        name: '课堂时间',
+                        data: windows.map(window => `${Math.round(Number(window.center_second || 0) / 60)}分`),
+                    },
+                    yAxis: { type: 'value', min: 0, name: '指标均值' },
+                    series: metrics.map(([key, name, color]) => ({
+                        name,
+                        type: 'line',
+                        smooth: true,
+                        connectNulls: false,
+                        data: windows.map(window => {
+                            const value = (((window.group_metrics || {})[key] || {}).mean);
+                            return Number.isFinite(Number(value)) ? Number(value) : null;
+                        }),
+                        lineStyle: { color, width: 3 },
+                        itemStyle: { color },
+                        symbolSize: 5,
+                    })),
+                    graphic: windows.length ? [] : [{
+                        type: 'text', left: 'center', top: 'middle',
+                        style: { text: '时间趋势数据仍在积累', fill: '#94a3b8', fontSize: 14 },
+                    }],
+                }, true);
+            }
+
+            const participationEl = document.getElementById('gcaParticipationChart');
+            if (participationEl) {
+                const chart = echarts.getInstanceByDom(participationEl) || echarts.init(participationEl);
+                this.chartInstances.gcaParticipationChart = chart;
+                const students = (data.students || []).slice().sort((a, b) => Number((a.metrics || {}).participation || 0) - Number((b.metrics || {}).participation || 0));
+                chart.setOption({
+                    tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${(Number(params[0].value) * 100).toFixed(1)}%` },
+                    grid: { left: 90, right: 35, top: 18, bottom: 30 },
+                    xAxis: { type: 'value', min: 0, axisLabel: { formatter: value => `${Math.round(value * 100)}%` } },
+                    yAxis: { type: 'category', data: students.map(student => student.name), axisLabel: { width: 74, overflow: 'truncate' } },
+                    series: [{
+                        type: 'bar',
+                        data: students.map(student => Number((student.metrics || {}).participation || 0)),
+                        itemStyle: { color: '#0f8b8d', borderRadius: [0, 6, 6, 0] },
+                        label: { show: true, position: 'right', formatter: item => `${(Number(item.value) * 100).toFixed(1)}%` },
+                    }],
+                }, true);
+            }
+        },
+        renderGcaStudentRadar() {
+            const student = this.gcaSelectedStudent();
+            const radarEl = document.getElementById('gcaStudentRadar');
+            if (!radarEl || !student) return;
+            const chart = echarts.getInstanceByDom(radarEl) || echarts.init(radarEl);
+            this.chartInstances.gcaStudentRadar = chart;
+            const studentValues = this.gcaMetricDefinitions.map(metric => Number((student.metrics || {})[metric.key] || 0));
+            const groupValues = this.gcaMetricDefinitions.map(metric => Number((this.gcaMetricStats(metric.key) || {}).mean || 0));
+            const maxValue = Math.max(1, ...studentValues, ...groupValues);
+            chart.setOption({
+                tooltip: { trigger: 'item' },
+                legend: { top: 0, data: [student.name, '课堂均值'] },
+                radar: {
+                    radius: '62%', center: ['50%', '57%'],
+                    indicator: this.gcaMetricDefinitions.map(metric => ({ name: metric.label, max: maxValue })),
+                    splitArea: { areaStyle: { color: ['rgba(15,139,141,.03)', 'rgba(15,139,141,.07)'] } },
+                },
+                series: [{
+                    type: 'radar',
+                    data: [
+                        { value: studentValues, name: student.name, areaStyle: { color: 'rgba(15,139,141,.18)' }, lineStyle: { color: '#0f8b8d' } },
+                        { value: groupValues, name: '课堂均值', areaStyle: { color: 'rgba(217,119,6,.08)' }, lineStyle: { color: '#d97706', type: 'dashed' } },
+                    ],
+                }],
+            }, true);
+        },
+        resizeGcaCharts() {
+            ['gcaTrendChart', 'gcaParticipationChart', 'gcaStudentRadar'].forEach(key => {
+                const chart = this.chartInstances[key];
+                if (chart && !chart.isDisposed()) chart.resize();
+            });
+        },
+        disposeGcaCharts() {
+            ['gcaTrendChart', 'gcaParticipationChart', 'gcaStudentRadar'].forEach(key => {
+                const chart = this.chartInstances[key];
+                if (chart && !chart.isDisposed()) chart.dispose();
+                delete this.chartInstances[key];
+            });
+        },
+        // === 学生端 GCA：本人协作视图 ===
+        async openStudentGca() {
+            if (!this.currentUser || this.currentUser.role !== 'student' || !this.meetingId) return;
+            this.studentGcaVisible = true;
+            this.studentGcaActiveTab = 'personal';
+            await this.loadStudentGca();
+        },
+        closeStudentGca() {
+            this.studentGcaVisible = false;
+            if (this.studentGcaRequestController) {
+                this.studentGcaRequestController.abort();
+                this.studentGcaRequestController = null;
+            }
+            this.disposeStudentGcaCharts();
+        },
+        async loadStudentGca() {
+            if (!this.meetingId || !this.currentUser || this.currentUser.role !== 'student') return;
+            if (this.studentGcaRequestController) this.studentGcaRequestController.abort();
+            this.studentGcaRequestController = new AbortController();
+            this.studentGcaLoading = true;
+            this.studentGcaError = '';
+            try {
+                const dataUrl = this.gcaDemoMode
+                    ? STUDENT_GCA_DEMO_DATA_URL
+                    : `/api/gca-student-view/${this.meetingId}`;
+                const response = await axios.get(dataUrl, {
+                    signal: this.studentGcaRequestController.signal,
+                    timeout: 120000,
+                });
+                this.studentGcaData = response.data;
+                this.studentGcaLastUpdatedAt = this.gcaDemoMode
+                    ? new Date().toISOString()
+                    : (response.data.generated_at || new Date().toISOString());
+                this.studentGcaStale = false;
+                this.$nextTick(() => setTimeout(() => this.renderStudentGcaActiveChart(), 80));
+            } catch (error) {
+                if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
+                const detail = error.response && error.response.data && error.response.data.detail;
+                this.studentGcaError = detail || error.message || '我的协作数据加载失败';
+            } finally {
+                this.studentGcaLoading = false;
+                this.studentGcaRequestController = null;
+            }
+        },
+        refreshStudentGca() {
+            return this.loadStudentGca();
+        },
+        switchStudentGcaTab(tab) {
+            this.studentGcaActiveTab = tab;
+            this.$nextTick(() => setTimeout(() => this.renderStudentGcaActiveChart(), 60));
+        },
+        studentGcaCanShowMetrics() {
+            const data = this.studentGcaData || {};
+            const metrics = (data.student && data.student.metrics) || {};
+            return ['success', 'single_speaker'].includes(data.status) && Object.keys(metrics).length > 0;
+        },
+        studentGcaStatusText() {
+            const ownCount = Number((((this.studentGcaData || {}).summary || {}).own_utterance_count) || 0);
+            const ownMetrics = ((((this.studentGcaData || {}).student || {}).metrics) || {});
+            if (ownCount <= 0 || !Object.keys(ownMetrics).length) return '还没有形成个人协作数据';
+            const status = this.studentGcaData && this.studentGcaData.status;
+            const labels = {
+                success: '个人分析已形成',
+                empty_transcript: '课堂尚无有效发言',
+                single_speaker: '目前只有一名学生发言',
+                insufficient_data: '数据仍在积累',
+                invalid_input: '数据暂时无法分析',
+                not_found: '课堂不存在',
+                internal_error: '分析暂时不可用',
+            };
+            return labels[status] || '等待分析';
+        },
+        studentGcaFormattedUpdatedAt() {
+            if (!this.studentGcaLastUpdatedAt) return '尚未更新';
+            const date = new Date(this.studentGcaLastUpdatedAt);
+            return Number.isNaN(date.getTime())
+                ? this.studentGcaLastUpdatedAt
+                : date.toLocaleTimeString('zh-CN', { hour12: false });
+        },
+        studentGcaMetric(metricKey) {
+            return ((((this.studentGcaData || {}).student || {}).metrics) || {})[metricKey];
+        },
+        studentGcaAverage(metricKey) {
+            return ((this.studentGcaData || {}).class_average || {})[metricKey];
+        },
+        studentGcaSuggestionClass(level) {
+            return `student-gca-suggestion-${level || 'info'}`;
+        },
+        studentGcaSuggestionIcon(level) {
+            if (level === 'action') return 'fas fa-compass';
+            if (level === 'success') return 'fas fa-check-circle';
+            return 'fas fa-info-circle';
+        },
+        renderStudentGcaActiveChart() {
+            if (!this.studentGcaVisible || !this.studentGcaCanShowMetrics()) return;
+            if (this.studentGcaActiveTab === 'personal') this.renderStudentGcaRadar();
+            if (this.studentGcaActiveTab === 'classroom') this.renderStudentGcaTrend();
+        },
+        renderStudentGcaRadar() {
+            const element = document.getElementById('studentGcaRadar');
+            if (!element) return;
+            const chart = echarts.getInstanceByDom(element) || echarts.init(element);
+            this.chartInstances.studentGcaRadar = chart;
+            const ownValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaMetric(metric.key) || 0));
+            const averageValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaAverage(metric.key) || 0));
+            chart.setOption({
+                tooltip: { trigger: 'item' },
+                legend: { top: 0, data: ['我的特征', '课堂匿名均值'] },
+                radar: {
+                    radius: '62%', center: ['50%', '57%'],
+                    indicator: this.gcaMetricDefinitions.map(metric => ({ name: metric.label, max: 1 })),
+                    splitArea: { areaStyle: { color: ['rgba(37,99,235,.03)', 'rgba(37,99,235,.07)'] } },
+                },
+                series: [{
+                    type: 'radar',
+                    data: [
+                        { value: ownValues, name: '我的特征', areaStyle: { color: 'rgba(37,99,235,.18)' }, lineStyle: { color: '#2563eb' } },
+                        { value: averageValues, name: '课堂匿名均值', areaStyle: { color: 'rgba(15,139,141,.08)' }, lineStyle: { color: '#0f8b8d', type: 'dashed' } },
+                    ],
+                }],
+            }, true);
+        },
+        renderStudentGcaTrend() {
+            const element = document.getElementById('studentGcaTrend');
+            if (!element) return;
+            const chart = echarts.getInstanceByDom(element) || echarts.init(element);
+            this.chartInstances.studentGcaTrend = chart;
+            const windows = ((((this.studentGcaData || {}).timeline || {}).sliding_5min) || [])
+                .filter(window => window && window.group_metrics);
+            const metrics = [
+                ['overall_responsivity', '回应同伴', '#0f8b8d'],
+                ['newness', '新观点贡献', '#d97706'],
+                ['social_impact', '推动讨论', '#6366f1'],
+            ];
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { top: 0, data: metrics.map(item => item[1]) },
+                grid: { left: 48, right: 22, top: 42, bottom: 42 },
+                xAxis: {
+                    type: 'category', name: '课堂时间',
+                    data: windows.map(window => `${Math.round(Number(window.center_second || 0) / 60)}分`),
+                },
+                yAxis: { type: 'value', min: 0, max: 1, name: '匿名均值' },
+                series: metrics.map(([key, name, color]) => ({
+                    name, type: 'line', smooth: true,
+                    data: windows.map(window => {
+                        const value = (((window.group_metrics || {})[key] || {}).mean);
+                        return Number.isFinite(Number(value)) ? Number(value) : null;
+                    }),
+                    lineStyle: { color, width: 3 }, itemStyle: { color }, symbolSize: 5,
+                })),
+                graphic: windows.length ? [] : [{
+                    type: 'text', left: 'center', top: 'middle',
+                    style: { text: '匿名课堂趋势仍在积累', fill: '#94a3b8', fontSize: 14 },
+                }],
+            }, true);
+        },
+        resizeStudentGcaCharts() {
+            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+                const chart = this.chartInstances[key];
+                if (chart && !chart.isDisposed()) chart.resize();
+            });
+        },
+        disposeStudentGcaCharts() {
+            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+                const chart = this.chartInstances[key];
+                if (chart && !chart.isDisposed()) chart.dispose();
+                delete this.chartInstances[key];
             });
         },
         // === 通用弹窗方法 ===
@@ -1861,6 +2297,8 @@ new Vue({
         },
         // endClass 已移至下方统一版本
         _cleanupClassroom() {
+            this.closeGcaDashboard();
+            this.closeStudentGca();
             if (this.meetingId) this.releaseServerClassroom(this.meetingId);
             this.releaseClassroomLock();
             // 停止录制和媒体
@@ -3274,6 +3712,12 @@ new Vue({
                 if (d.type === 'new_speech_fast' || d.type === 'new_emotion') {
                     // ✅ 每收到新消息就立即更新统计数据（无论在哪个页面）
                     this.scheduleRealtimeDataRefresh(500);
+                    if (d.type === 'new_speech_fast' && this.gcaDashboardData) {
+                        this.gcaDashboardStale = true;
+                    }
+                    if (d.type === 'new_speech_fast' && this.studentGcaData) {
+                        this.studentGcaStale = true;
+                    }
                     
                     // 观点聚类投票改为手动触发（点击左侧按钮），避免自动弹出打断课堂流程
                 }
@@ -4064,6 +4508,8 @@ new Vue({
         },
         // 返回主界面
         backToLobby() {
+            this.closeGcaDashboard();
+            this.closeStudentGca();
             if (this.meetingId) this.releaseServerClassroom(this.meetingId);
             this.releaseClassroomLock();
             // 清理定时器
@@ -6742,6 +7188,7 @@ new Vue({
         }
     },
     beforeDestroy() {
+        this.closeGcaDashboard();
         this.stopSessionHeartbeat();
         if (this.meetingId) this.releaseServerClassroom(this.meetingId);
         this.revokeServerSession();

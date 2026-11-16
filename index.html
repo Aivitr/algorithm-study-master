@@ -2317,6 +2317,26 @@
                     class="classroom-pause-btn absolute top-6 right-6 w-12 h-12 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-110 transform">
                 <i class="text-xl" :class="isPaused ? 'fas fa-play' : 'fas fa-pause'"></i>
             </button>
+            <!-- 教师端：暂停键下方的 GCA 协作分析入口 -->
+            <button v-if="currentUser && currentUser.role === 'teacher'"
+                    @click="openGcaDashboard"
+                    class="gca-fab"
+                    data-frontend-probe-ignore
+                    :class="{ 'has-stale-data': gcaDashboardStale }"
+                    title="打开协作学习分析">
+                <i :class="gcaDashboardLoading ? 'fas fa-spinner fa-spin' : 'fas fa-project-diagram'"></i>
+                <span>协作<br>分析</span>
+                <em v-if="gcaWarningCount() > 0" class="gca-fab-badge">{{ gcaWarningCount() }}</em>
+            </button>
+            <button v-else-if="currentUser && currentUser.role === 'student'"
+                    @click="openStudentGca"
+                    class="gca-fab student-gca-fab"
+                    data-frontend-probe-ignore
+                    :class="{ 'has-stale-data': studentGcaStale }"
+                    title="查看我的协作学习分析">
+                <i :class="studentGcaLoading ? 'fas fa-spinner fa-spin' : 'fas fa-user-friends'"></i>
+                <span>我的<br>协作</span>
+            </button>
             <!-- 教师：结束课堂按钮 -->
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
@@ -2373,6 +2393,372 @@
                 </div>
             </transition>
         </div>
+
+        <!-- 教师端：GCA 协作分析大弹窗 -->
+        <transition name="fade">
+            <div v-if="gcaDashboardVisible"
+                 class="gca-modal-overlay"
+                 @click.self="closeGcaDashboard">
+                <section class="gca-modal" role="dialog" aria-modal="true" aria-label="协作学习分析">
+                    <header class="gca-modal-header">
+                        <div class="gca-modal-title-wrap">
+                            <div class="gca-modal-icon"><i class="fas fa-project-diagram"></i></div>
+                            <div>
+                                <h2>协作学习分析 <span v-if="gcaDemoMode" class="gca-demo-badge">演示数据</span></h2>
+                                <p>GCA 六指标 · 仅统计学生发言</p>
+                            </div>
+                        </div>
+                        <div class="gca-modal-actions">
+                            <span v-if="gcaDashboardStale" class="gca-stale-note">
+                                <i class="fas fa-circle"></i> 有新发言
+                            </span>
+                            <span class="gca-updated-at">更新于 {{ gcaFormattedUpdatedAt() }}</span>
+                            <button @click="refreshGcaDashboard" :disabled="gcaDashboardLoading" class="gca-icon-btn" title="刷新分析">
+                                <i :class="gcaDashboardLoading ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'"></i>
+                            </button>
+                            <button @click="closeGcaDashboard" class="gca-icon-btn" title="关闭">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </header>
+
+                    <div v-if="gcaDashboardData" class="gca-summary-strip">
+                        <span v-if="gcaDemoMode" class="gca-demo-summary">
+                            <i class="fas fa-flask"></i>当前展示完全虚构的合成数据，不会写入数据库
+                        </span>
+                        <span class="gca-status-pill" :class="'status-' + gcaDashboardData.status">
+                            <i class="fas fa-circle"></i>{{ gcaStatusText() }}
+                        </span>
+                        <span><i class="fas fa-users"></i>{{ gcaDashboardData.summary.student_count }} 名有效学生</span>
+                        <span><i class="fas fa-comment-dots"></i>{{ gcaDashboardData.summary.utterance_count }} 条有效发言</span>
+                        <span><i class="fas fa-clock"></i>{{ gcaDurationText(gcaDashboardData.summary.duration_seconds) }}</span>
+                    </div>
+
+                    <nav class="gca-tabs">
+                        <button @click="switchGcaTab('overview')" :class="{ active: gcaActiveTab === 'overview' }">
+                            <i class="fas fa-chart-line"></i>整体情况
+                        </button>
+                        <button @click="switchGcaTab('students')" :class="{ active: gcaActiveTab === 'students' }">
+                            <i class="fas fa-th"></i>学生对比
+                        </button>
+                        <button @click="switchGcaTab('individual')" :class="{ active: gcaActiveTab === 'individual' }">
+                            <i class="fas fa-user-circle"></i>个人详情
+                        </button>
+                        <button @click="switchGcaTab('signals')" :class="{ active: gcaActiveTab === 'signals' }">
+                            <i class="fas fa-bell"></i>状态提醒
+                            <span v-if="gcaWarningCount()" class="gca-tab-count">{{ gcaWarningCount() }}</span>
+                        </button>
+                    </nav>
+
+                    <main class="gca-modal-body">
+                        <div v-if="gcaDashboardLoading" class="gca-state-view">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <h3>正在计算协作指标</h3>
+                            <p>正在读取课堂发言并计算 GCA 六项指标，请稍候。</p>
+                        </div>
+                        <div v-else-if="gcaDashboardError" class="gca-state-view is-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <h3>协作分析加载失败</h3>
+                            <p>{{ gcaDashboardError }}</p>
+                            <button @click="refreshGcaDashboard" class="gca-primary-btn">重新加载</button>
+                        </div>
+                        <div v-else-if="!gcaDashboardData" class="gca-state-view">
+                            <i class="fas fa-chart-area"></i>
+                            <h3>等待分析</h3>
+                        </div>
+                        <div v-else-if="!gcaCanShowMetrics()" class="gca-state-view">
+                            <i class="fas fa-comments"></i>
+                            <h3>{{ gcaStatusText() }}</h3>
+                            <p>{{ gcaDashboardData.error || '继续讨论并积累更多有效发言后再刷新。' }}</p>
+                            <div v-if="gcaDashboardData.signals && gcaDashboardData.signals.length" class="gca-empty-signal">
+                                {{ gcaDashboardData.signals[0].suggestion }}
+                            </div>
+                        </div>
+
+                        <!-- 整体情况 -->
+                        <div v-else-if="gcaActiveTab === 'overview'" class="gca-content">
+                            <section class="gca-metric-grid">
+                                <article v-for="metric in gcaMetricDefinitions" :key="metric.key" class="gca-metric-card">
+                                    <div class="gca-metric-head">
+                                        <span>{{ metric.label }}</span>
+                                        <i class="fas fa-info-circle" :title="metric.description"></i>
+                                    </div>
+                                    <strong>{{ gcaMetricValue(gcaMetricStats(metric.key).mean) }}</strong>
+                                    <p>{{ metric.description }}</p>
+                                    <div class="gca-metric-range">
+                                        <span>最低 {{ gcaMetricValue(gcaMetricStats(metric.key).min) }}</span>
+                                        <span>最高 {{ gcaMetricValue(gcaMetricStats(metric.key).max) }}</span>
+                                        <span>{{ gcaMetricStats(metric.key).count || 0 }}人</span>
+                                    </div>
+                                </article>
+                            </section>
+
+                            <section class="gca-overview-grid">
+                                <article class="gca-panel-card">
+                                    <div class="gca-card-title">
+                                        <div><i class="fas fa-wave-square"></i><span>协作趋势</span></div>
+                                        <small>最近5分钟滑动窗口，每30秒更新点</small>
+                                    </div>
+                                    <div id="gcaTrendChart" class="gca-chart"></div>
+                                </article>
+                                <article class="gca-panel-card">
+                                    <div class="gca-card-title">
+                                        <div><i class="fas fa-align-left"></i><span>参与分布</span></div>
+                                        <small>仅表示发言参与比例，不是成绩排名</small>
+                                    </div>
+                                    <div id="gcaParticipationChart" class="gca-chart"></div>
+                                </article>
+                            </section>
+
+                            <section class="gca-panel-card gca-overview-signals">
+                                <div class="gca-card-title">
+                                    <div><i class="fas fa-bell"></i><span>当前状态提醒</span></div>
+                                    <button @click="switchGcaTab('signals')">查看全部</button>
+                                </div>
+                                <div class="gca-signal-grid">
+                                    <article v-for="signal in (gcaDashboardData.signals || []).slice(0, 3)" :key="signal.type"
+                                             class="gca-signal-card" :class="gcaSignalClass(signal.level)">
+                                        <i :class="gcaSignalIcon(signal.level)"></i>
+                                        <div><h4>{{ signal.title }}</h4><p>{{ signal.description }}</p></div>
+                                    </article>
+                                </div>
+                            </section>
+                        </div>
+
+                        <!-- 学生对比 -->
+                        <div v-else-if="gcaActiveTab === 'students'" class="gca-content">
+                            <section class="gca-panel-card">
+                                <div class="gca-card-title">
+                                    <div><i class="fas fa-th"></i><span>学生 × 六项协作指标</span></div>
+                                    <small>颜色仅帮助识别差异，不代表优秀或不及格</small>
+                                </div>
+                                <div class="gca-table-wrap">
+                                    <table class="gca-heat-table">
+                                        <thead><tr>
+                                            <th>学生</th><th>有效发言</th>
+                                            <th v-for="metric in gcaMetricDefinitions" :key="'head-' + metric.key" :title="metric.description">{{ metric.label }}</th>
+                                        </tr></thead>
+                                        <tbody>
+                                            <tr v-for="student in gcaDashboardData.students" :key="student.id" @click="selectGcaStudent(student.id); switchGcaTab('individual')">
+                                                <th>{{ student.name }}<small v-if="student.student_id">{{ student.student_id }}</small></th>
+                                                <td>{{ student.utterance_count }}</td>
+                                                <td v-for="metric in gcaMetricDefinitions" :key="student.id + '-' + metric.key"
+                                                    :style="gcaHeatStyle(student.metrics[metric.key])">
+                                                    {{ gcaMetricValue(student.metrics[metric.key]) }}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="gca-footnote"><i class="fas fa-info-circle"></i>点击任意学生可查看个人详情；本看板不生成综合分和名次。</p>
+                            </section>
+                        </div>
+
+                        <!-- 个人详情 -->
+                        <div v-else-if="gcaActiveTab === 'individual'" class="gca-content">
+                            <div class="gca-student-picker">
+                                <label for="gcaStudentSelect">查看学生</label>
+                                <select id="gcaStudentSelect" v-model="gcaSelectedStudentId" @change="selectGcaStudent(gcaSelectedStudentId)">
+                                    <option v-for="student in gcaDashboardData.students" :key="'select-' + student.id" :value="String(student.id)">
+                                        {{ student.name }}（{{ student.utterance_count }}条发言）
+                                    </option>
+                                </select>
+                            </div>
+                            <div v-if="gcaSelectedStudent()" class="gca-individual-grid">
+                                <section class="gca-panel-card">
+                                    <div class="gca-card-title"><div><i class="fas fa-bullseye"></i><span>个人特征与课堂均值</span></div></div>
+                                    <div id="gcaStudentRadar" class="gca-chart gca-radar-chart"></div>
+                                </section>
+                                <section class="gca-panel-card">
+                                    <div class="gca-card-title"><div><i class="fas fa-list-ul"></i><span>指标明细</span></div></div>
+                                    <div class="gca-person-metrics">
+                                        <div v-for="metric in gcaMetricDefinitions" :key="'person-' + metric.key">
+                                            <span><b>{{ metric.label }}</b><small>{{ metric.description }}</small></span>
+                                            <strong>{{ gcaMetricValue(gcaSelectedStudent().metrics[metric.key]) }}</strong>
+                                            <em>课堂均值 {{ gcaMetricValue(gcaMetricStats(metric.key).mean) }}</em>
+                                        </div>
+                                    </div>
+                                    <div class="gca-interpretation-note">
+                                        <i class="fas fa-shield-alt"></i>
+                                        <p>这些数值描述当前课堂中的协作行为特征，不是能力诊断。请结合实际发言和教学情境判断。</p>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- 状态提醒 -->
+                        <div v-else-if="gcaActiveTab === 'signals'" class="gca-content">
+                            <section class="gca-signal-list">
+                                <article v-for="signal in gcaDashboardData.signals" :key="'detail-' + signal.type"
+                                         class="gca-signal-detail" :class="gcaSignalClass(signal.level)">
+                                    <div class="gca-signal-detail-icon"><i :class="gcaSignalIcon(signal.level)"></i></div>
+                                    <div class="gca-signal-detail-body">
+                                        <h3>{{ signal.title }}</h3>
+                                        <p>{{ signal.description }}</p>
+                                        <div v-if="signal.evidence && Object.keys(signal.evidence).length" class="gca-evidence">
+                                            <b>触发依据</b>
+                                            <span v-if="signal.evidence.top_two_share !== undefined">前两名参与占比 {{ (signal.evidence.top_two_share * 100).toFixed(1) }}%</span>
+                                            <span v-if="signal.evidence.previous_mean !== undefined">前一时段 {{ gcaMetricValue(signal.evidence.previous_mean) }}</span>
+                                            <span v-if="signal.evidence.current_mean !== undefined">当前时段 {{ gcaMetricValue(signal.evidence.current_mean) }}</span>
+                                            <span v-if="signal.evidence.utterance_count !== undefined">有效发言 {{ signal.evidence.utterance_count }} 条</span>
+                                        </div>
+                                        <div class="gca-suggestion"><b>参考操作</b><span>{{ signal.suggestion }}</span></div>
+                                        <button v-if="signal.related_student_ids && signal.related_student_ids.length" @click="focusGcaStudent(signal.related_student_ids)">
+                                            查看相关学生
+                                        </button>
+                                    </div>
+                                </article>
+                            </section>
+                            <section v-if="gcaDashboardData.warnings && gcaDashboardData.warnings.length" class="gca-engine-warnings">
+                                <h3><i class="fas fa-database"></i>数据说明</h3>
+                                <p v-for="(warning, index) in gcaDashboardData.warnings" :key="'warning-' + index">{{ warning }}</p>
+                            </section>
+                        </div>
+                    </main>
+                </section>
+            </div>
+        </transition>
+
+        <!-- 学生端：本人协作分析（不包含其他学生个人数据） -->
+        <transition name="fade">
+            <div v-if="studentGcaVisible"
+                 class="gca-modal-overlay"
+                 @click.self="closeStudentGca">
+                <section class="gca-modal student-gca-modal" role="dialog" aria-modal="true" aria-label="我的协作分析">
+                    <header class="gca-modal-header student-gca-header">
+                        <div class="gca-modal-title-wrap">
+                            <div class="gca-modal-icon"><i class="fas fa-user-friends"></i></div>
+                            <div>
+                                <h2>我的协作 <span v-if="gcaDemoMode" class="gca-demo-badge">演示数据</span></h2>
+                                <p>只展示我的协作特征与匿名课堂数据</p>
+                            </div>
+                        </div>
+                        <div class="gca-modal-actions">
+                            <span v-if="studentGcaStale" class="gca-stale-note"><i class="fas fa-circle"></i>有新发言</span>
+                            <span class="gca-updated-at">更新于 {{ studentGcaFormattedUpdatedAt() }}</span>
+                            <button @click="refreshStudentGca" :disabled="studentGcaLoading" class="gca-icon-btn" title="刷新分析">
+                                <i :class="studentGcaLoading ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'"></i>
+                            </button>
+                            <button @click="closeStudentGca" class="gca-icon-btn" title="关闭"><i class="fas fa-times"></i></button>
+                        </div>
+                    </header>
+
+                    <div v-if="studentGcaData" class="gca-summary-strip">
+                        <span v-if="gcaDemoMode" class="gca-demo-summary">
+                            <i class="fas fa-flask"></i>当前展示虚构数据，不会写入数据库
+                        </span>
+                        <span class="gca-status-pill" :class="'status-' + studentGcaData.status">
+                            <i class="fas fa-circle"></i>{{ studentGcaStatusText() }}
+                        </span>
+                        <span><i class="fas fa-comment"></i>我有 {{ studentGcaData.summary.own_utterance_count }} 条有效发言</span>
+                        <span><i class="fas fa-users"></i>课堂共 {{ studentGcaData.summary.total_utterance_count }} 条有效发言</span>
+                        <span><i class="fas fa-clock"></i>{{ gcaDurationText(studentGcaData.summary.duration_seconds) }}</span>
+                    </div>
+
+                    <nav class="gca-tabs student-gca-tabs">
+                        <button @click="switchStudentGcaTab('personal')" :class="{ active: studentGcaActiveTab === 'personal' }">
+                            <i class="fas fa-user-circle"></i>我的协作
+                        </button>
+                        <button @click="switchStudentGcaTab('classroom')" :class="{ active: studentGcaActiveTab === 'classroom' }">
+                            <i class="fas fa-chart-line"></i>课堂协作
+                        </button>
+                        <button @click="switchStudentGcaTab('advice')" :class="{ active: studentGcaActiveTab === 'advice' }">
+                            <i class="fas fa-compass"></i>改进建议
+                            <span v-if="studentGcaData && studentGcaData.suggestions" class="student-gca-tab-count">{{ studentGcaData.suggestions.length }}</span>
+                        </button>
+                    </nav>
+
+                    <main class="gca-modal-body">
+                        <div v-if="studentGcaLoading" class="gca-state-view">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <h3>正在计算我的协作特征</h3>
+                            <p>只会读取你的个人指标与匿名课堂汇总。</p>
+                        </div>
+                        <div v-else-if="studentGcaError" class="gca-state-view is-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <h3>我的协作数据加载失败</h3>
+                            <p>{{ studentGcaError }}</p>
+                            <button @click="refreshStudentGca" class="gca-primary-btn">重新加载</button>
+                        </div>
+                        <div v-else-if="!studentGcaData" class="gca-state-view">
+                            <i class="fas fa-chart-area"></i><h3>等待分析</h3>
+                        </div>
+                        <div v-else-if="!studentGcaCanShowMetrics()" class="gca-state-view">
+                            <i class="fas fa-comment-medical"></i>
+                            <h3>{{ studentGcaStatusText() }}</h3>
+                            <p>{{ studentGcaData.error || '参与讨论并积累有效发言后，就能看到个人协作特征。' }}</p>
+                            <div v-if="studentGcaData.suggestions && studentGcaData.suggestions.length" class="gca-empty-signal">
+                                {{ studentGcaData.suggestions[0].suggestion }}
+                            </div>
+                        </div>
+
+                        <div v-else-if="studentGcaActiveTab === 'personal'" class="gca-content">
+                            <section class="student-gca-privacy-note">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>课堂均值已经匿名汇总；这里不会显示任何其他同学的姓名、个人指标或排名。</span>
+                            </section>
+                            <section class="gca-individual-grid">
+                                <article class="gca-panel-card">
+                                    <div class="gca-card-title">
+                                        <div><i class="fas fa-bullseye"></i><span>我的特征与匿名课堂均值</span></div>
+                                    </div>
+                                    <div id="studentGcaRadar" class="gca-chart gca-radar-chart"></div>
+                                </article>
+                                <article class="gca-panel-card">
+                                    <div class="gca-card-title">
+                                        <div><i class="fas fa-list-ul"></i><span>六项协作特征</span></div>
+                                        <small>描述当前课堂行为，不是成绩</small>
+                                    </div>
+                                    <div class="gca-person-metrics student-gca-metrics">
+                                        <div v-for="metric in gcaMetricDefinitions" :key="'student-person-' + metric.key">
+                                            <span><b>{{ metric.label }}</b><small>{{ metric.description }}</small></span>
+                                            <strong>{{ gcaMetricValue(studentGcaMetric(metric.key)) }}</strong>
+                                            <em>匿名均值 {{ gcaMetricValue(studentGcaAverage(metric.key)) }}</em>
+                                        </div>
+                                    </div>
+                                    <div class="gca-interpretation-note">
+                                        <i class="fas fa-info-circle"></i>
+                                        <p>数值只用于帮助你观察参与方式，不能替代教师评价，也不应作为能力诊断。</p>
+                                    </div>
+                                </article>
+                            </section>
+                        </div>
+
+                        <div v-else-if="studentGcaActiveTab === 'classroom'" class="gca-content">
+                            <section class="gca-panel-card student-gca-trend-card">
+                                <div class="gca-card-title">
+                                    <div><i class="fas fa-wave-square"></i><span>匿名课堂协作趋势</span></div>
+                                    <small>仅显示全班汇总，不展示任何个人数据</small>
+                                </div>
+                                <div id="studentGcaTrend" class="gca-chart student-gca-trend"></div>
+                            </section>
+                            <section class="student-gca-privacy-note">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>趋势表示整个课堂讨论如何变化，不能据此推断某位同学的表现。</span>
+                            </section>
+                        </div>
+
+                        <div v-else-if="studentGcaActiveTab === 'advice'" class="gca-content">
+                            <section class="student-gca-suggestion-list">
+                                <article v-for="suggestion in studentGcaData.suggestions" :key="suggestion.type"
+                                         class="student-gca-suggestion" :class="studentGcaSuggestionClass(suggestion.level)">
+                                    <div class="student-gca-suggestion-icon"><i :class="studentGcaSuggestionIcon(suggestion.level)"></i></div>
+                                    <div>
+                                        <h3>{{ suggestion.title }}</h3>
+                                        <p>{{ suggestion.description }}</p>
+                                        <div class="student-gca-next-step"><b>下一步可以这样做</b><span>{{ suggestion.suggestion }}</span></div>
+                                    </div>
+                                </article>
+                            </section>
+                            <section v-if="studentGcaData.warnings && studentGcaData.warnings.length" class="gca-engine-warnings">
+                                <h3><i class="fas fa-database"></i>数据说明</h3>
+                                <p v-for="(warning, index) in studentGcaData.warnings" :key="'student-warning-' + index">{{ warning }}</p>
+                            </section>
+                        </div>
+                    </main>
+                </section>
+            </div>
+        </transition>
 
         <!-- 知识图谱弹窗 -->
         <transition name="fade">

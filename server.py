@@ -305,6 +305,10 @@ from app.routers.emotion_stats import router as emotion_stats_router
 
 app.include_router(emotion_stats_router)
 
+from app.routers.gca import router as gca_router
+
+app.include_router(gca_router)
+
 
 from app.routers.media_context import router as media_context_router
 
