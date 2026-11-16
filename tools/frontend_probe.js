@@ -460,6 +460,143 @@ const CLICKS = [
     btn.click(); await tick();
     return vm.activeTab === 'classManage' ? null : [`activeTab 应为 classManage，实为 ${vm.activeTab}`];
   }],
+
+  // 课堂内随时切换屏幕/摄像头。真实设备不能进 jsdom，这里用假轨道验证
+  // 状态流转和 Agora 的 unpublish/publish 接线：摄像头 → 屏幕 → 摄像头、
+  // 浏览器原生“停止共享”触发 ended、停止后重新共享。
+  ['教师课堂内动态切换屏幕/摄像头', '课堂（教师）', async () => {
+    class FakeTrack {
+      constructor(kind) {
+        this.kind = kind;
+        this.readyState = 'live';
+        this.stopped = false;
+        this._listeners = {};
+      }
+      addEventListener(name, fn) { (this._listeners[name] = this._listeners[name] || []).push(fn); }
+      removeEventListener(name, fn) {
+        this._listeners[name] = (this._listeners[name] || []).filter(f => f !== fn);
+      }
+      stop() { this.stopped = true; this.readyState = 'ended'; }
+      emitEnded() {
+        this.readyState = 'ended';
+        (this._listeners.ended || []).slice().forEach(fn => fn({ type: 'ended' }));
+      }
+    }
+    class FakeStream {
+      constructor(tracks) { this._tracks = tracks.slice(); }
+      getTracks() { return this._tracks.slice(); }
+      getAudioTracks() { return this._tracks.filter(t => t.kind === 'audio'); }
+      getVideoTracks() { return this._tracks.filter(t => t.kind === 'video'); }
+      addTrack(t) { if (!this._tracks.includes(t)) this._tracks.push(t); }
+      removeTrack(t) { this._tracks = this._tracks.filter(x => x !== t); }
+    }
+
+    const orig = {
+      mediaDevices: Object.getOwnPropertyDescriptor(window.navigator, 'mediaDevices'),
+      agora: window.AgoraRTC,
+      client: vm.agoraClient,
+      agoraTrack: vm.agoraLocalVideoTrack,
+      stream: vm.localMediaStream,
+      mode: vm.mediaMode,
+      lastMode: vm.lastVideoMode,
+      switching: vm.mediaSwitching,
+      startRecorder: vm._startRecorder,
+      bindVideo: vm._bindLocalVideo,
+      hint: vm.showClassroomHint,
+    };
+    const mediaDevices = { getDisplayMedia: null, getUserMedia: null };
+    Object.defineProperty(window.navigator, 'mediaDevices', { value: mediaDevices, configurable: true });
+    const agoraCalls = { publish: 0, unpublish: 0 };
+    window.AgoraRTC = {
+      createCustomVideoTrack: ({ mediaStreamTrack }) => ({
+        mediaStreamTrack,
+        close() {},
+        stop() {},
+      }),
+    };
+    vm.agoraClient = {
+      publish: async () => { agoraCalls.publish += 1; },
+      unpublish: async () => { agoraCalls.unpublish += 1; },
+    };
+    vm.agoraLocalVideoTrack = { close() {}, stop() {} };
+    vm._startRecorder = () => {};
+    vm._bindLocalVideo = () => {};
+    vm.showClassroomHint = () => {};
+    vm.mediaSwitching = false;
+
+    const mic = new FakeTrack('audio');
+    const camera1 = new FakeTrack('video');
+    vm.localMediaStream = new FakeStream([mic, camera1]);
+    vm.mediaMode = 'camera';
+    vm.lastVideoMode = 'camera';
+
+    const expect = (ok, message) => { if (!ok) throw new Error(message); };
+    try {
+      const screen1 = new FakeTrack('video');
+      mediaDevices.getDisplayMedia = async () => new FakeStream([screen1]);
+      mediaDevices.getUserMedia = async () => new FakeStream([new FakeTrack('video')]);
+      await vm.startScreenShare();
+      expect(vm.mediaMode === 'screen', `摄像头→屏幕后 mediaMode 应为 screen，实为 ${vm.mediaMode}`);
+      expect(vm.localMediaStream.getVideoTracks()[0] === screen1, '屏幕轨道没有替换进本地流');
+      expect(camera1.stopped, '切到屏幕后旧摄像头轨道没有停止');
+      expect(vm.localMediaStream.getAudioTracks().includes(mic), '切换视频时麦克风轨道被误删');
+      expect(agoraCalls.unpublish > 0 && agoraCalls.publish > 0, 'Agora 没有重新发布视频轨道');
+
+      const camera2 = new FakeTrack('video');
+      mediaDevices.getUserMedia = async () => new FakeStream([camera2]);
+      await vm.switchVideoSource();
+      expect(vm.mediaMode === 'camera', `屏幕→摄像头后 mediaMode 应为 camera，实为 ${vm.mediaMode}`);
+      expect(vm.localMediaStream.getVideoTracks()[0] === camera2, '摄像头轨道没有替换进本地流');
+      expect(screen1.stopped, '切到摄像头后旧屏幕轨道没有停止');
+
+      const screen2 = new FakeTrack('video');
+      mediaDevices.getDisplayMedia = async () => new FakeStream([screen2]);
+      await vm.startScreenShare();
+      const unpublishBefore = agoraCalls.unpublish;
+      screen2.emitEnded();  // 浏览器原生“停止共享”
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await tick();
+      expect(vm.mediaMode === 'none', `原生停止共享后 mediaMode 应为 none，实为 ${vm.mediaMode}`);
+      expect(vm.localMediaStream.getVideoTracks().length === 0, '原生停止共享后视频轨道仍在本地流里');
+      expect(vm.localMediaStream.getTracks().includes(mic), '停止共享误删了麦克风');
+      expect(vm.agoraLocalVideoTrack === null, '停止共享后 Agora 视频轨道没有清空');
+      expect(agoraCalls.unpublish > unpublishBefore, '停止共享没有取消发布 Agora 视频');
+
+      const screen3 = new FakeTrack('video');
+      mediaDevices.getDisplayMedia = async () => new FakeStream([screen3]);
+      await vm.startScreenShare();
+      expect(vm.mediaMode === 'screen', '停止共享后无法重新共享屏幕');
+      expect(vm.localMediaStream.getVideoTracks()[0] === screen3, '重新共享后屏幕轨道没有接入');
+
+      await vm.stopVideoShare();
+      expect(vm.mediaMode === 'none', '点“停止分享”后 mediaMode 应为 none');
+      expect(vm.localMediaStream.getVideoTracks().length === 0, '点“停止分享”后视频轨道仍在');
+
+      const camera3 = new FakeTrack('video');
+      mediaDevices.getUserMedia = async () => new FakeStream([camera3]);
+      await vm.startCameraShare();
+      expect(vm.mediaMode === 'camera', '停止共享后无法打开摄像头');
+      expect(vm.localMediaStream.getVideoTracks()[0] === camera3, '重新打开摄像头后轨道没有接入');
+    } finally {
+      vm._startRecorder = orig.startRecorder;
+      vm._bindLocalVideo = orig.bindVideo;
+      vm.showClassroomHint = orig.hint;
+      vm.agoraClient = orig.client;
+      vm.agoraLocalVideoTrack = orig.agoraTrack;
+      vm.localMediaStream = orig.stream;
+      vm.mediaMode = orig.mode;
+      vm.lastVideoMode = orig.lastMode;
+      vm.mediaSwitching = orig.switching;
+      if (orig.mediaDevices) {
+        Object.defineProperty(window.navigator, 'mediaDevices', orig.mediaDevices);
+      } else {
+        delete window.navigator.mediaDevices;
+      }
+      if (orig.agora === undefined) delete window.AgoraRTC;
+      else window.AgoraRTC = orig.agora;
+    }
+    return null;
+  }],
 ];
 
 // ---------------------------------------------------------------------------
