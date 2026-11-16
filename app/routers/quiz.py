@@ -106,7 +106,10 @@ async def download_exercises(
 
 @router.post("/api/quiz-error-analysis")
 async def quiz_error_analysis(
-    wrong_questions: str = Form(...), topic: str = Form(default=""), db: Session = Depends(get_db)
+    wrong_questions: str = Form(...),
+    topic: str = Form(default=""),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """AI分析错题，给出学习建议"""
     try:
@@ -166,6 +169,7 @@ async def grade_short_answer(
     correct_answer: str = Form(...),
     student_answer: str = Form(...),
     question_type: str = Form("简答题"),
+    ctx: SessionContext = Depends(require_session),
 ):
     """大模型评判简答/讨论题"""
     try:
@@ -201,8 +205,11 @@ async def submit_answer(
     answer_content: str = Form(...),
     is_correct: int = Form(...),
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """保存学生答题记录"""
+    if int(ctx.user.id) != int(user_id):
+        return {"status": "error", "message": "只能提交自己的答题记录"}
     try:
         # 检查是否已有该题的回答记录
         existing = (

@@ -8,6 +8,7 @@ from app.agents.service import run_group_analysis
 from app.agents.state import TOOL_STATES
 from app.agents.tools import CLASSROOM_TOOLS
 from app.core.database import get_db
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -22,7 +23,10 @@ class GroupAnalysisRequest(BaseModel):
 async def analyze_classroom_group(
     payload: GroupAnalysisRequest,
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
+    if ctx.user.role != "teacher":
+        raise HTTPException(status_code=403, detail="只有教师可以运行课堂分析")
     try:
         result = await run_group_analysis(
             db, payload.meeting_id, payload.question, payload.max_turns
