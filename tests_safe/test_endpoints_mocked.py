@@ -51,15 +51,23 @@ def llm():
 
 
 @pytest.fixture
-def seeded_client(client, seeded_ids):
-    """带合成数据的客户端。
+def seeded_client(client, seeded_ids, teacher_headers):
+    """带合成数据的客户端，默认带教师会话。
 
     `client` 夹具只保证**建表**，不保证**播种**——`seeded_ids` 是另一个夹具。
     本文件按文件名排在 `tests_safe/` 最前，因而往往最先用到客户端，此时库还是空的。
     `/api/suggest-topic` 需要库里真有一场课堂，漏掉这个依赖就会以
     「会议不存在」失败——那是**数据缺失**，却伪装成**路由行为**，很容易查错方向。
+
+    LLM 写接口现在都要求登录；这里统一带教师会话，测试结束恢复原 header。
     """
-    return client
+    old = dict(client.headers)
+    client.headers.update(teacher_headers)
+    try:
+        yield client
+    finally:
+        client.headers.clear()
+        client.headers.update(old)
 
 
 @pytest.fixture
