@@ -26,6 +26,8 @@ from app.core.database import get_db
 from app.core.paths import PROJECT_ROOT
 from app.models import Exercise, LearningReport, Meeting, StudentAnswer
 from app.services.llm_service import llm
+from app.services.report_access import can_view_report
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -33,16 +35,25 @@ BASE_DIR = str(PROJECT_ROOT)  # 与 server.py 的同名常量同源同值
 
 
 @router.get("/api/download-exercises/{report_id}")
-async def download_exercises(report_id: int, db: Session = Depends(get_db)):
+async def download_exercises(
+    report_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """下载练习题"""
     try:
+        report = db.query(LearningReport).filter(LearningReport.id == report_id).first()
+        if not report:
+            return {"status": "error", "message": "报告不存在"}
+        if not can_view_report(db, ctx, report):
+            return {"status": "error", "message": "无权下载该报告的习题"}
+
         # 查询练习题
         exercises = db.query(Exercise).filter(Exercise.report_id == report_id).all()
 
         if not exercises:
             return {"status": "error", "message": "没有练习题"}
 
-        report = db.query(LearningReport).filter(LearningReport.id == report_id).first()
         meeting = db.query(Meeting).filter(Meeting.id == report.meeting_id).first()
 
         # 生成JSON格式

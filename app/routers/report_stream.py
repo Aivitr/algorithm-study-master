@@ -28,6 +28,7 @@ from app.models import (
     User,
 )
 from app.services.llm_service import llm
+from app.services.report_access import can_view_report
 from app.services.research_runtime import research_runtime
 from app.services.session_service import SessionContext, require_session
 
@@ -35,8 +36,17 @@ router = APIRouter()
 
 
 @router.get("/api/exercises/{report_id}")
-async def get_exercises(report_id: int, db: Session = Depends(get_db)):
+async def get_exercises(
+    report_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """获取报告对应的习题列表（JSON格式）"""
+    report = db.query(LearningReport).filter(LearningReport.id == report_id).first()
+    if not report:
+        return {"status": "error", "message": "报告不存在"}
+    if not can_view_report(db, ctx, report):
+        return {"status": "error", "message": "无权查看该报告的习题"}
     exercises = db.query(Exercise).filter(Exercise.report_id == report_id).all()
     return {
         "status": "success",
