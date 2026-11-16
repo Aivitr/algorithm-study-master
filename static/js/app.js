@@ -178,7 +178,6 @@ new Vue({
         ws: null, wsHeartbeatTimer: null, recorder: null, audioCtx: null, analyser: null, dataArray: null, volumeLevel: 0, silenceStart: null, isSpeaking: false, speakingStartTime: null, statusText: 'Listening...', recordingStartTime: null,
         localMediaStream: null,
         mediaMode: 'none',           // camera / screen / none
-        lastVideoMode: 'camera',
         mediaSwitching: false,
         // ===== 声网 Agora SDK (替代 WebRTC Mesh) =====
         agoraAppId: 'd3144900be6843d8a8c14271f1da8cdb',
@@ -1659,7 +1658,6 @@ new Vue({
             }
             this.localMediaStream = stream;
             this.mediaMode = screenSharing ? 'screen' : (stream.getVideoTracks().length ? 'camera' : 'none');
-            if (this.mediaMode !== 'none') this.lastVideoMode = this.mediaMode;
             this._watchVideoTrack(stream.getVideoTracks()[0]);
             // 使用 getElementById 绑定（更可靠）
             this._bindLocalVideo();
@@ -1813,6 +1811,10 @@ new Vue({
             } catch (e) {
                 console.warn('⚠️ 录音初始化失败:', e);
                 this.recorder = null;
+                if (!this._recorderWarned) {
+                    this._recorderWarned = true;
+                    this.showClassroomHint('⚠️ 录制初始化失败，分享可继续但不会保存录像', 8000, { force: true });
+                }
             }
         },
         async startScreenShare() {
@@ -1822,10 +1824,7 @@ new Vue({
             return this._applyMediaMode('camera');
         },
         async switchVideoSource() {
-            if (this.mediaSwitching) return;
-            if (this.mediaMode === 'none') {
-                return this._applyMediaMode(this.lastVideoMode || 'camera');
-            }
+            if (this.mediaSwitching || this.mediaMode === 'none') return;
             return this._applyMediaMode(this.mediaMode === 'screen' ? 'camera' : 'screen');
         },
         async stopVideoShare() {
@@ -1874,7 +1873,7 @@ new Vue({
                 this.localMediaStream.addTrack(track);
             }
             this.mediaMode = mode;
-            this.lastVideoMode = mode;
+            this.statusText = mode === 'screen' ? 'Screen Sharing...' : 'Listening...';
             this._bindLocalVideo(true);
             this._startRecorder(this.localMediaStream);
             await this._replaceAgoraVideoTrack(track);
@@ -1888,6 +1887,7 @@ new Vue({
                 track.stop();
             }
             this.mediaMode = 'none';
+            if (!this.isPaused) this.statusText = 'Listening...';
             this._bindLocalVideo(false);
             if (this.localMediaStream) this._startRecorder(this.localMediaStream);
             await this._replaceAgoraVideoTrack(null);
