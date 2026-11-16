@@ -7,8 +7,8 @@ from app.core import database
 from app.services.meeting_context_service import MeetingContextService
 
 
-def test_route_exposes_state_and_times(client, seeded_ids):
-    body = client.get("/api/meeting/1").json()
+def test_route_exposes_state_and_times(client, seeded_ids, teacher_headers):
+    body = client.get("/api/meeting/1", headers=teacher_headers).json()
 
     assert set(body) == {
         "status",
@@ -31,8 +31,8 @@ def test_route_exposes_state_and_times(client, seeded_ids):
     assert body["teaching_design"] is None
 
 
-def test_missing_meeting_shape(client):
-    assert client.get("/api/meeting/999").json() == {
+def test_missing_meeting_shape(client, teacher_headers):
+    assert client.get("/api/meeting/999", headers=teacher_headers).json() == {
         "status": "error",
         "message": "课堂不存在",
     }

@@ -29,7 +29,7 @@ from app.services.llm_service import llm
 from app.services.report_access import can_view_report
 from app.services.session_service import SessionContext, require_session
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_session)])
 
 BASE_DIR = str(PROJECT_ROOT)  # 与 server.py 的同名常量同源同值
 
@@ -238,8 +238,14 @@ async def submit_answer(
 
 
 @router.get("/api/student-quiz-history/{user_id}")
-async def get_student_quiz_history(user_id: int, db: Session = Depends(get_db)):
+async def get_student_quiz_history(
+    user_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """获取学生的答题历史统计"""
+    if ctx.user.role != "teacher" and int(ctx.user.id) != int(user_id):
+        return {"status": "error", "message": "无权查看其他学生的答题历史"}
     try:
         answers = db.query(StudentAnswer).filter(StudentAnswer.user_id == user_id).all()
         total = len(answers)

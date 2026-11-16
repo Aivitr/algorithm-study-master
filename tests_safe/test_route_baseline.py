@@ -145,13 +145,6 @@ def _cleanup_new_exercise_files(before: set[Path]) -> None:
 # 遍历前后的目录快照。收尾是否真的生效由它裁决。
 _BASELINE_RUN: dict[str, set[str]] = {}
 
-_AUTH_ROUTES = {
-    "/api/reports/2",
-    "/api/meeting-reports/1",
-    "/api/exercises/1",
-    "/api/download-exercises/1",
-}
-
 
 def _route_baseline_headers(seeded_ids):
     from app.core import database
@@ -176,11 +169,10 @@ def raw_responses(client, seeded_ids):
     teacher_headers = _route_baseline_headers(seeded_ids)
     try:
         for method, path, params in READ_ONLY_ROUTES:
-            headers = teacher_headers if path in _AUTH_ROUTES else None
             response = client.request(
                 method,
                 path,
-                headers=headers,
+                headers=teacher_headers,
                 **({"params": params} if params else {}),
             )
             result[f"{method} {path}"] = response
