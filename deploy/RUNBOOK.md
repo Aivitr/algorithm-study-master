@@ -45,10 +45,30 @@ cd /opt/smartclass
 git log --oneline -5
 git checkout -f <上一版 SHA>
 docker tag algorithm-study-master:pre-<上一版 SHA> algorithm-study-master:dev
-docker compose up -d app
+docker compose --project-directory . -f deploy/docker-compose.prod.yml up -d app
 ```
 
 数据库迁移**不会**自动回滚；发布前应确认迁移向后兼容。
+
+## 日志与告警
+
+- 应用容器日志用 Docker `json-file`，单文件 50MB、保留 5 个（见
+  `deploy/docker-compose.prod.yml`）。磁盘仍持续增长时先查
+  `docker system df` 和 `/var/lib/docker`。
+- 部署失败会以 GitHub Actions 失败运行的形式显示；仓库 Actions 页面和
+  GitHub 通知即可看到。需要外部告警时，在阿里云 CloudMonitor/拨测里对
+  `https://47.114.103.74/healthz` 配置 1 分钟探测，返回非 200 告警。
+- 依赖安全告警：仓库 Settings → Code security 开启 Dependabot alerts；
+  `.github/dependabot.yml` 只自动升级 GitHub Actions，Python 依赖仍走
+  `uv.lock`，避免自动改 `pyproject.toml` 后 `--frozen` 构建失败。
+
+## 密钥与 SSH 轮换
+
+- `.env` / `.env.prod` 不进 Git；轮换 LLM/OSS/阿里云密钥时改文件后重启 app：
+  `docker compose --project-directory . -f deploy/docker-compose.prod.yml up -d app`。
+- `DEPLOY_SSH_KEY` 轮换：在服务器生成新 ed25519 key，把公钥加入
+  `/home/deploy/.ssh/authorized_keys`，把私钥更新到 GitHub Secret，再删除旧公钥。
+- 服务器 root 密码登录当前按用户要求保留；关闭前先确认新 deploy key 可登录。
 
 ## 迁移失败
 
