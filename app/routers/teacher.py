@@ -28,6 +28,7 @@ from app.core.database import get_db
 from app.core.meeting_state import CREATED
 from app.models import Exercise, LearningReport, Meeting, Transcript, User
 from app.services.class_stats_service import ClassStatsService
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -64,13 +65,19 @@ async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/delete-template/{template_id}")
-async def delete_template(template_id: int, db: Session = Depends(get_db)):
+async def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
     try:
         from app.models import ReportTemplate
 
         template = db.query(ReportTemplate).filter(ReportTemplate.id == template_id).first()
         if template:
+            if ctx.user.role != "teacher" or int(template.teacher_id or 0) != int(ctx.user.id):
+                return {"status": "error", "message": "只能删除自己的模板"}
             # ??
             if os.path.exists(template.filepath):
                 os.remove(template.filepath)

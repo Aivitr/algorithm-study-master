@@ -145,6 +145,25 @@ def _cleanup_new_exercise_files(before: set[Path]) -> None:
 # 遍历前后的目录快照。收尾是否真的生效由它裁决。
 _BASELINE_RUN: dict[str, set[str]] = {}
 
+_AUTH_ROUTES = {
+    "/api/reports/2",
+    "/api/meeting-reports/1",
+    "/api/exercises/1",
+    "/api/download-exercises/1",
+}
+
+
+def _route_baseline_headers(seeded_ids):
+    from app.core import database
+    from app.services.session_service import create_session
+
+    db = database.SessionLocal()
+    try:
+        token, _ = create_session(db, seeded_ids["teacher_id"], device_id="route-baseline-teacher")
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {token}"}
+
 
 @pytest.fixture(scope="session")
 def raw_responses(client, seeded_ids):
@@ -154,9 +173,16 @@ def raw_responses(client, seeded_ids):
     """
     result = {}
     before = _exercise_files()
+    teacher_headers = _route_baseline_headers(seeded_ids)
     try:
         for method, path, params in READ_ONLY_ROUTES:
-            response = client.request(method, path, **({"params": params} if params else {}))
+            headers = teacher_headers if path in _AUTH_ROUTES else None
+            response = client.request(
+                method,
+                path,
+                headers=headers,
+                **({"params": params} if params else {}),
+            )
             result[f"{method} {path}"] = response
     finally:
         _cleanup_new_exercise_files(before)
