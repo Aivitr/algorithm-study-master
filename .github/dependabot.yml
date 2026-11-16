@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Python 依赖由 uv.lock 冻结；自动改 pyproject 而不改 lock 会让 --frozen 构建失败。
+  # Python 安全告警在仓库 Settings → Code security → Dependabot alerts 开启即可。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
