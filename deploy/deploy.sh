@@ -40,11 +40,17 @@ fi
 git fetch --depth 1 origin "$BRANCH"
 PREV="$(git rev-parse HEAD)"
 
-if ! git cat-file -e "${TARGET_REF}^{commit}" 2>/dev/null; then
-    git fetch --depth 1 origin "$TARGET_REF"
+if [ "$TARGET_REF" = "$BRANCH" ] || [ "$TARGET_REF" = "origin/$BRANCH" ]; then
+    # 本地 main 可能落后或分叉；强制重置到刚 fetch 的远程分支
+    TARGET_REF="origin/$BRANCH"
+    git checkout -f -B "$BRANCH" "$TARGET_REF"
+else
+    if ! git cat-file -e "${TARGET_REF}^{commit}" 2>/dev/null; then
+        git fetch --depth 1 origin "$TARGET_REF"
+    fi
+    git checkout -f "$TARGET_REF"
 fi
 
-git checkout -f "$TARGET_REF"
 NEW="$(git rev-parse HEAD)"
 echo "previous=$PREV new=$NEW"
 
