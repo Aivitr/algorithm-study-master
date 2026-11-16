@@ -2293,7 +2293,7 @@
                     <i class="fas fa-users mr-2"></i>
                     <span>{{ onlineMembers.length }} 人在线</span>
                 </div>
-                <template v-if="currentUser && currentUser.role === 'teacher'">
+                <template v-if="!viewingGroupId && currentUser && currentUser.role === 'teacher'">
                     <button v-if="mediaMode === 'none'" @click="startScreenShare" :disabled="mediaSwitching"
                             class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
                         <i class="fas fa-desktop mr-2"></i>

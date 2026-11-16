@@ -498,7 +498,6 @@ const CLICKS = [
       agoraTrack: vm.agoraLocalVideoTrack,
       stream: vm.localMediaStream,
       mode: vm.mediaMode,
-      lastMode: vm.lastVideoMode,
       switching: vm.mediaSwitching,
       startRecorder: vm._startRecorder,
       bindVideo: vm._bindLocalVideo,
@@ -528,7 +527,6 @@ const CLICKS = [
     const camera1 = new FakeTrack('video');
     vm.localMediaStream = new FakeStream([mic, camera1]);
     vm.mediaMode = 'camera';
-    vm.lastVideoMode = 'camera';
 
     const expect = (ok, message) => { if (!ok) throw new Error(message); };
     try {
@@ -577,6 +575,14 @@ const CLICKS = [
       await vm.startCameraShare();
       expect(vm.mediaMode === 'camera', '停止共享后无法打开摄像头');
       expect(vm.localMediaStream.getVideoTracks()[0] === camera3, '重新打开摄像头后轨道没有接入');
+
+      vm.viewingGroupId = 1;
+      await tick();
+      const groupButtons = [...doc.querySelectorAll('button')]
+        .filter(b => /共享屏幕|使用摄像头|切换摄像头|停止分享/.test(b.textContent));
+      expect(groupButtons.length === 0, '小组查看模式仍显示媒体切换按钮');
+      vm.viewingGroupId = null;
+      await tick();
     } finally {
       vm._startRecorder = orig.startRecorder;
       vm._bindLocalVideo = orig.bindVideo;
@@ -585,7 +591,6 @@ const CLICKS = [
       vm.agoraLocalVideoTrack = orig.agoraTrack;
       vm.localMediaStream = orig.stream;
       vm.mediaMode = orig.mode;
-      vm.lastVideoMode = orig.lastMode;
       vm.mediaSwitching = orig.switching;
       if (orig.mediaDevices) {
         Object.defineProperty(window.navigator, 'mediaDevices', orig.mediaDevices);
