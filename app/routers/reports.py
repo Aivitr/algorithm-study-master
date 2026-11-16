@@ -33,13 +33,17 @@ from app.models import (
 )
 from app.services.llm_service import llm
 from app.services.research_runtime import research_runtime
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
 
 @router.post("/api/generate-report")
 async def generate_learning_report(
-    meeting_id: int = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)
+    meeting_id: int = Form(...),
+    user_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """生成学习报告（按上次报告后的新发言生成，保留历史版本）"""
     try:
@@ -58,6 +62,11 @@ async def generate_learning_report(
 
         if not meeting or not user:
             return {"status": "error", "message": "课堂或用户不存在"}
+        is_owner_teacher = ctx.user.role == "teacher" and int(meeting.teacher_id) == int(
+            ctx.user.id
+        )
+        if not is_owner_teacher and int(ctx.user.id) != int(user_id):
+            return {"status": "error", "message": "无权生成该学生的报告"}
         state_error = meeting_status_error(meeting.status, {ENDED})
         if state_error:
             return {"status": "error", "message": f"{state_error}，暂不能生成正式课后报告"}
