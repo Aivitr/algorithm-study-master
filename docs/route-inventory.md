@@ -38,6 +38,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | POST | `/api/submit-answer` | 写操作 |  |
 | GET | `/api/download-exercises/{report_id}` | 写操作（有副作用） | ✅ |
 | GET | `/` | 只读本地 | ✅ |
+| GET | `/healthz` | 只读本地（DB SELECT 1） |  |
 | GET | `/api/active-groups/{teacher_id}` | 只读本地 | ✅ |
 | GET | `/api/agents/group-analysis/tools` | 只读本地 |  |
 | GET | `/api/all-student-reports/{teacher_id}` | 只读本地 | ✅ |

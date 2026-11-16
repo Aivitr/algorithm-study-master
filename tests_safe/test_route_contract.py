@@ -113,6 +113,7 @@ def _enumerate(app):
 # ---------------------------------------------------------------------------
 HTTP_ROUTES = [
     ("GET", "/"),
+    ("GET", "/healthz"),
     ("GET", "/api/active-groups/{teacher_id}"),
     ("GET", "/api/agents/group-analysis/tools"),
     ("GET", "/api/agora-token"),
@@ -210,14 +211,14 @@ def actual_routes(local_app):
     return _enumerate(local_app)
 
 
-def test_frozen_interface_count_is_67():
-    """契约冻结的「67 个接口」= 64 条 HTTP + 3 条 WebSocket。
+def test_frozen_interface_count_is_68():
+    """契约冻结的「68 个接口」= 65 条 HTTP + 3 条 WebSocket。
 
     这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
-    路由，这里会先失败，逼他确认"67"这个对外承诺是否也要改。
+    路由，这里会先失败，逼他确认"68"这个对外承诺是否也要改。
     """
-    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 67, (
-        f"契约冻结 67 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 68, (
+        f"契约冻结 68 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 
@@ -303,7 +304,14 @@ def test_top_level_routes_are_unchanged(actual_routes):
     这条限制"逃逸"：重构时若某条 `/api/foo` 被误改成 `/foo`，它会掉出所有
     nginx 前缀，被上一条漏掉；在这里则会以"多了一个顶层路径"的形式暴露。
     """
-    allowed = {"/", "/login", "/summary", "/pcm-processor.js", "/voiceprint_register"}
+    allowed = {
+        "/",
+        "/healthz",
+        "/login",
+        "/summary",
+        "/pcm-processor.js",
+        "/voiceprint_register",
+    }
     allowed |= {p for _, _, p in FRAMEWORK_ROUTES}
 
     # 单段路径（只有开头一个斜杠）即顶层路由
