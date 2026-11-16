@@ -20,12 +20,13 @@ import re
 import subprocess
 import time
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
 from app.core.database import SessionLocal
 from app.core.paths import PROJECT_ROOT
 from app.models import User
+from app.services.session_service import SessionContext, require_session
 from app.services.voiceprint_manager import voiceprint_manager
 
 try:
@@ -41,6 +42,10 @@ BASE_DIR = str(PROJECT_ROOT)
 ROOT_DIR = BASE_DIR
 
 router = APIRouter()
+
+
+def _owns_identity(ctx: SessionContext, username: str) -> bool:
+    return username in {ctx.user.student_id, ctx.user.username}
 
 
 # ==================== 声纹识别 API ====================
@@ -107,7 +112,11 @@ async def voiceprint_register_page():
 
 
 @router.post("/api/voiceprint/register")
-async def register_voiceprint(username: str = Form(...), audio: UploadFile = File(...)):
+async def register_voiceprint(
+    username: str = Form(...),
+    audio: UploadFile = File(...),
+    ctx: SessionContext = Depends(require_session),
+):
     """
     注册用户声纹
 
@@ -115,6 +124,8 @@ async def register_voiceprint(username: str = Form(...), audio: UploadFile = Fil
         username: 用户名
         audio: 音频文件（WAV/MP3等格式）
     """
+    if not _owns_identity(ctx, username):
+        return {"status": "error", "message": "只能绑定自己的声纹"}
     temp_audio_path = None
     prepared_audio_path = None
     try:
@@ -188,7 +199,11 @@ async def register_voiceprint(username: str = Form(...), audio: UploadFile = Fil
 
 
 @router.post("/api/voiceprint/verify")
-async def verify_voiceprint(username: str = Form(...), audio: UploadFile = File(...)):
+async def verify_voiceprint(
+    username: str = Form(...),
+    audio: UploadFile = File(...),
+    ctx: SessionContext = Depends(require_session),
+):
     """
     验证用户声纹
 
@@ -196,6 +211,8 @@ async def verify_voiceprint(username: str = Form(...), audio: UploadFile = File(
         username: 用户名
         audio: 音频文件
     """
+    if not _owns_identity(ctx, username):
+        return {"status": "error", "message": "只能验证自己的声纹"}
     temp_audio_path = None
     prepared_audio_path = None
     try:
@@ -262,13 +279,18 @@ async def check_voiceprint_status(username: str):
 
 
 @router.delete("/api/voiceprint/unregister/{username}")
-async def unregister_voiceprint(username: str):
+async def unregister_voiceprint(
+    username: str,
+    ctx: SessionContext = Depends(require_session),
+):
     """
     删除用户声纹
 
     Args:
         username: 用户名
     """
+    if not _owns_identity(ctx, username):
+        return {"status": "error", "message": "只能删除自己的声纹"}
     try:
         success, message = voiceprint_manager.unregister_voiceprint(username)
         if success:
@@ -292,7 +314,10 @@ async def get_registered_users():
 
 
 @router.post("/api/voiceprint/identify")
-async def identify_speaker(audio: UploadFile = File(...)):
+async def identify_speaker(
+    audio: UploadFile = File(...),
+    ctx: SessionContext = Depends(require_session),
+):
     """
     从所有已注册用户中识别说话人
 
