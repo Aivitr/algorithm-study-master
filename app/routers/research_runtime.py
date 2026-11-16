@@ -24,6 +24,7 @@ from app.services.research_runtime import research_runtime
 
 router = APIRouter()
 
+
 def _as_bool(value, default: bool = False) -> bool:
     if value is None:
         return default

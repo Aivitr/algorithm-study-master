@@ -7,7 +7,6 @@
 import os
 import re
 
-
 MSSQL_PREFIX = "mssql"
 
 
@@ -15,9 +14,7 @@ def test_database_url_is_not_production():
     """测试进程中 DATABASE_URL 不得指向 mssql（生产库）。"""
     url = os.environ.get("DATABASE_URL", "")
     assert url, "DATABASE_URL 未被 conftest 设置，隔离机制失效"
-    assert not url.startswith(MSSQL_PREFIX), (
-        f"测试进程连接了生产库，隔离已失效：{url}"
-    )
+    assert not url.startswith(MSSQL_PREFIX), f"测试进程连接了生产库，隔离已失效：{url}"
 
 
 def test_imported_engine_is_local():
@@ -56,12 +53,8 @@ def test_dangerous_legacy_suite_is_not_collected():
     collected = result.stdout
 
     assert "tests_safe" in collected or collected.strip() == "", collected
-    assert "test_llm_endpoints" not in collected, (
-        "收集到了会写生产库的 tests/test_llm_endpoints.py"
-    )
-    assert "/tests/" not in collected.replace("\\", "/"), (
-        "收集到了 tests/ 下的旧用例"
-    )
+    assert "test_llm_endpoints" not in collected, "收集到了会写生产库的 tests/test_llm_endpoints.py"
+    assert "/tests/" not in collected.replace("\\", "/"), "收集到了 tests/ 下的旧用例"
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +128,4 @@ def test_production_host_patterns_catch_the_production_shapes():
 
     harmless = ["127.0.0.1", "db", "1433", "cscl_db", "localhost"]
     for value in harmless:
-        assert not any(p.search(value) for p in PRODUCTION_HOST_PATTERNS), (
-            f"误报了无害值：{value}"
-        )
+        assert not any(p.search(value) for p in PRODUCTION_HOST_PATTERNS), f"误报了无害值：{value}"

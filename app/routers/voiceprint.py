@@ -45,6 +45,7 @@ router = APIRouter()
 
 # ==================== 声纹识别 API ====================
 
+
 def _voiceprint_upload_suffix(audio: UploadFile) -> str:
     filename = audio.filename or ""
     ext = os.path.splitext(filename)[1].lower()
@@ -67,7 +68,9 @@ def _voiceprint_upload_suffix(audio: UploadFile) -> str:
 def _voiceprint_temp_path(username: str, prefix: str, suffix: str) -> str:
     safe_user = re.sub(r"[^0-9A-Za-z_.-]+", "_", str(username or "user"))
     os.makedirs(os.path.join(ROOT_DIR, "storage"), exist_ok=True)
-    return os.path.join(ROOT_DIR, "storage", f"{prefix}_{safe_user}_{int(time.time() * 1000)}{suffix}")
+    return os.path.join(
+        ROOT_DIR, "storage", f"{prefix}_{safe_user}_{int(time.time() * 1000)}{suffix}"
+    )
 
 
 def _prepare_voiceprint_audio(input_path: str) -> str:
@@ -96,6 +99,7 @@ def _prepare_voiceprint_audio(input_path: str) -> str:
         raise RuntimeError(f"音频格式转换失败: {detail[:300]}")
     return output_path
 
+
 @router.get("/voiceprint_register")
 async def voiceprint_register_page():
     """声纹注册页面"""
@@ -103,10 +107,7 @@ async def voiceprint_register_page():
 
 
 @router.post("/api/voiceprint/register")
-async def register_voiceprint(
-    username: str = Form(...),
-    audio: UploadFile = File(...)
-):
+async def register_voiceprint(username: str = Form(...), audio: UploadFile = File(...)):
     """
     注册用户声纹
 
@@ -118,7 +119,9 @@ async def register_voiceprint(
     prepared_audio_path = None
     try:
         # 保存临时音频文件
-        temp_audio_path = _voiceprint_temp_path(username, "temp_voiceprint", _voiceprint_upload_suffix(audio))
+        temp_audio_path = _voiceprint_temp_path(
+            username, "temp_voiceprint", _voiceprint_upload_suffix(audio)
+        )
 
         with open(temp_audio_path, "wb") as f:
             content = await audio.read()
@@ -164,7 +167,7 @@ async def register_voiceprint(
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
-                except:
+                except Exception:
                     pass
 
         if success:
@@ -179,16 +182,13 @@ async def register_voiceprint(
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
-                except:
+                except Exception:
                     pass
         return {"status": "error", "message": f"注册失败: {str(e)}"}
 
 
 @router.post("/api/voiceprint/verify")
-async def verify_voiceprint(
-    username: str = Form(...),
-    audio: UploadFile = File(...)
-):
+async def verify_voiceprint(username: str = Form(...), audio: UploadFile = File(...)):
     """
     验证用户声纹
 
@@ -200,7 +200,9 @@ async def verify_voiceprint(
     prepared_audio_path = None
     try:
         # 保存临时音频文件
-        temp_audio_path = _voiceprint_temp_path(username, "temp_verify", _voiceprint_upload_suffix(audio))
+        temp_audio_path = _voiceprint_temp_path(
+            username, "temp_verify", _voiceprint_upload_suffix(audio)
+        )
 
         with open(temp_audio_path, "wb") as f:
             content = await audio.read()
@@ -222,14 +224,14 @@ async def verify_voiceprint(
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
-                except:
+                except Exception:
                     pass
 
         return {
             "status": "success",
             "is_match": bool(is_match),
             "confidence": float(confidence),
-            "distance": float(distance)
+            "distance": float(distance),
         }
 
     except Exception as e:
@@ -238,7 +240,7 @@ async def verify_voiceprint(
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
-                except:
+                except Exception:
                     pass
         return {"status": "error", "message": f"验证失败: {str(e)}"}
 
@@ -253,11 +255,7 @@ async def check_voiceprint_status(username: str):
     """
     try:
         is_registered = voiceprint_manager.is_registered(username)
-        return {
-            "status": "success",
-            "registered": is_registered,
-            "username": username
-        }
+        return {"status": "success", "registered": is_registered, "username": username}
     except Exception as e:
         logger.error(f"[API] 检查声纹状态失败: {e}")
         return {"status": "error", "message": str(e)}
@@ -287,11 +285,7 @@ async def get_registered_users():
     """获取所有已注册声纹的用户"""
     try:
         users = voiceprint_manager.get_all_users()
-        return {
-            "status": "success",
-            "users": users,
-            "count": len(users)
-        }
+        return {"status": "success", "users": users, "count": len(users)}
     except Exception as e:
         logger.error(f"[API] 获取用户列表失败: {e}")
         return {"status": "error", "message": str(e)}
@@ -320,7 +314,7 @@ async def identify_speaker(audio: UploadFile = File(...)):
         # 删除临时文件
         try:
             os.remove(temp_audio_path)
-        except:
+        except Exception:
             pass
 
         if username:
@@ -329,7 +323,7 @@ async def identify_speaker(audio: UploadFile = File(...)):
                 "identified": True,
                 "username": username,
                 "confidence": float(confidence),
-                "distance": float(distance)
+                "distance": float(distance),
             }
         else:
             return {
@@ -337,7 +331,7 @@ async def identify_speaker(audio: UploadFile = File(...)):
                 "identified": False,
                 "message": "未识别到匹配用户",
                 "best_confidence": float(confidence),
-                "best_distance": float(distance)
+                "best_distance": float(distance),
             }
 
     except Exception as e:

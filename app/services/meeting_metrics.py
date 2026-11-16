@@ -26,15 +26,16 @@ def _build_meeting_window_map(db: Session, meeting_ids: List[int]) -> Dict[int, 
     if not meeting_ids:
         return {}
 
-    rows = db.query(
-        Transcript.meeting_id.label("meeting_id"),
-        sa_func.min(Transcript.created_at).label("first_at"),
-        sa_func.max(Transcript.created_at).label("last_at"),
-    ).filter(
-        Transcript.meeting_id.in_(meeting_ids)
-    ).group_by(
-        Transcript.meeting_id
-    ).all()
+    rows = (
+        db.query(
+            Transcript.meeting_id.label("meeting_id"),
+            sa_func.min(Transcript.created_at).label("first_at"),
+            sa_func.max(Transcript.created_at).label("last_at"),
+        )
+        .filter(Transcript.meeting_id.in_(meeting_ids))
+        .group_by(Transcript.meeting_id)
+        .all()
+    )
 
     return {
         int(row.meeting_id): {
@@ -45,7 +46,9 @@ def _build_meeting_window_map(db: Session, meeting_ids: List[int]) -> Dict[int, 
     }
 
 
-def _build_meeting_activity_map(db: Session, meeting_ids: List[int], *, exclude_teacher: bool = True) -> Dict[int, Dict[str, int]]:
+def _build_meeting_activity_map(
+    db: Session, meeting_ids: List[int], *, exclude_teacher: bool = True
+) -> Dict[int, Dict[str, int]]:
     if not meeting_ids:
         return {}
 
@@ -57,11 +60,9 @@ def _build_meeting_activity_map(db: Session, meeting_ids: List[int], *, exclude_
     if exclude_teacher:
         query = query.join(User, User.id == Transcript.user_id).filter(User.role != "teacher")
 
-    rows = query.filter(
-        Transcript.meeting_id.in_(meeting_ids)
-    ).group_by(
-        Transcript.meeting_id
-    ).all()
+    rows = (
+        query.filter(Transcript.meeting_id.in_(meeting_ids)).group_by(Transcript.meeting_id).all()
+    )
 
     return {
         int(row.meeting_id): {

@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 # -*- coding: utf-8 -*-
-import os
-import sys
 import json
-import threading
 import logging
-from datetime import datetime, timedelta
+import os
 import re
 import subprocess
-from difflib import SequenceMatcher
+import sys
+import threading
 from collections import deque
-from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
+from difflib import SequenceMatcher
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # 修复 Windows 终端中文输出
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ------------------------------------------------ 导入引导（唯一允许依赖自身位置处）
 # 这是**唯一**一处允许依赖 server.py 自身位置的地方——
@@ -40,28 +40,40 @@ BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 os.path.join(BASE_DIR, ...) 调�
 
 # 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
 _SERVER_SYSPATH_ADDITIONS = [
-    os.path.join(BASE_DIR, '_tmp_agora_token_builder'),
+    os.path.join(BASE_DIR, "_tmp_agora_token_builder"),
 ]
 for _extra_dir in _SERVER_SYSPATH_ADDITIONS:
     if os.path.isdir(_extra_dir):
         sys.path.append(_extra_dir)
 
-import shutil
 import asyncio
+import shutil
 import time
 import wave
+
 import cv2
 import numpy as np
-from fastapi import FastAPI, WebSocket, Form, Depends, File, UploadFile, Response
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, File, Form, Response, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func as sa_func
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import joinedload
-# 🚫 ThreadPoolExecutor🚫 yield
+from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import (
+    apply_research_runtime_config,
+    ensure_research_directories,
+    get_research_runtime_settings_snapshot,
+    persist_research_runtime_config,
+)
+
+# 🚫 ThreadPoolExecutor🚫 yield
 from app.core.database import SessionLocal, get_db
+
+# 📦 OSS📦
+# 定义在 app/core/oss.py，此处再导出。不能从 server.py 取（`python server.py`
+# 下会让 server.py 二次执行）；定义只保留一份。
+from app.core.oss import USE_OSS, get_oss_manager
 from app.models import (
     AIInsight,
     EmotionLog,
@@ -75,24 +87,13 @@ from app.models import (
     User,
     ViewpointVote,
 )
-from app.services.llm_service import llm
-from app.services.knowledge_graph_service import kg_service
-from app.core.config import (
-    apply_research_runtime_config,
-    ensure_research_directories,
-    get_research_runtime_settings_snapshot,
-    persist_research_runtime_config,
-)
-from app.services.research_runtime import research_runtime
 
 # 实时链路管理器：两者均为纯内存结构，不碰数据库与网络。
 from app.realtime.connection import ConnectionManager
 from app.realtime.signaling import SignalConnectionManager
-
-# 📦 OSS📦
-# 定义在 app/core/oss.py，此处再导出。不能从 server.py 取（`python server.py`
-# 下会让 server.py 二次执行）；定义只保留一份。
-from app.core.oss import USE_OSS, get_oss_manager
+from app.services.knowledge_graph_service import kg_service
+from app.services.llm_service import llm
+from app.services.research_runtime import research_runtime
 
 try:
     from app.services.ai_core import engine
@@ -143,92 +144,30 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 
 # 🔊 analyzer🔊
 # 定义在 app/realtime/emotion_helpers.py，此处再导出。
-from app.realtime.emotion_helpers import (
-    get_analyzer,
-    map_silent_emotion,
-    map_speaking_emotion,
-    is_speaking,
-    analyze_audio_tone,
-    _emotion_selection_key,
-    _body_action_key,
-    _detect_visual_state_from_video,
-)
-
 # 从**真实出处**再导入一次，不从 emotion_helpers 转手——避免让依赖链绕远路。
 from app.core.emotions import normalize_emotion_label
-from app.services.user_lookup import resolve_user_by_identifier
 
-
-# 🧠 (🧠10🧠)
-# 定义在 app/realtime/state.py，此处再导出。
-from app.realtime.state import (
-    kg_counter,
-    recent_speech_cache,
-    recent_speech_cache_lock,
-    recent_media_state,
-    recent_media_state_lock,
-    REALTIME_TEXT_SCORING_ENABLED,
-    REALTIME_SPEECH_DEDUP_WINDOW_SECONDS,
-    RECENT_MEDIA_STATE_TTL_SECONDS,
-    SENTENCE_SPLIT_PATTERN,
-    ASR_REQUIRE_VOICEPRINT_IDENTITY,
-    REALTIME_ASR_VOICEPRINT_DISABLED,
-    ASR_UNKNOWN_SPEAKER_LABEL,
-    ASR_SPEAKER_CACHE_TTL_SECONDS,
-    ASR_SPEAKER_CACHE_MAX_HITS,
-    ASR_SENTENCE_END_SILENCE_SECONDS,
-    ASR_SELF_VOICE_GATE_ENABLED,
-    ASR_SELF_VOICE_GATE_MIN_MS,
-    ASR_SELF_VOICE_GATE_WINDOW_MS,
-    ASR_SELF_VOICE_GATE_CHECK_INTERVAL_MS,
-    ASR_SELF_VOICE_GATE_SILENCE_MS,
-    ASR_SELF_VOICE_GATE_RMS_THRESHOLD,
-    ASR_SELF_VOICE_GATE_THRESHOLD,
-    ASR_SELF_VOICE_GATE_FAIL_GRACE_DISTANCE,
-    ASR_SELF_VOICE_GATE_FAILS_TO_CLOSE,
-    _normalize_transcript_text,
-    _transcript_text_similar,
-    _cleanup_recent_speech_cache,
-    _mark_recent_speech,
-    _reserve_recent_speech_by_volume,
-    _attach_recent_speech_transcript,
-    _stage_recent_media_state_assets,
-    _storage_relative_path,
-    _remember_recent_media_state,
-    _get_recent_media_state,
-    _split_realtime_sentences,
+# === 实时语音识别 ASR 会话管理 ===
+# 定义在 app/realtime/asr_manager.py，此处再导出。
+from app.realtime.asr_manager import (
+    ASRSessionManager,
+    asr_manager,
 )
-
-
-# 定义在 app/realtime/speech.py，此处再导出。
-from app.realtime.speech import (
-    _persist_speech_emotion_artifacts,
-    _create_realtime_transcript_entry,
-    _run_realtime_speech_analysis,
-    _stream_realtime_speech_analysis_events,
+from app.realtime.emotion_helpers import (
+    _body_action_key,
+    _detect_visual_state_from_video,
+    _emotion_selection_key,
+    analyze_audio_tone,
+    get_analyzer,
+    is_speaking,
+    map_silent_emotion,
+    map_speaking_emotion,
 )
-
-
-# 定义在 app/services/meeting_metrics.py，此处再导出。
-# 这两个辅助同时被学生统计域与教师域使用，因此住在中立的服务模块里。
-from app.services.meeting_metrics import (
-    _build_meeting_activity_map,
-    _build_meeting_window_map,
-)
-
 
 # 定义在 app/realtime/knowledge_graph.py，此处再导出。
 from app.realtime.knowledge_graph import update_knowledge_graph
 
-
-# === 🎥 📹:👥📊 (yield) ===
-# 定义在 app/realtime/stream.py，此处再导出。
-from app.realtime.stream import process_user_stream_generator
-
-
 # ... (?? get/post login ??) ...
-
-
 # === WebSocket 连接管理器 / WebRTC 信令 ===
 #
 # 连接管理器类定义在 app/realtime/，单例定义在 app/realtime/registry.py，
@@ -242,19 +181,70 @@ from app.realtime.stream import process_user_stream_generator
 # 隔离夹具）拿到的身份不变。
 from app.realtime.registry import manager, signal_manager
 
-
-# === 实时语音识别 ASR 会话管理 ===
-# 定义在 app/realtime/asr_manager.py，此处再导出。
-from app.realtime.asr_manager import (
-    ASRSessionManager,
-    asr_manager,
+# 定义在 app/realtime/speech.py，此处再导出。
+from app.realtime.speech import (
+    _create_realtime_transcript_entry,
+    _persist_speech_emotion_artifacts,
+    _run_realtime_speech_analysis,
+    _stream_realtime_speech_analysis_events,
 )
 
+# 🧠 (🧠10🧠)
+# 定义在 app/realtime/state.py，此处再导出。
+from app.realtime.state import (
+    ASR_REQUIRE_VOICEPRINT_IDENTITY,
+    ASR_SELF_VOICE_GATE_CHECK_INTERVAL_MS,
+    ASR_SELF_VOICE_GATE_ENABLED,
+    ASR_SELF_VOICE_GATE_FAIL_GRACE_DISTANCE,
+    ASR_SELF_VOICE_GATE_FAILS_TO_CLOSE,
+    ASR_SELF_VOICE_GATE_MIN_MS,
+    ASR_SELF_VOICE_GATE_RMS_THRESHOLD,
+    ASR_SELF_VOICE_GATE_SILENCE_MS,
+    ASR_SELF_VOICE_GATE_THRESHOLD,
+    ASR_SELF_VOICE_GATE_WINDOW_MS,
+    ASR_SENTENCE_END_SILENCE_SECONDS,
+    ASR_SPEAKER_CACHE_MAX_HITS,
+    ASR_SPEAKER_CACHE_TTL_SECONDS,
+    ASR_UNKNOWN_SPEAKER_LABEL,
+    REALTIME_ASR_VOICEPRINT_DISABLED,
+    REALTIME_SPEECH_DEDUP_WINDOW_SECONDS,
+    REALTIME_TEXT_SCORING_ENABLED,
+    RECENT_MEDIA_STATE_TTL_SECONDS,
+    SENTENCE_SPLIT_PATTERN,
+    _attach_recent_speech_transcript,
+    _cleanup_recent_speech_cache,
+    _get_recent_media_state,
+    _mark_recent_speech,
+    _normalize_transcript_text,
+    _remember_recent_media_state,
+    _reserve_recent_speech_by_volume,
+    _split_realtime_sentences,
+    _stage_recent_media_state_assets,
+    _storage_relative_path,
+    _transcript_text_similar,
+    kg_counter,
+    recent_media_state,
+    recent_media_state_lock,
+    recent_speech_cache,
+    recent_speech_cache_lock,
+)
+
+# === 🎥 📹:👥📊 (yield) ===
+# 定义在 app/realtime/stream.py，此处再导出。
+from app.realtime.stream import process_user_stream_generator
 
 # ==================== 路由装配 ====================
 # 路由按业务域放在 app/routers/，此处只做装配。
 # 新增一组路由时：先在 app/routers/ 建模块，再在这里 include。
 from app.routers.voiceprint import router as voiceprint_router
+
+# 定义在 app/services/meeting_metrics.py，此处再导出。
+# 这两个辅助同时被学生统计域与教师域使用，因此住在中立的服务模块里。
+from app.services.meeting_metrics import (
+    _build_meeting_activity_map,
+    _build_meeting_window_map,
+)
+from app.services.user_lookup import resolve_user_by_identifier
 
 app.include_router(voiceprint_router)
 

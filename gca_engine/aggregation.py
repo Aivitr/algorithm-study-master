@@ -29,9 +29,7 @@ def group_metric_stats(
 
     out: dict[str, dict[str, float]] = {}
     for metric in SIX_METRICS:
-        values = np.asarray(
-            [m[metric] for m in student_metrics.values()], dtype=float
-        )
+        values = np.asarray([m[metric] for m in student_metrics.values()], dtype=float)
         out[metric] = {
             "mean": float(values.mean()),
             "min": float(values.min()),

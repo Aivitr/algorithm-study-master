@@ -29,7 +29,6 @@ import argparse
 import ast
 import builtins
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,8 +46,11 @@ GROUPS: list[tuple[str, list[str], list[str]]] = [
     ("emotion", ["EmotionLog", "MentalHealthAssessment"], ["idx_emotion_meeting_user"]),
     ("insight", ["AIInsight"], []),
     ("knowledge_graph", ["KnowledgeGraph", "GraphNode", "GraphEdge"], []),
-    ("learning", ["LearningReport", "Exercise", "StudentAnswer", "ReportTemplate"],
-     ["idx_exercise_report"]),
+    (
+        "learning",
+        ["LearningReport", "Exercise", "StudentAnswer", "ReportTemplate"],
+        ["idx_exercise_report"],
+    ),
     ("vote", ["ViewpointVote"], []),
 ]
 
@@ -100,7 +102,9 @@ def source_text(rev: str | None) -> str:
         return (ROOT / SOURCE).read_text(encoding="utf-8")
     out = subprocess.run(
         ["git", "show", f"{rev}:{SOURCE}"],
-        cwd=ROOT, capture_output=True, check=True,
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
     ).stdout
     return out.decode("utf-8")
 
@@ -117,7 +121,7 @@ def carve(text: str) -> dict[str, list[str]]:
         # 紧贴其上的连续注释行也属于这个块（之间不能隔空行，否则是上一段的尾注释）
         while start > 0 and lines[start - 1].strip().startswith("#"):
             start -= 1
-        blocks[key] = lines[start:node.end_lineno]
+        blocks[key] = lines[start : node.end_lineno]
 
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
@@ -126,10 +130,9 @@ def carve(text: str) -> dict[str, list[str]]:
             func = node.value.func
             if isinstance(func, ast.Name) and func.id == "Index":
                 name = node.value.args[0].value
-                blocks[name] = lines[node.lineno - 1:node.end_lineno]
+                blocks[name] = lines[node.lineno - 1 : node.end_lineno]
 
-    missing = [n for _, classes, indexes in GROUPS for n in classes + indexes
-               if n not in blocks]
+    missing = [n for _, classes, indexes in GROUPS for n in classes + indexes if n not in blocks]
     if missing:
         raise SystemExit(
             f"源文件里找不到 {missing}。\n"
@@ -147,10 +150,7 @@ def imports_for(body: list[str], local_names: list[str]) -> str:
     """
     tree = ast.parse("\n".join(body))
     # 只看 Load——Store 的名字是类的属性名（id / created_at / ...），不是外部引用
-    used = {
-        n.id for n in ast.walk(tree)
-        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
-    }
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
     # local_names：同一模块里定义的类——`Index(..., Transcript.meeting_id, ...)`
     # 那样在本模块内自引用，不需要也不是导入。
     unknown = used - set(_NAME_IMPORTS) - set(dir(builtins)) - set(local_names)
@@ -252,7 +252,7 @@ def body_of(text: str) -> list[str]:
     """
     lines = text.splitlines()
     anchor = lines.index("from app.models.base import Base")
-    return [ln for ln in lines[anchor + 1:] if ln.strip()]
+    return [ln for ln in lines[anchor + 1 :] if ln.strip()]
 
 
 def expected_body(blocks: dict[str, list[str]], classes, indexes) -> list[str]:
@@ -281,9 +281,7 @@ def verify_slices(files: dict[str, str], blocks: dict[str, list[str]]) -> list[s
                 )
                 break
         else:
-            problems.append(
-                f"{module}.py 行数不符：源 {len(want)} 行，出 {len(got)} 行"
-            )
+            problems.append(f"{module}.py 行数不符：源 {len(want)} 行，出 {len(got)} 行")
     return problems
 
 
@@ -299,8 +297,7 @@ def new_database(text: str) -> str:
 
     names = [n for _, classes, _ in GROUPS for n in classes]
     reexport = [
-        "# 阶段 3.1：模型已搬到 `app/models/`。这里原样转出，使 "
-        "`from database import User` 这类",
+        "# 阶段 3.1：模型已搬到 `app/models/`。这里原样转出，使 `from database import User` 这类",
         "# 既有写法继续有效——本步据此可以声称「调用方零改动」。这层转发是**临时的**，",
         "# 阶段 3.2 搬迁本文件时会连同这些调用方一起收拢，届时删除。",
         "from app.models import (",
@@ -314,8 +311,11 @@ def new_database(text: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true", help="真正写盘（默认只预演）")
-    ap.add_argument("--verify", action="store_true",
-                    help="对照 git HEAD:database.py 校验现有 app/models/ 是否逐字一致")
+    ap.add_argument(
+        "--verify",
+        action="store_true",
+        help="对照 git HEAD:database.py 校验现有 app/models/ 是否逐字一致",
+    )
     args = ap.parse_args()
 
     if args.verify:

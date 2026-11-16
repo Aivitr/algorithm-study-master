@@ -156,7 +156,7 @@ bucket = oss2.Bucket(auth, OSS_ENDPOINT, OSS_BUCKET_NAME)
 
 local_dir = "storage/video_chunks"
 for filename in os.listdir(local_dir):
-    if filename.endswith('.webm'):
+    if filename.endswith(".webm"):
         local_path = os.path.join(local_dir, filename)
         oss_path = f"{VIDEO_PREFIX}{filename}"
         bucket.put_object_from_file(oss_path, local_path)

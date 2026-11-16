@@ -25,8 +25,8 @@ timestamp 可以是 datetime 或数字：
 from datetime import datetime
 from typing import Any
 
-from gca_engine.schemas import Utterance
 from gca_engine.preprocessing.chinese import normalize_text
+from gca_engine.schemas import Utterance
 
 _TRANSCRIPT_FIELDS = ("id", "user_id", "content", "timestamp")
 
@@ -34,8 +34,11 @@ _TRANSCRIPT_FIELDS = ("id", "user_id", "content", "timestamp")
 def _to_seconds(value: Any, origin: float) -> float:
     """把一条记录的时间转成课堂开始后的秒数。"""
     if isinstance(value, datetime):
-        return (value - datetime.fromtimestamp(origin, tz=value.tzinfo)).total_seconds() \
-            if value.tzinfo else (value - datetime.fromtimestamp(origin)).total_seconds()
+        return (
+            (value - datetime.fromtimestamp(origin, tz=value.tzinfo)).total_seconds()
+            if value.tzinfo
+            else (value - datetime.fromtimestamp(origin)).total_seconds()
+        )
     if isinstance(value, (int, float)):
         return float(value)
     raise ValueError(f"timestamp 必须是 datetime 或数字，got {type(value).__name__}")
@@ -75,9 +78,7 @@ def transcripts_to_utterances(
         else:
             raise ValueError(f"timestamp 必须是 datetime 或数字，got {type(ts).__name__}")
         if has_datetime and has_numeric:
-            raise ValueError(
-                "同一批 transcript 的 timestamp 不能混用 datetime 和数字（相对秒数）"
-            )
+            raise ValueError("同一批 transcript 的 timestamp 不能混用 datetime 和数字（相对秒数）")
 
     if origin is None:
         return []

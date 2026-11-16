@@ -32,6 +32,7 @@ from app.services.transcript_query_service import TranscriptQueryService
 
 router = APIRouter()
 
+
 @router.get("/summary")
 async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
     transcripts = TranscriptQueryService(db).list_for_meeting(meeting_id)
@@ -79,9 +80,7 @@ async def generate_knowledge_graph(
                 "message": "当前发言内容不足，未提取到概念，请多讨论几轮后重试",
             }
 
-        row = db.query(KnowledgeGraph).filter(
-            KnowledgeGraph.meeting_id == meeting_id
-        ).first()
+        row = db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
         if row:
             row.graph_data = graph
             row.updated_at = datetime.now()
@@ -110,9 +109,7 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
     """获取课堂历史发言（用于前端对话栏展示）"""
     try:
         limit = max(1, min(int(limit), 2000))
-        transcripts = TranscriptQueryService(db).list_for_meeting(
-            meeting_id, limit=limit
-        )
+        transcripts = TranscriptQueryService(db).list_for_meeting(meeting_id, limit=limit)
 
         items = []
         for t in transcripts:
@@ -120,16 +117,18 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
             if getattr(t.user, "role", None) == "teacher":
                 continue
             ts = t.created_at or t.timestamp
-            items.append({
-                "id": t.id,
-                "username": t.user.username if t.user else "",
-                "text": t.content,
-                "timestamp": int(ts.timestamp() * 1000) if ts else None,
-                "quality_score": getattr(t, "quality_score", None),
-                "quality_feedback": getattr(t, "quality_feedback", None),
-                "emotion": getattr(t, "emotion_tag", None),
-                "action": getattr(t, "body_action", None),
-            })
+            items.append(
+                {
+                    "id": t.id,
+                    "username": t.user.username if t.user else "",
+                    "text": t.content,
+                    "timestamp": int(ts.timestamp() * 1000) if ts else None,
+                    "quality_score": getattr(t, "quality_score", None),
+                    "quality_feedback": getattr(t, "quality_feedback", None),
+                    "emotion": getattr(t, "emotion_tag", None),
+                    "action": getattr(t, "body_action", None),
+                }
+            )
 
         return {"status": "success", "transcripts": items}
     except Exception as e:

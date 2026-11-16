@@ -77,8 +77,7 @@ def _dump_all_rows(session) -> dict:
         pk = list(inspect(cls).mapper.primary_key)[0].key
         columns = [c.key for c in inspect(cls).mapper.columns]
         rows = [
-            {key: repr(getattr(row, key)) for key in columns}
-            for row in session.query(cls).all()
+            {key: repr(getattr(row, key)) for key in columns} for row in session.query(cls).all()
         ]
         rows.sort(key=lambda r: r[pk])
         dump[table] = rows

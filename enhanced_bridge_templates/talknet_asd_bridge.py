@@ -56,7 +56,9 @@ def _summarize_scores(scores, frames):
         elif not is_active and start_index is not None:
             start_frame = int(frames[start_index])
             end_frame = int(frames[index - 1]) + 1
-            segments.append({"start": round(start_frame / FPS, 3), "end": round(end_frame / FPS, 3)})
+            segments.append(
+                {"start": round(start_frame / FPS, 3), "end": round(end_frame / FPS, 3)}
+            )
             start_index = None
 
     if start_index is not None:
@@ -118,7 +120,9 @@ def main():
                 "--nDataLoaderThread",
                 "1",
             ]
-            completed = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+            completed = subprocess.run(
+                command, cwd=str(repo_root), capture_output=True, text=True, check=False
+            )
             if completed.returncode != 0:
                 raise RuntimeError(
                     f"demoTalkNet.py exited with {completed.returncode}: {(completed.stderr or completed.stdout or '').strip()}"
@@ -132,7 +136,9 @@ def main():
             best_probability = 0.0
             best_ratio = 0.0
 
-            for index, (track_item, score_item) in enumerate(zip(track_payload, score_payload), start=1):
+            for index, (track_item, score_item) in enumerate(
+                zip(track_payload, score_payload), start=1
+            ):
                 frames = list(track_item.get("track", {}).get("frame", []))
                 scores = [float(value) for value in score_item]
                 summary = _summarize_scores(scores, frames if frames else range(len(scores)))

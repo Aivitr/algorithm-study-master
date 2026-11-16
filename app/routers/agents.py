@@ -9,7 +9,6 @@ from app.agents.state import TOOL_STATES
 from app.agents.tools import CLASSROOM_TOOLS
 from app.core.database import get_db
 
-
 router = APIRouter()
 
 

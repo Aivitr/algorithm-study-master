@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
-
 REPO_ROOT = Path(__file__).resolve().parent
 TALKNET_PRETRAIN_URL = "https://drive.google.com/uc?id=1AbN9fCf9IexMxEKXLQY2KYBlb-IhSEea"
 
@@ -19,7 +18,9 @@ def run(command, cwd: Optional[Path] = None, env: Optional[Dict[str, str]] = Non
         raise RuntimeError(f"command failed ({completed.returncode}): {rendered}")
 
 
-def ensure_layout(repo_root: Path, model_root: Path, gallery_root: Path, force: bool = False) -> None:
+def ensure_layout(
+    repo_root: Path, model_root: Path, gallery_root: Path, force: bool = False
+) -> None:
     slots = ["pyannote", "wespeaker", "talknet_asd", "insightface", "clip_vit_b16", "bge_m3"]
     templates = {
         "wespeaker": repo_root / "enhanced_bridge_templates" / "wespeaker_bridge.py",
@@ -55,7 +56,9 @@ def ensure_layout(repo_root: Path, model_root: Path, gallery_root: Path, force: 
 def clone_or_update_git_repo(repo_url: str, target_dir: Path) -> None:
     git_executable = shutil.which("git")
     if not git_executable:
-        raise RuntimeError("git is required to clone the official open-source repositories for enhanced mode")
+        raise RuntimeError(
+            "git is required to clone the official open-source repositories for enhanced mode"
+        )
 
     if (target_dir / ".git").exists():
         run([git_executable, "-C", str(target_dir), "pull", "--ff-only"])
@@ -118,10 +121,7 @@ def download_talknet_pretrain(python_executable: str, target_path: Path) -> None
         return
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    code = (
-        "import gdown; "
-        f"gdown.download('{TALKNET_PRETRAIN_URL}', r'{target_path}', quiet=False)"
-    )
+    code = f"import gdown; gdown.download('{TALKNET_PRETRAIN_URL}', r'{target_path}', quiet=False)"
     run([python_executable, "-c", code])
 
 
@@ -160,18 +160,38 @@ def write_summary(model_root: Path, summary: Dict) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Download and prepare open-source assets for enhanced deployment.")
+    parser = argparse.ArgumentParser(
+        description="Download and prepare open-source assets for enhanced deployment."
+    )
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--model-root", default="")
     parser.add_argument("--gallery-root", default="")
     parser.add_argument("--python-exe", default=sys.executable)
     parser.add_argument("--hf-token", default=os.getenv("RESEARCH_HF_TOKEN", ""))
-    parser.add_argument("--pyannote-model-id", default=os.getenv("RESEARCH_PYANNOTE_MODEL_ID", "pyannote/speaker-diarization-3.1"))
-    parser.add_argument("--wespeaker-model-name", default=os.getenv("RESEARCH_WESPEAKER_MODEL_NAME", "chinese"))
-    parser.add_argument("--clip-model-id", default=os.getenv("RESEARCH_CLIP_MODEL_ID", "openai/clip-vit-base-patch16"))
+    parser.add_argument(
+        "--pyannote-model-id",
+        default=os.getenv("RESEARCH_PYANNOTE_MODEL_ID", "pyannote/speaker-diarization-3.1"),
+    )
+    parser.add_argument(
+        "--wespeaker-model-name", default=os.getenv("RESEARCH_WESPEAKER_MODEL_NAME", "chinese")
+    )
+    parser.add_argument(
+        "--clip-model-id",
+        default=os.getenv("RESEARCH_CLIP_MODEL_ID", "openai/clip-vit-base-patch16"),
+    )
     parser.add_argument("--bge-model-id", default=os.getenv("RESEARCH_BGE_MODEL_ID", "BAAI/bge-m3"))
-    parser.add_argument("--wespeaker-repo-url", default=os.getenv("RESEARCH_WESPEAKER_REPO_URL", "https://github.com/wenet-e2e/wespeaker.git"))
-    parser.add_argument("--talknet-repo-url", default=os.getenv("RESEARCH_TALKNET_REPO_URL", "https://github.com/TaoRuijie/TalkNet-ASD.git"))
+    parser.add_argument(
+        "--wespeaker-repo-url",
+        default=os.getenv(
+            "RESEARCH_WESPEAKER_REPO_URL", "https://github.com/wenet-e2e/wespeaker.git"
+        ),
+    )
+    parser.add_argument(
+        "--talknet-repo-url",
+        default=os.getenv(
+            "RESEARCH_TALKNET_REPO_URL", "https://github.com/TaoRuijie/TalkNet-ASD.git"
+        ),
+    )
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-pyannote", action="store_true")
     parser.add_argument("--skip-wespeaker", action="store_true")
@@ -185,8 +205,16 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     repo_root = Path(args.repo_root).resolve()
-    model_root = Path(args.model_root).resolve() if args.model_root else repo_root / "storage" / "research_models"
-    gallery_root = Path(args.gallery_root).resolve() if args.gallery_root else repo_root / "storage" / "research_gallery"
+    model_root = (
+        Path(args.model_root).resolve()
+        if args.model_root
+        else repo_root / "storage" / "research_models"
+    )
+    gallery_root = (
+        Path(args.gallery_root).resolve()
+        if args.gallery_root
+        else repo_root / "storage" / "research_gallery"
+    )
     python_executable = args.python_exe
 
     ensure_layout(repo_root, model_root, gallery_root, force=args.force)
@@ -202,7 +230,9 @@ def main() -> None:
     if not args.skip_pyannote:
         target_dir = model_root / "pyannote"
         download_pyannote_snapshot(target_dir, args.pyannote_model_id, args.hf_token)
-        summary["steps"].append({"slot": "pyannote", "status": "downloaded", "target": str(target_dir)})
+        summary["steps"].append(
+            {"slot": "pyannote", "status": "downloaded", "target": str(target_dir)}
+        )
 
     if not args.skip_wespeaker:
         target_dir = model_root / "wespeaker"
@@ -219,23 +249,34 @@ def main() -> None:
         pretrain_path = target_dir / "pretrain_TalkSet.model"
         download_talknet_pretrain(python_executable, pretrain_path)
         summary["steps"].append(
-            {"slot": "talknet_asd", "status": "ready", "repo": str(repo_dir), "pretrain_model": str(pretrain_path)}
+            {
+                "slot": "talknet_asd",
+                "status": "ready",
+                "repo": str(repo_dir),
+                "pretrain_model": str(pretrain_path),
+            }
         )
 
     if not args.skip_insightface:
         target_dir = model_root / "insightface"
         warm_insightface_pack(python_executable, target_dir)
-        summary["steps"].append({"slot": "insightface", "status": "ready", "target": str(target_dir)})
+        summary["steps"].append(
+            {"slot": "insightface", "status": "ready", "target": str(target_dir)}
+        )
 
     if not args.skip_clip:
         target_dir = model_root / "clip_vit_b16"
         download_hf_model(target_dir, args.clip_model_id)
-        summary["steps"].append({"slot": "clip_vit_b16", "status": "downloaded", "target": str(target_dir)})
+        summary["steps"].append(
+            {"slot": "clip_vit_b16", "status": "downloaded", "target": str(target_dir)}
+        )
 
     if not args.skip_bge:
         target_dir = model_root / "bge_m3"
         download_hf_model(target_dir, args.bge_model_id)
-        summary["steps"].append({"slot": "bge_m3", "status": "downloaded", "target": str(target_dir)})
+        summary["steps"].append(
+            {"slot": "bge_m3", "status": "downloaded", "target": str(target_dir)}
+        )
 
     write_summary(model_root, summary)
     print(json.dumps(summary, ensure_ascii=False, indent=2))

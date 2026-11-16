@@ -31,9 +31,7 @@ def register_meeting(meeting_id: str, utterances: list[Utterance]) -> None:
     """
     if not isinstance(meeting_id, str) or not meeting_id.strip():
         raise ValueError("meeting_id 必须是非空字符串")
-    if not isinstance(utterances, list) or not all(
-        isinstance(u, Utterance) for u in utterances
-    ):
+    if not isinstance(utterances, list) or not all(isinstance(u, Utterance) for u in utterances):
         raise ValueError("utterances 必须是 Utterance 列表")
     if any(u.meeting_id != meeting_id for u in utterances):
         raise ValueError("每条发言的 meeting_id 必须与注册的 meeting_id 一致")

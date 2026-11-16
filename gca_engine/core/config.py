@@ -36,8 +36,7 @@ def validate_zero_vector_policy(policy: str) -> None:
     """Raise ValueError for unsupported zero-vector policies."""
     if policy not in ZERO_VECTOR_POLICIES:
         raise ValueError(
-            f"zero_vector_policy must be one of {ZERO_VECTOR_POLICIES}, "
-            f"got {policy!r}"
+            f"zero_vector_policy must be one of {ZERO_VECTOR_POLICIES}, got {policy!r}"
         )
 
 
@@ -76,9 +75,7 @@ class GCAConfig:
 
     def __post_init__(self) -> None:
         if self.spanning_window < 1:
-            raise ValueError(
-                f"spanning_window must be >= 1, got {self.spanning_window}"
-            )
+            raise ValueError(f"spanning_window must be >= 1, got {self.spanning_window}")
         validate_zero_vector_policy(self.zero_vector_policy)
         if self.word_count != "preprocessed_tokens":
             raise ValueError(

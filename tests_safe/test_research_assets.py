@@ -89,9 +89,7 @@ def test_expected_assets_actually_exist():
     每一条都由 `/api/research-runtime` 返回给调用方；指空即为接口层面的静默失效
     ——请求成功、字段齐全，指向的却是空气。
     """
-    missing = {
-        key: path for key, path in _summary().items() if not Path(path).exists()
-    }
+    missing = {key: path for key, path in _summary().items() if not Path(path).exists()}
     assert not missing, (
         f"这些路径由 /api/research-runtime 返回却指向不存在的文件：{missing}\n"
         f"要么补上文件，要么别在接口里承诺它。"

@@ -26,11 +26,13 @@ from app.services.user_lookup import resolve_user_by_identifier
 
 router = APIRouter()
 
+
 @router.get("/api/realtime-stats/{meeting_id}")
 async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
     """获取实时统计数据"""
     try:
         import time
+
         start_time = time.time()
         print(f"[TIME] [realtime-stats] 开始查询 meeting_id={meeting_id}")
 
@@ -38,11 +40,13 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         from sqlalchemy.orm import joinedload
 
         # [OK] 查询转录
-        transcripts = db.query(Transcript).options(
-            joinedload(Transcript.user)
-        ).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.timestamp.desc()).all()
+        transcripts = (
+            db.query(Transcript)
+            .options(joinedload(Transcript.user))
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.timestamp.desc())
+            .all()
+        )
 
         # 反转顺序
         transcripts.reverse()
@@ -50,11 +54,13 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         print(f"  [OK] 查询到 {len(transcripts)} 条发言: {time.time() - start_time:.2f}秒")
 
         # [OK] 查询情绪
-        emotions = db.query(EmotionLog).options(
-            joinedload(EmotionLog.user)
-        ).filter(
-            EmotionLog.meeting_id == meeting_id
-        ).order_by(EmotionLog.created_at.desc()).all()
+        emotions = (
+            db.query(EmotionLog)
+            .options(joinedload(EmotionLog.user))
+            .filter(EmotionLog.meeting_id == meeting_id)
+            .order_by(EmotionLog.created_at.desc())
+            .all()
+        )
 
         emotions.reverse()
 
@@ -70,7 +76,7 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
                 user_transcripts[username] = []
             user_transcripts[username].append(t.content)
 
-        pie_data = [{'name': k, 'value': v} for k, v in speech_stats.items()]
+        pie_data = [{"name": k, "value": v} for k, v in speech_stats.items()]
 
         # 2. 互动网络
         users = list(speech_stats.keys())
@@ -78,23 +84,19 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
 
         # 统计互动
         for i in range(1, len(transcripts)):
-            prev_user = transcripts[i-1].user.username
+            prev_user = transcripts[i - 1].user.username
             curr_user = transcripts[i].user.username
             if prev_user != curr_user:
                 interaction_matrix[prev_user][curr_user] += 1
                 interaction_matrix[curr_user][prev_user] += 1
 
         # 转换为ECharts格式
-        nodes = [{'name': u, 'value': speech_stats[u]} for u in users]
+        nodes = [{"name": u, "value": speech_stats[u]} for u in users]
         edges = []
         for u1 in users:
             for u2 in users:
                 if u1 < u2 and interaction_matrix[u1][u2] > 0:
-                    edges.append({
-                        'source': u1,
-                        'target': u2,
-                        'value': interaction_matrix[u1][u2]
-                    })
+                    edges.append({"source": u1, "target": u2, "value": interaction_matrix[u1][u2]})
 
         # 3. 情绪时间线
         emotion_timeline = {}
@@ -104,17 +106,15 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
             if username not in emotion_timeline:
                 emotion_timeline[username] = []
                 user_emotions[username] = []
-            
+
             emotion_type = normalize_emotion_label(e.emotion_type)
             emotion_value = emotion_value_for_label(emotion_type)
-            
-            emotion_timeline[username].append({
-                'time': e.created_at.isoformat(),
-                'value': emotion_value,
-                'emotion': emotion_type
-            })
+
+            emotion_timeline[username].append(
+                {"time": e.created_at.isoformat(), "value": emotion_value, "emotion": emotion_type}
+            )
             user_emotions[username].append(emotion_value)
-        
+
         # 4. 成员综合评分
         member_scores = []
         total_speeches = sum(speech_stats.values()) if speech_stats else 1
@@ -125,7 +125,7 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
             username = t.user.username
             if username not in user_quality_scores:
                 user_quality_scores[username] = []
-            if hasattr(t, 'quality_score') and t.quality_score:
+            if hasattr(t, "quality_score") and t.quality_score:
                 user_quality_scores[username].append(t.quality_score)
 
         for username in users:
@@ -150,7 +150,9 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
             interaction_score = min(15, interaction_count * 2.5)
 
             # 情绪状态10分满分- 积极情绪加分
-            avg_emotion = sum(user_emotions.get(username, [50])) / len(user_emotions.get(username, [50]))
+            avg_emotion = sum(user_emotions.get(username, [50])) / len(
+                user_emotions.get(username, [50])
+            )
             emotion_score = avg_emotion * 0.1  # 0-10分
 
             total_score = int(llm_score + participation_score + interaction_score + emotion_score)
@@ -159,50 +161,55 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
             # 获取最新反馈
             latest_feedback = ""
             for t in reversed(transcripts):
-                if t.user.username == username and hasattr(t, 'quality_feedback') and t.quality_feedback:
+                if (
+                    t.user.username == username
+                    and hasattr(t, "quality_feedback")
+                    and t.quality_feedback
+                ):
                     latest_feedback = t.quality_feedback
                     break
-            
-            member_scores.append({
-                'name': username,
-                'score': total_score,
-                'speech_count': speech_count,
-                'interaction_count': interaction_count,
-                'avg_emotion': int(avg_emotion),
-                'avg_quality': int(avg_quality),
-                'latest_feedback': latest_feedback
-            })
-        
+
+            member_scores.append(
+                {
+                    "name": username,
+                    "score": total_score,
+                    "speech_count": speech_count,
+                    "interaction_count": interaction_count,
+                    "avg_emotion": int(avg_emotion),
+                    "avg_quality": int(avg_quality),
+                    "latest_feedback": latest_feedback,
+                }
+            )
+
         # ??
-        member_scores.sort(key=lambda x: x['score'], reverse=True)
-        
+        member_scores.sort(key=lambda x: x["score"], reverse=True)
+
         print(f"  [OK] ??: {time.time() - start_time:.2f}??")
-        
+
         return {
-            'status': 'success',
-            'pie_data': pie_data,
-            'interaction': {'nodes': nodes, 'edges': edges},
-            'emotion_timeline': emotion_timeline,
-            'member_scores': member_scores
+            "status": "success",
+            "pie_data": pie_data,
+            "interaction": {"nodes": nodes, "edges": edges},
+            "emotion_timeline": emotion_timeline,
+            "member_scores": member_scores,
         }
     except Exception as e:
-        print(f'[ERROR] ??: {e}')
+        print(f"[ERROR] ??: {e}")
         import traceback
+
         traceback.print_exc()
-        return {'status': 'error', 'message': str(e)}
+        return {"status": "error", "message": str(e)}
 
 
 # 情绪详情 API
 @router.get("/api/emotion-details/{meeting_id}")
 async def get_emotion_details(
-    meeting_id: int,
-    username: str = None,
-    minutes: int = 15,
-    db: Session = Depends(get_db)
+    meeting_id: int, username: str = None, minutes: int = 15, db: Session = Depends(get_db)
 ):
     """获取情绪详细数据"""
     try:
         import time
+
         start_time = time.time()
         print(f"[TIME] [emotion-details] 开始查询 meeting_id={meeting_id}")
         # minutes 支持:
@@ -217,10 +224,10 @@ async def get_emotion_details(
         from sqlalchemy.orm import joinedload
 
         # [OK] 查询情绪
-        emotion_query = db.query(EmotionLog).options(
-            joinedload(EmotionLog.user)
-        ).filter(
-            EmotionLog.meeting_id == meeting_id
+        emotion_query = (
+            db.query(EmotionLog)
+            .options(joinedload(EmotionLog.user))
+            .filter(EmotionLog.meeting_id == meeting_id)
         )
         if cutoff_time is not None:
             emotion_query = emotion_query.filter(EmotionLog.created_at >= cutoff_time)
@@ -229,10 +236,10 @@ async def get_emotion_details(
         print(f"  [OK] 查询到 {len(emotions)} 条情绪: {time.time() - start_time:.2f}秒")
 
         # [OK] 查询转录
-        transcript_query = db.query(Transcript).options(
-            joinedload(Transcript.user)
-        ).filter(
-            Transcript.meeting_id == meeting_id
+        transcript_query = (
+            db.query(Transcript)
+            .options(joinedload(Transcript.user))
+            .filter(Transcript.meeting_id == meeting_id)
         )
         if cutoff_time is not None:
             transcript_query = transcript_query.filter(Transcript.timestamp >= cutoff_time)
@@ -246,25 +253,27 @@ async def get_emotion_details(
 
         # 1. 个人情绪时间线 (智能采样：动态间隔 + 大幅波动时额外记录)
         individual_emotions = {}
-        last_emotion_by_user = {}      # {username: last_emotion_value}
-        last_point_time_by_user = {}   # {username: last_point_timestamp}
+        last_emotion_by_user = {}  # {username: last_emotion_value}
+        last_point_time_by_user = {}  # {username: last_point_timestamp}
 
         # 动态采样间隔：根据课堂时长自适应
         # 短课堂（<30分钟）：2分钟间隔
         # 中等课堂（30-60分钟）：5分钟间隔
         # 长课堂（>60分钟）：10分钟间隔
         if emotions:
-            course_duration_minutes = (emotions[-1].created_at - emotions[0].created_at).total_seconds() / 60
+            course_duration_minutes = (
+                emotions[-1].created_at - emotions[0].created_at
+            ).total_seconds() / 60
             if course_duration_minutes < 30:
-                INTERVAL_SECONDS = 2 * 60   # 2分钟
+                INTERVAL_SECONDS = 2 * 60  # 2分钟
             elif course_duration_minutes < 60:
-                INTERVAL_SECONDS = 5 * 60   # 5分钟
+                INTERVAL_SECONDS = 5 * 60  # 5分钟
             else:
                 INTERVAL_SECONDS = 10 * 60  # 10分钟
         else:
-            INTERVAL_SECONDS = 2 * 60       # 默认2分钟
+            INTERVAL_SECONDS = 2 * 60  # 默认2分钟
 
-        BIG_SHIFT_THRESHOLD = 15       # 情绪值变化超过15视为大幅波动
+        BIG_SHIFT_THRESHOLD = 15  # 情绪值变化超过15视为大幅波动
 
         for e in emotions:
             uname = e.user.username
@@ -295,33 +304,37 @@ async def get_emotion_details(
             if should_add:
                 last_emotion_by_user[uname] = emotion_value
                 last_point_time_by_user[uname] = current_ts
-                individual_emotions[uname].append({
-                    'id': e.id,
-                    'time': e.created_at.isoformat(),
-                    'timestamp': int(e.created_at.timestamp() * 1000),
-                    'emotion_type': emotion_type,
-                    'emotion_value': emotion_value,
-                    'intensity': e.intensity,
-                    'snapshot_path': e.snapshot_path
-                })
+                individual_emotions[uname].append(
+                    {
+                        "id": e.id,
+                        "time": e.created_at.isoformat(),
+                        "timestamp": int(e.created_at.timestamp() * 1000),
+                        "emotion_type": emotion_type,
+                        "emotion_value": emotion_value,
+                        "intensity": e.intensity,
+                        "snapshot_path": e.snapshot_path,
+                    }
+                )
 
         # 确保每个用户的最后一个情绪记录也被包含（折线不会断在中间）
         for e in reversed(emotions):
             uname = e.user.username
             if uname in individual_emotions and individual_emotions[uname]:
                 last_point = individual_emotions[uname][-1]
-                if last_point['id'] != e.id:
+                if last_point["id"] != e.id:
                     emotion_type = normalize_emotion_label(e.emotion_type)
                     emotion_value = emotion_value_for_label(emotion_type)
-                    individual_emotions[uname].append({
-                        'id': e.id,
-                        'time': e.created_at.isoformat(),
-                        'timestamp': int(e.created_at.timestamp() * 1000),
-                        'emotion_type': emotion_type,
-                        'emotion_value': emotion_value,
-                        'intensity': e.intensity,
-                        'snapshot_path': e.snapshot_path
-                    })
+                    individual_emotions[uname].append(
+                        {
+                            "id": e.id,
+                            "time": e.created_at.isoformat(),
+                            "timestamp": int(e.created_at.timestamp() * 1000),
+                            "emotion_type": emotion_type,
+                            "emotion_value": emotion_value,
+                            "intensity": e.intensity,
+                            "snapshot_path": e.snapshot_path,
+                        }
+                    )
                 # 只处理每个用户一次
                 last_emotion_by_user.pop(uname, None)
             if not last_emotion_by_user:
@@ -332,41 +345,43 @@ async def get_emotion_details(
         time_buckets = {}  # 按分钟聚合
 
         for e in emotions:
-            time_key = e.created_at.strftime('%Y-%m-%d %H:%M')  # 按分钟分组
+            time_key = e.created_at.strftime("%Y-%m-%d %H:%M")  # 按分钟分组
             if time_key not in time_buckets:
                 time_buckets[time_key] = []
 
             emotion_type = normalize_emotion_label(e.emotion_type)
             emotion_value = emotion_value_for_label(emotion_type)
-            
+
             time_buckets[time_key].append(emotion_value)
-        
+
         for time_key in sorted(time_buckets.keys()):
             values = time_buckets[time_key]
             avg_value = sum(values) / len(values) if values else 50
-            all_emotions_timeline.append({
-                'time': time_key,
-                'value': int(avg_value),
-                'count': len(values)
-            })
-        
+            all_emotions_timeline.append(
+                {"time": time_key, "value": int(avg_value), "count": len(values)}
+            )
+
         # 3. 视频片段列表
         video_segments = []
         for t in transcripts:
             if t.audio_file_path:
                 # 推测视频路径
-                video_path = t.audio_file_path.replace('audio_chunks', 'video_chunks').replace('.wav', '.webm')
+                video_path = t.audio_file_path.replace("audio_chunks", "video_chunks").replace(
+                    ".wav", ".webm"
+                )
 
-                video_segments.append({
-                    'id': t.id,
-                    'username': t.user.username,
-                    'text': t.content,
-                    'emotion': t.emotion_tag or 'neutral',
-                    'timestamp': int(t.timestamp.timestamp() * 1000),
-                    'time': t.timestamp.isoformat(),
-                    'video_path': video_path,
-                    'audio_path': t.audio_file_path
-                })
+                video_segments.append(
+                    {
+                        "id": t.id,
+                        "username": t.user.username,
+                        "text": t.content,
+                        "emotion": t.emotion_tag or "neutral",
+                        "timestamp": int(t.timestamp.timestamp() * 1000),
+                        "time": t.timestamp.isoformat(),
+                        "video_path": video_path,
+                        "audio_path": t.audio_file_path,
+                    }
+                )
 
         print(f"  [OK] 处理完成: {time.time() - start_time:.2f}秒")
 
@@ -397,18 +412,19 @@ async def get_emotion_details(
                 filtered_individual[current_user_key] = individual_emotions[current_user_key]
 
         return {
-            'status': 'success',
-            'individual_emotions': filtered_individual,  # 个体图表用（可能被过滤）
-            'all_individual_emotions': individual_emotions,  # 群体图表用（完整数据）
-            'group_emotion_timeline': all_emotions_timeline,
-            'video_segments': video_segments,
-            'current_user_key': current_user_key
+            "status": "success",
+            "individual_emotions": filtered_individual,  # 个体图表用（可能被过滤）
+            "all_individual_emotions": individual_emotions,  # 群体图表用（完整数据）
+            "group_emotion_timeline": all_emotions_timeline,
+            "video_segments": video_segments,
+            "current_user_key": current_user_key,
         }
     except Exception as e:
-        print(f'[ERROR] ??a??: {e}')
+        print(f"[ERROR] ??a??: {e}")
         import traceback
+
         traceback.print_exc()
-        return {'status': 'error', 'message': str(e)}
+        return {"status": "error", "message": str(e)}
 
 
 def emotion_value_for_label(label: str) -> int:

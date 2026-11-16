@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.core.database import SessionLocal
 from app.models import ActiveClassroomSession, UserSession
@@ -149,11 +148,14 @@ def test_api_login_issues_session_token(client, seeded_ids, monkeypatch):
 
     monkeypatch.setattr(pymssql, "connect", lambda **kwargs: FakeConnection())
 
-    res = client.post("/api/login", data={
-        "student_id": "S2026001",
-        "password": "not-a-real-hash",
-        "device_id": "login-device",
-    })
+    res = client.post(
+        "/api/login",
+        data={
+            "student_id": "S2026001",
+            "password": "not-a-real-hash",
+            "device_id": "login-device",
+        },
+    )
     body = res.json()
     assert body["status"] == "success"
     assert body["user"]["created_at"] == "2026-01-01T09:00:00"
@@ -177,16 +179,41 @@ def test_session_routes_validate_enter_conflict_and_logout(client, seeded_ids):
     headers2 = {"Authorization": f"Bearer {token2}"}
 
     assert client.get("/api/session/validate", headers=headers1).status_code == 200
-    assert client.get("/api/session/validate", headers={"Authorization": "Bearer nope"}).status_code == 401
+    assert (
+        client.get("/api/session/validate", headers={"Authorization": "Bearer nope"}).status_code
+        == 401
+    )
 
-    entered = client.post("/api/classroom/enter", json={"meeting_id": seeded_ids["meeting_id_active"]}, headers=headers1)
+    entered = client.post(
+        "/api/classroom/enter",
+        json={"meeting_id": seeded_ids["meeting_id_active"]},
+        headers=headers1,
+    )
     assert entered.status_code == 200
 
-    conflict = client.post("/api/classroom/enter", json={"meeting_id": seeded_ids["meeting_id_active"]}, headers=headers2)
+    conflict = client.post(
+        "/api/classroom/enter",
+        json={"meeting_id": seeded_ids["meeting_id_active"]},
+        headers=headers2,
+    )
     assert conflict.status_code == 409
 
-    assert client.post("/api/classroom/leave", json={"meeting_id": seeded_ids["meeting_id_active"]}, headers=headers1).status_code == 200
-    assert client.post("/api/classroom/enter", json={"meeting_id": seeded_ids["meeting_id_active"]}, headers=headers2).status_code == 200
+    assert (
+        client.post(
+            "/api/classroom/leave",
+            json={"meeting_id": seeded_ids["meeting_id_active"]},
+            headers=headers1,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/classroom/enter",
+            json={"meeting_id": seeded_ids["meeting_id_active"]},
+            headers=headers2,
+        ).status_code
+        == 200
+    )
 
     assert client.post("/api/logout", headers=headers1).status_code == 200
     assert client.get("/api/session/validate", headers=headers1).status_code == 401

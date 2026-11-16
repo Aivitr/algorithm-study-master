@@ -2,11 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Integer
-from sqlalchemy import JSON
-from sqlalchemy import String
+from sqlalchemy import JSON, Column, DateTime, Integer, String
 
 from app.models.base import Base
 

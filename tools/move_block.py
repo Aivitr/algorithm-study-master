@@ -56,10 +56,15 @@ def main() -> None:
     ap.add_argument("--end", type=int, required=True)
     ap.add_argument("--dest", required=True, help="目标文件路径，如 app/realtime/state.py")
     ap.add_argument("--header", help="目标文件**首次创建**时写在最前面的头（import/文档）")
-    ap.add_argument("--expect-defs", nargs="*", default=[],
-                    help="区间内允许出现的顶层定义名（逐一对上才算切对了边界）")
-    ap.add_argument("--reexport", nargs="*", default=[],
-                    help="在 server.py 原位置再导出的名字（留空则不插入）")
+    ap.add_argument(
+        "--expect-defs",
+        nargs="*",
+        default=[],
+        help="区间内允许出现的顶层定义名（逐一对上才算切对了边界）",
+    )
+    ap.add_argument(
+        "--reexport", nargs="*", default=[], help="在 server.py 原位置再导出的名字（留空则不插入）"
+    )
     args = ap.parse_args()
 
     src = SERVER.read_text(encoding="utf-8")
@@ -70,32 +75,42 @@ def main() -> None:
         die(f"行号越界：{args.start}-{args.end}（文件 {len(lines)} 行）")
 
     # 区间必须以**顶层语句**为界：起点不能落在某个语句中间，否则切出来半截。
-    starts = {n.decorator_list[0].lineno if getattr(n, "decorator_list", None) else n.lineno
-              for n in tree.body}
+    starts = {
+        n.decorator_list[0].lineno if getattr(n, "decorator_list", None) else n.lineno
+        for n in tree.body
+    }
     ends = {n.end_lineno for n in tree.body}
     if args.start not in starts:
         die(f"{args.start} 不是任何一个顶层语句的起始行（会切在半截上）。")
     if args.end not in ends:
         die(f"{args.end} 不是任何一个顶层语句的结束行（会切在半截上）。")
 
-    inner = [n for n in tree.body
-             if (n.decorator_list[0].lineno if getattr(n, "decorator_list", None) else n.lineno) >= args.start
-             and n.end_lineno <= args.end]
+    inner = [
+        n
+        for n in tree.body
+        if (n.decorator_list[0].lineno if getattr(n, "decorator_list", None) else n.lineno)
+        >= args.start
+        and n.end_lineno <= args.end
+    ]
     got = [node_name(n) for n in inner]
     # 区间内的 import 语句会跟着一起搬（它们要么是这块自己在用的，要么得由
     # 调用方补进 --reexport）。它们不是"边界切错"的信号，所以不参与比对。
     defs = [n for n in got if n != "import"]
     if sorted(defs) != sorted(args.expect_defs):
-        die(f"区间内的顶层定义与 --expect-defs 不吻合。\n"
+        die(
+            f"区间内的顶层定义与 --expect-defs 不吻合。\n"
             f"  区间内实际：{defs}\n"
             f"  你声明的：  {args.expect_defs}\n"
-            f"多半是 --start/--end 少切或多切了一个语句。")
+            f"多半是 --start/--end 少切或多切了一个语句。"
+        )
     imports_in_region = got.count("import")
     if imports_in_region:
-        print(f"注意：区间内含 {imports_in_region} 条 import，将随本块一起搬走"
-              f"（若 server.py 别处仍需要它们，请加进 --reexport）。")
+        print(
+            f"注意：区间内含 {imports_in_region} 条 import，将随本块一起搬走"
+            f"（若 server.py 别处仍需要它们，请加进 --reexport）。"
+        )
 
-    block = "".join(lines[args.start - 1:args.end])
+    block = "".join(lines[args.start - 1 : args.end])
 
     dest = Path(args.dest)
     if dest.exists():
@@ -115,10 +130,12 @@ def main() -> None:
 
     missing = free_globals(dest_text, args.dest)
     if missing:
-        die(f"{args.dest} 里这些名字没有定义也没有导入：{sorted(missing)}。\n"
+        die(
+            f"{args.dest} 里这些名字没有定义也没有导入：{sorted(missing)}。\n"
             f"它们原本是 server.py 的模块级全局，请补进 --header。\n"
             f"（这类缺失不会在导入时报错：执行到那条分支才 NameError，"
-            f"而路由处理器会把它吞成 200 的错误响应。）")
+            f"而路由处理器会把它吞成 200 的错误响应。）"
+        )
 
     # 原位置换成再导出
     module_path = args.dest.replace("\\", "/")
@@ -126,16 +143,20 @@ def main() -> None:
     module_path = module_path[:-3].replace("/", ".")
     if args.reexport:
         if len(args.reexport) == 1:
-            repl = (f"# 阶段 5 迁至 {args.dest}，此处**再导出**（调用点保持不变）。\n"
-                    f"from {module_path} import {args.reexport[0]}\n")
+            repl = (
+                f"# 阶段 5 迁至 {args.dest}，此处**再导出**（调用点保持不变）。\n"
+                f"from {module_path} import {args.reexport[0]}\n"
+            )
         else:
             names = "".join(f"    {n},\n" for n in args.reexport)
-            repl = (f"# 阶段 5 迁至 {args.dest}，此处**再导出**（调用点保持不变）。\n"
-                    f"from {module_path} import (\n{names})\n")
+            repl = (
+                f"# 阶段 5 迁至 {args.dest}，此处**再导出**（调用点保持不变）。\n"
+                f"from {module_path} import (\n{names})\n"
+            )
     else:
         repl = ""
 
-    rest = "".join(lines[:args.start - 1]) + repl + "".join(lines[args.end:])
+    rest = "".join(lines[: args.start - 1]) + repl + "".join(lines[args.end :])
     try:
         ast.parse(rest)
     except SyntaxError as exc:

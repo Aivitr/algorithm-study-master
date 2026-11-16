@@ -17,11 +17,13 @@ from gca_engine.schemas import (
 
 
 class TestUtterance(unittest.TestCase):
-
     def test_create_basic(self):
         u = Utterance(
-            meeting_id="m1", speaker_id="u001", text="大家好",
-            timestamp=12.5, utterance_id="t1",
+            meeting_id="m1",
+            speaker_id="u001",
+            text="大家好",
+            timestamp=12.5,
+            utterance_id="t1",
         )
         self.assertEqual(u.end_time, None)
         self.assertEqual(u.to_dict()["text"], "大家好")
@@ -59,7 +61,6 @@ class TestUtterance(unittest.TestCase):
         with self.assertRaises(ValueError):
             Utterance("m1", "u001", "大家好", 1.0, "t1", end_time=-1.0)
 
-
     def test_timestamp_rejects_nonfinite_and_boolean(self):
         for value in (float("nan"), float("inf"), float("-inf"), True, False):
             with self.subTest(timestamp=value):
@@ -91,20 +92,21 @@ class TestStatuses(unittest.TestCase):
         values = [s.value for s in AnalysisStatus]
         self.assertEqual(
             sorted(values),
-            sorted([
-                "success",
-                "empty_transcript",
-                "single_speaker",
-                "insufficient_data",
-                "invalid_input",
-                "not_found",
-                "internal_error",
-            ]),
+            sorted(
+                [
+                    "success",
+                    "empty_transcript",
+                    "single_speaker",
+                    "insufficient_data",
+                    "invalid_input",
+                    "not_found",
+                    "internal_error",
+                ]
+            ),
         )
 
 
 class TestSixMetrics(unittest.TestCase):
-
     def test_exact_six_metric_names(self):
         self.assertEqual(
             SIX_METRICS,
@@ -120,14 +122,14 @@ class TestSixMetrics(unittest.TestCase):
 
 
 class TestGroupAnalysisResult(unittest.TestCase):
-
     def test_to_dict_round_trip(self):
         result = GroupAnalysisResult(
             meeting_id="m1",
             status="success",
             student_metrics={"u001": {"participation": 0.5}},
-            group_metrics={"participation": {"mean": 0.5, "min": 0.5,
-                                             "max": 0.5, "std": 0.0, "count": 1}},
+            group_metrics={
+                "participation": {"mean": 0.5, "min": 0.5, "max": 0.5, "std": 0.0, "count": 1}
+            },
             timeline=None,
             metadata={"n_utterances": 2},
             warnings=[],
@@ -147,8 +149,11 @@ class TestGroupAnalysisResult(unittest.TestCase):
             ],
         }
         result = GroupAnalysisResult(
-            meeting_id="m1", status=AnalysisStatus.SUCCESS,
-            student_metrics={}, group_metrics={}, timeline=timeline,
+            meeting_id="m1",
+            status=AnalysisStatus.SUCCESS,
+            student_metrics={},
+            group_metrics={},
+            timeline=timeline,
         )
         data = json.loads(json.dumps(result.to_dict(), allow_nan=False))
         self.assertEqual(data["status"], "success")

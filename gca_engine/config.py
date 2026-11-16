@@ -10,9 +10,9 @@ gca_engine 引擎级配置（负责人：雷梦琪）。
 from dataclasses import asdict, dataclass
 
 # 时间窗口默认值（第一版约定）
-FIXED_WINDOW_SECONDS = 300    # 固定 5 分钟窗口
+FIXED_WINDOW_SECONDS = 300  # 固定 5 分钟窗口
 SLIDING_WINDOW_SECONDS = 300  # 滑动 5 分钟窗口
-SLIDING_STEP_SECONDS = 30     # 滑动窗口每 30 秒一个更新点（首版，后续按性能调整）
+SLIDING_STEP_SECONDS = 30  # 滑动窗口每 30 秒一个更新点（首版，后续按性能调整）
 
 
 @dataclass
@@ -26,7 +26,7 @@ class EngineConfig:
     fixed_window_seconds: int = FIXED_WINDOW_SECONDS
     sliding_window_seconds: int = SLIDING_WINDOW_SECONDS
     sliding_step_seconds: int = SLIDING_STEP_SECONDS
-    min_utterances: int = 2   # 少于这个数直接 insufficient_data
+    min_utterances: int = 2  # 少于这个数直接 insufficient_data
     lsa_components: int = 300  # 与旧基线 LSAConfig 默认一致；小语料自动降维
     # 是否计算 timeline。窗口计算比整节课多花 O(窗口数 × 发言数)，
     # 只需要个人/小组指标、不要时间趋势的调用方可以关掉。

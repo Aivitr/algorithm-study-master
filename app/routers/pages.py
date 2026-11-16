@@ -19,11 +19,15 @@ from app.core.paths import PROJECT_ROOT as BASE_DIR
 
 router = APIRouter()
 
+
 @router.get("/", response_class=HTMLResponse)
 async def get_index():
     with open(os.path.join(BASE_DIR, "index.html"), "r", encoding="utf-8") as f:
         return HTMLResponse(f.read(), headers=NO_CACHE_HEADERS)
 
+
 @router.get("/pcm-processor.js")
 async def get_pcm_processor():
-    return FileResponse(os.path.join(BASE_DIR, "pcm-processor.js"), media_type="application/javascript")
+    return FileResponse(
+        os.path.join(BASE_DIR, "pcm-processor.js"), media_type="application/javascript"
+    )

@@ -21,21 +21,22 @@ from app.services.class_stats_service import ClassStatsService
 
 router = APIRouter()
 
+
 @router.get("/api/class-history/{user_id}")
 async def get_class_history(user_id: int, db: Session = Depends(get_db)):
     """获取用户的课堂历史"""
     try:
-        from datetime import datetime
-
         # 查询参与的课堂
-        user_meetings = db.query(Meeting).join(Transcript).filter(
-            Transcript.user_id == user_id
-        ).distinct().all()
+        user_meetings = (
+            db.query(Meeting)
+            .join(Transcript)
+            .filter(Transcript.user_id == user_id)
+            .distinct()
+            .all()
+        )
 
         # 查询创建的课堂
-        created_meetings = db.query(Meeting).filter(
-            Meeting.teacher_id == user_id
-        ).all()
+        created_meetings = db.query(Meeting).filter(Meeting.teacher_id == user_id).all()
 
         all_meetings = list(set(user_meetings + created_meetings))
 
@@ -48,9 +49,12 @@ async def get_class_history(user_id: int, db: Session = Depends(get_db)):
             start_time = m.started_at or window.get("first_at") or m.created_at
             end_time = m.ended_at or window.get("last_at")
             if end_time is None and m.status == RUNNING:
-                last_transcript = db.query(Transcript).filter(
-                    Transcript.meeting_id == m.id
-                ).order_by(Transcript.created_at.desc()).first()
+                last_transcript = (
+                    db.query(Transcript)
+                    .filter(Transcript.meeting_id == m.id)
+                    .order_by(Transcript.created_at.desc())
+                    .first()
+                )
                 end_time = last_transcript.created_at if last_transcript else start_time
             duration_minutes = (
                 max(0, int((end_time - start_time).total_seconds() / 60))
@@ -61,26 +65,30 @@ async def get_class_history(user_id: int, db: Session = Depends(get_db)):
             user_speech_count = stats.user_speech_count(m.id, user_id)
 
             # 查询是否有报告
-            has_report = db.query(LearningReport).filter(
-                LearningReport.meeting_id == m.id,
-                LearningReport.user_id == user_id
-            ).first() is not None
+            has_report = (
+                db.query(LearningReport)
+                .filter(LearningReport.meeting_id == m.id, LearningReport.user_id == user_id)
+                .first()
+                is not None
+            )
 
-            history.append({
-                "meeting_id": m.id,
-                "class_code": m.class_code,
-                "topic": m.topic,
-                "status": m.status,
-                "start_time": start_time.isoformat() if start_time else None,
-                "end_time": end_time.isoformat() if end_time else None,
-                "started_at": m.started_at.isoformat() if m.started_at else None,
-                "ended_at": m.ended_at.isoformat() if m.ended_at else None,
-                "duration_minutes": duration_minutes,
-                "participant_count": participant_count,
-                "speech_count": user_speech_count,
-                "has_report": has_report,
-                "created_at": m.created_at.isoformat()
-            })
+            history.append(
+                {
+                    "meeting_id": m.id,
+                    "class_code": m.class_code,
+                    "topic": m.topic,
+                    "status": m.status,
+                    "start_time": start_time.isoformat() if start_time else None,
+                    "end_time": end_time.isoformat() if end_time else None,
+                    "started_at": m.started_at.isoformat() if m.started_at else None,
+                    "ended_at": m.ended_at.isoformat() if m.ended_at else None,
+                    "duration_minutes": duration_minutes,
+                    "participant_count": participant_count,
+                    "speech_count": user_speech_count,
+                    "has_report": has_report,
+                    "created_at": m.created_at.isoformat(),
+                }
+            )
 
         # 按时间倒序排列
         history.sort(key=lambda x: x["created_at"], reverse=True)
@@ -97,9 +105,10 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
     try:
         meeting_ids = [
             int(meeting_id)
-            for (meeting_id,) in db.query(Transcript.meeting_id).filter(
-                Transcript.user_id == user_id
-            ).distinct().all()
+            for (meeting_id,) in db.query(Transcript.meeting_id)
+            .filter(Transcript.user_id == user_id)
+            .distinct()
+            .all()
         ]
         if not meeting_ids:
             return {
@@ -109,7 +118,7 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
                     "completedClasses": 0,
                     "createdClasses": 0,
                     "studyHours": "0.0",
-                }
+                },
             }
 
         meetings = db.query(Meeting).filter(Meeting.id.in_(meeting_ids)).all()
@@ -140,7 +149,7 @@ async def get_student_home_stats(user_id: int, db: Session = Depends(get_db)):
                 "completedClasses": completed_classes,
                 "createdClasses": created_classes,
                 "studyHours": f"{(total_minutes / 60):.1f}",
-            }
+            },
         }
     except Exception as e:
         print(f"[ERROR] 鑾峰彇棣栭〉缁熻澶辫触: {e}")
@@ -152,10 +161,11 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
     """获取老师的活跃课堂"""
     try:
         # 查询活跃课堂
-        meetings = db.query(Meeting).filter(
-            Meeting.teacher_id == teacher_id,
-            Meeting.status == RUNNING
-        ).all()
+        meetings = (
+            db.query(Meeting)
+            .filter(Meeting.teacher_id == teacher_id, Meeting.status == RUNNING)
+            .all()
+        )
 
         meeting_ids = [int(m.id) for m in meetings]
         stats = ClassStatsService(db)
@@ -178,15 +188,17 @@ async def get_active_groups(teacher_id: int, db: Session = Depends(get_db)):
                 else "暂无数据"
             )
 
-            groups.append({
-                "meeting_id": m.id,
-                "class_code": m.class_code,
-                "topic": m.topic,
-                "member_count": member_count,
-                "speech_count": speech_count,
-                "score": score,
-                "status_tag": status_tag
-            })
+            groups.append(
+                {
+                    "meeting_id": m.id,
+                    "class_code": m.class_code,
+                    "topic": m.topic,
+                    "member_count": member_count,
+                    "speech_count": speech_count,
+                    "score": score,
+                    "status_tag": status_tag,
+                }
+            )
 
         # 按分数排序（暂无数据的课堂排最后）
         groups.sort(key=lambda x: x["score"] if x["score"] is not None else -1, reverse=True)

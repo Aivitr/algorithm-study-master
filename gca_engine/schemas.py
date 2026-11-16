@@ -30,13 +30,13 @@ SIX_METRICS = (
 class AnalysisStatus(str, Enum):
     """分析状态。全项目只允许这 7 种。"""
 
-    SUCCESS = "success"                      # 正常完成
-    EMPTY_TRANSCRIPT = "empty_transcript"    # 没有任何发言
-    SINGLE_SPEAKER = "single_speaker"        # 只有一名学生（指标仍会计算）
+    SUCCESS = "success"  # 正常完成
+    EMPTY_TRANSCRIPT = "empty_transcript"  # 没有任何发言
+    SINGLE_SPEAKER = "single_speaker"  # 只有一名学生（指标仍会计算）
     INSUFFICIENT_DATA = "insufficient_data"  # 发言太少（<2 条）或全部为空
-    INVALID_INPUT = "invalid_input"          # 输入格式不对
-    NOT_FOUND = "not_found"                  # 找不到这个 meeting_id
-    INTERNAL_ERROR = "internal_error"        # 引擎内部出错
+    INVALID_INPUT = "invalid_input"  # 输入格式不对
+    NOT_FOUND = "not_found"  # 找不到这个 meeting_id
+    INTERNAL_ERROR = "internal_error"  # 引擎内部出错
 
 
 @dataclass
@@ -117,7 +117,7 @@ class GroupAnalysisResult:
     meeting_id: str
     status: str
     student_metrics: dict[str, dict[str, float]]  # speaker_id -> 六指标
-    group_metrics: dict[str, dict[str, float]]    # 指标名 -> mean/min/max/std/count
+    group_metrics: dict[str, dict[str, float]]  # 指标名 -> mean/min/max/std/count
     timeline: dict | None = None
     metadata: dict = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)

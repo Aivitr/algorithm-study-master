@@ -30,8 +30,7 @@ class KnowledgeGraphService:
             {"nodes": [...], "edges": [...]}
         """
         conversation_text = "\n".join(
-            f"{c.get('username', '')}: {c.get('content', '')}"
-            for c in conversations
+            f"{c.get('username', '')}: {c.get('content', '')}" for c in conversations
         )
 
         existing_desc = ""
@@ -177,11 +176,7 @@ class KnowledgeGraphService:
                 node["first_mentioned"] = datetime.now().isoformat()
             return new_graph
 
-        merged_nodes = {
-            n["id"]: n
-            for n in existing_graph.get("nodes", [])
-            if n.get("id")
-        }
+        merged_nodes = {n["id"]: n for n in existing_graph.get("nodes", []) if n.get("id")}
         merged_edges = {
             f"{e['source']}_{e['target']}_{e['relation']}": e
             for e in existing_graph.get("edges", [])
@@ -196,9 +191,7 @@ class KnowledgeGraphService:
                 )
                 existing_speakers = set(merged_nodes[node_id].get("speakers", []))
                 new_speakers = set(speakers.get(node_id, []))
-                merged_nodes[node_id]["speakers"] = list(
-                    existing_speakers | new_speakers
-                )
+                merged_nodes[node_id]["speakers"] = list(existing_speakers | new_speakers)
             else:
                 new_node["frequency"] = 1
                 new_node["speakers"] = speakers.get(node_id, [])
@@ -206,9 +199,7 @@ class KnowledgeGraphService:
                 merged_nodes[node_id] = new_node
 
         for new_edge in new_graph.get("edges", []):
-            edge_key = (
-                f"{new_edge['source']}_{new_edge['target']}_{new_edge['relation']}"
-            )
+            edge_key = f"{new_edge['source']}_{new_edge['target']}_{new_edge['relation']}"
             if edge_key in merged_edges:
                 current_weight = float(merged_edges[edge_key].get("weight", 0.5))
                 merged_edges[edge_key]["weight"] = min(current_weight + 0.1, 1.0)
@@ -260,8 +251,7 @@ class KnowledgeGraphService:
                     },
                     "tooltip": {
                         "formatter": (
-                            f"{label}<br/>出现次数: {frequency}"
-                            f"<br/>{node.get('description', '')}"
+                            f"{label}<br/>出现次数: {frequency}<br/>{node.get('description', '')}"
                         )
                     },
                 }

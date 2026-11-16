@@ -32,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ------------------------------------------------- 搬迁契约（阶段 3）
 
+
 def test_manager_classes_live_in_app_realtime():
     """两个管理器的类定义必须住在 app/realtime/ 下。
 
@@ -198,14 +199,21 @@ def test_group_silent_uses_wall_clock(fresh_manager):
 @pytest.mark.parametrize(
     "counts,expected",
     [
-        ({}, []),                                                  # 无人发言
-        ({"甲同学": 1}, []),                                        # 只有一人在线
-        ({"甲同学": 1, "乙同学": 0}, ["乙同学"]),                     # 条件1：他人已发言，自己零发言
-        ({"甲同学": 5, "乙同学": 5}, []),                            # 势均力敌
-        ({"甲同学": 10, "乙同学": 1}, ["乙同学"]),                    # 条件2：远低于他人均值
-        ({"甲同学": 0, "乙同学": 0}, []),                            # 都没发言，不触发
+        ({}, []),  # 无人发言
+        ({"甲同学": 1}, []),  # 只有一人在线
+        ({"甲同学": 1, "乙同学": 0}, ["乙同学"]),  # 条件1：他人已发言，自己零发言
+        ({"甲同学": 5, "乙同学": 5}, []),  # 势均力敌
+        ({"甲同学": 10, "乙同学": 1}, ["乙同学"]),  # 条件2：远低于他人均值
+        ({"甲同学": 0, "乙同学": 0}, []),  # 都没发言，不触发
     ],
-    ids=["nobody-spoke", "single-member", "one-silent", "balanced", "far-below-average", "all-silent"],
+    ids=[
+        "nobody-spoke",
+        "single-member",
+        "one-silent",
+        "balanced",
+        "far-below-average",
+        "all-silent",
+    ],
 )
 def test_quiet_member_detection(fresh_manager, counts, expected):
     """发言偏少成员的判定。
@@ -240,15 +248,17 @@ def running_ws_meetings(local_app, seeded_ids):
     db = SessionLocal()
     try:
         for meeting_id in meeting_ids:
-            db.add(Meeting(
-                id=meeting_id,
-                class_code=f"WS-{meeting_id}",
-                teacher_id=seeded_ids["teacher_id"],
-                topic=f"WebSocket 测试课堂 {meeting_id}",
-                status="running",
-                started_at=datetime.now(),
-                knowledge_points=[],
-            ))
+            db.add(
+                Meeting(
+                    id=meeting_id,
+                    class_code=f"WS-{meeting_id}",
+                    teacher_id=seeded_ids["teacher_id"],
+                    topic=f"WebSocket 测试课堂 {meeting_id}",
+                    status="running",
+                    started_at=datetime.now(),
+                    knowledge_points=[],
+                )
+            )
         db.commit()
     finally:
         db.close()
@@ -293,13 +303,15 @@ def ws_auth(local_app, running_ws_meetings):
             token, row = create_session(db, user.id, device_id)
             tokens[username] = token
             for meeting_id in running_ws_meetings:
-                db.add(ActiveClassroomSession(
-                    session_id=row.id,
-                    user_id=user.id,
-                    device_id=device_id,
-                    meeting_id=meeting_id,
-                    claimed_at=datetime.now(),
-                ))
+                db.add(
+                    ActiveClassroomSession(
+                        session_id=row.id,
+                        user_id=user.id,
+                        device_id=device_id,
+                        meeting_id=meeting_id,
+                        claimed_at=datetime.now(),
+                    )
+                )
             db.commit()
         yield tokens
     finally:
@@ -309,9 +321,9 @@ def ws_auth(local_app, running_ws_meetings):
         db.query(UserSession).filter(
             UserSession.device_id.in_([item[2] for item in accounts])
         ).delete(synchronize_session=False)
-        db.query(User).filter(
-            User.student_id.in_([item[1] for item in accounts])
-        ).delete(synchronize_session=False)
+        db.query(User).filter(User.student_id.in_([item[1] for item in accounts])).delete(
+            synchronize_session=False
+        )
         db.commit()
         db.close()
 
@@ -319,9 +331,7 @@ def ws_auth(local_app, running_ws_meetings):
 def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings, ws_auth):
     """连上即广播一条 `member_update / join`，含当前在线名单。"""
     with TestClient(local_app) as client:
-        with client.websocket_connect(
-            f"/ws/测试同学甲/7001?token={ws_auth['测试同学甲']}"
-        ) as ws:
+        with client.websocket_connect(f"/ws/测试同学甲/7001?token={ws_auth['测试同学甲']}") as ws:
             message = ws.receive_json()
 
     assert message["type"] == "member_update"
@@ -333,9 +343,7 @@ def test_websocket_join_broadcasts_member_update(local_app, running_ws_meetings,
 def test_websocket_ping_responds_pong(local_app, running_ws_meetings, ws_auth):
     """文本 `ping` 必须得到文本 `pong`——这是前端判活的心跳。"""
     with TestClient(local_app) as client:
-        with client.websocket_connect(
-            f"/ws/测试同学乙/7002?token={ws_auth['测试同学乙']}"
-        ) as ws:
+        with client.websocket_connect(f"/ws/测试同学乙/7002?token={ws_auth['测试同学乙']}") as ws:
             ws.receive_json()  # 先消费 join 广播
 
             ws.send_text("ping")
@@ -352,14 +360,10 @@ def test_two_clients_in_same_meeting_see_each_other(local_app, running_ws_meetin
     token_a = ws_auth["测试同学甲"]
     token_b = ws_auth["测试同学乙"]
     with TestClient(local_app) as client:
-        with client.websocket_connect(
-            f"/ws/测试同学甲/7003?token={token_a}"
-        ) as ws_a:
+        with client.websocket_connect(f"/ws/测试同学甲/7003?token={token_a}") as ws_a:
             assert ws_a.receive_json()["online_members"] == ["测试同学甲"]
 
-            with client.websocket_connect(
-                f"/ws/测试同学乙/7003?token={token_b}"
-            ) as ws_b:
+            with client.websocket_connect(f"/ws/测试同学乙/7003?token={token_b}") as ws_b:
                 joined = ws_b.receive_json()
                 assert joined["username"] == "测试同学乙"
                 assert joined["online_members"] == ["测试同学甲", "测试同学乙"]
@@ -383,14 +387,10 @@ def test_clients_in_different_meetings_are_isolated(local_app, running_ws_meetin
     token_a = ws_auth["测试同学甲"]
     token_b = ws_auth["测试同学乙"]
     with TestClient(local_app) as client:
-        with client.websocket_connect(
-            f"/ws/测试同学甲/7004?token={token_a}"
-        ) as ws_a:
+        with client.websocket_connect(f"/ws/测试同学甲/7004?token={token_a}") as ws_a:
             assert ws_a.receive_json()["online_members"] == ["测试同学甲"]
 
-            with client.websocket_connect(
-                f"/ws/测试同学乙/7005?token={token_b}"
-            ) as ws_b:
+            with client.websocket_connect(f"/ws/测试同学乙/7005?token={token_b}") as ws_b:
                 joined = ws_b.receive_json()
 
     assert joined["username"] == "测试同学乙"

@@ -55,9 +55,7 @@ def _prepare_import_path(model_dir: Path) -> None:
 def _load_model(wespeaker_module, model_dir: Path):
     metadata = _load_metadata(model_dir)
     model_name = (
-        os.getenv("RESEARCH_WESPEAKER_MODEL_NAME")
-        or metadata.get("model_name")
-        or "chinese"
+        os.getenv("RESEARCH_WESPEAKER_MODEL_NAME") or metadata.get("model_name") or "chinese"
     )
     os.environ.setdefault("WESPEAKER_HOME", str(model_dir / "pretrained"))
 

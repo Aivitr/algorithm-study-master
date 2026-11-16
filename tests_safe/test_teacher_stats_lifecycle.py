@@ -74,9 +74,7 @@ def test_created_class_is_not_scored(client, seeded_ids, created_meeting):
     assert row["score_color"] == "blue"
 
 
-def test_created_class_is_excluded_from_risk_and_average(
-    client, seeded_ids, created_meeting
-):
+def test_created_class_is_excluded_from_risk_and_average(client, seeded_ids, created_meeting):
     stats = client.get(f"/api/teacher-stats/{seeded_ids['teacher_id']}").json()["stats"]
     classes = client.get(f"/api/teacher-classes/{seeded_ids['teacher_id']}").json()["classes"]
 

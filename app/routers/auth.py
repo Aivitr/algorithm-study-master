@@ -29,12 +29,13 @@ from app.services.session_service import create_session
 
 router = APIRouter()
 
+
 @router.post("/api/register")
 async def register(
     student_id: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
-    role: str = Form("student")
+    role: str = Form("student"),
 ):
     """User registration"""
     student_id = student_id.strip()
@@ -43,10 +44,11 @@ async def register(
 
     try:
         print(f"[NOTE] Register request - ID: {student_id}, Role: {role}")
-    except:
-        print(f"[NOTE] Register request received")
+    except Exception:
+        print("[NOTE] Register request received")
 
     import pymssql
+
     try:
         conn = pymssql.connect(
             server=os.getenv("DB_HOST", ""),
@@ -54,9 +56,9 @@ async def register(
             user=os.getenv("DB_USER", ""),
             password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", ""),
-            charset='utf8',
+            charset="utf8",
             timeout=10,
-            login_timeout=10
+            login_timeout=10,
         )
         cursor = conn.cursor()
 
@@ -64,21 +66,21 @@ async def register(
         print("[SAVE] Executing INSERT...")
         cursor.execute(
             "INSERT INTO users (student_id, username, password, role, created_at) VALUES (%s, %s, %s, %s, GETDATE())",
-            (student_id, username, password, role)
+            (student_id, username, password, role),
         )
         conn.commit()
         cursor.close()
         conn.close()
 
-        print(f"[OK] Registration successful")
+        print("[OK] Registration successful")
         return {"status": "success", "message": "注册成功"}
-    except pymssql.IntegrityError as e:
+    except pymssql.IntegrityError:
         print(f"[ERROR] Student ID already exists: {student_id}")
         return {"status": "error", "message": "学号/用户名已存在"}
     except Exception as e:
         error_msg = str(e)
         if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
-            print(f"[ERROR] Database connection timeout")
+            print("[ERROR] Database connection timeout")
             return {"status": "error", "message": "数据库连接超时，请重试"}
         print(f"[ERROR] Registration failed: {e}")
         return {"status": "error", "message": f"注册失败: {error_msg}"}
@@ -94,11 +96,13 @@ async def api_login(
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
 
-    import pymssql
     import time
+
+    import pymssql
+
     try:
         start_time = time.time()
-        print(f"[DB] Connecting...")
+        print("[DB] Connecting...")
 
         conn = pymssql.connect(
             server=os.getenv("DB_HOST", ""),
@@ -106,9 +110,9 @@ async def api_login(
             user=os.getenv("DB_USER", ""),
             password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", ""),
-            charset='utf8',
+            charset="utf8",
             timeout=10,
-            login_timeout=10
+            login_timeout=10,
         )
         print(f"[OK] Connected: {time.time() - start_time:.2f}s")
 
@@ -118,7 +122,7 @@ async def api_login(
         query_start = time.time()
         cursor.execute(
             "SELECT TOP 1 id, student_id, username, password, role, created_at FROM users WHERE student_id = %s",
-            (student_id,)
+            (student_id,),
         )
         user = cursor.fetchone()
         print(f"[OK] Query done: {time.time() - query_start:.2f}s")
@@ -130,7 +134,7 @@ async def api_login(
             print(f"[ERROR] User not found: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
 
-        if user['password'] != password:
+        if user["password"] != password:
             print(f"[ERROR] Wrong password: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
 
@@ -149,7 +153,9 @@ async def api_login(
                 "session_token": token,
                 "session_id": session_row.id,
                 "device_id": session_row.device_id,
-                "expires_at": session_row.expires_at.isoformat() if session_row.expires_at else None,
+                "expires_at": session_row.expires_at.isoformat()
+                if session_row.expires_at
+                else None,
             }
         finally:
             session_db.close()
@@ -157,11 +163,11 @@ async def api_login(
         return {
             "status": "success",
             "user": {
-                "id": user['id'],
-                "student_id": user['student_id'],
-                "username": user['username'],
-                "role": user['role'],
-                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                "id": user["id"],
+                "student_id": user["student_id"],
+                "username": user["username"],
+                "role": user["role"],
+                "created_at": user["created_at"].isoformat() if user["created_at"] else None,
             },
             **session_payload,
         }
@@ -188,7 +194,7 @@ async def login(
     material_url: str = Form(None),  # 材料URL
     template_path: str = Form(None),  # 模板路径
     student_id: str = Form(None),  # 用 student_id 查找用户，避免中文编码问题
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     统一登录接口（兼容前端）
@@ -203,10 +209,10 @@ async def login(
         user = db.query(User).filter(User.username == username).first()
     if not user:
         return {"status": "error", "message": "用户不存在，请先注册"}
-    
+
     # 课堂码唯一：先查真实课堂，再按生命周期决定能否加入/复用。
     meeting = db.query(Meeting).filter(Meeting.class_code == class_code).first()
-    
+
     if meeting:
         if meeting.status == ENDED:
             return {"status": "error", "message": "课堂已经结束，不能再次加入"}
@@ -239,7 +245,7 @@ async def login(
         # 验证主题
         if not topic:
             return {"status": "error", "message": "缺少主题"}
-        
+
         # 生成教学目标
         print(f"[AI] 生成教学目标: {topic}")
 
@@ -250,6 +256,7 @@ async def login(
         if material_file:
             try:
                 import os
+
                 # 创建上传目录
                 upload_dir = "uploads"
                 os.makedirs(upload_dir, exist_ok=True)
@@ -260,22 +267,21 @@ async def login(
                     content = await material_file.read()
                     f.write(content)
 
-                materials.append({
-                    "type": "file",
-                    "filename": material_file.filename,
-                    "path": file_path,
-                    "size": len(content)
-                })
+                materials.append(
+                    {
+                        "type": "file",
+                        "filename": material_file.filename,
+                        "path": file_path,
+                        "size": len(content),
+                    }
+                )
                 print(f"已保存 文件: {material_file.filename}")
             except Exception as e:
                 print(f"[ERROR] 文件上传失败: {e}")
 
         # 2. 添加URL
         if material_url:
-            materials.append({
-                "type": "url",
-                "url": material_url
-            })
+            materials.append({"type": "url", "url": material_url})
             print(f"[DB] 添加URL: {material_url}")
 
         # 3. 处理reference_materials参数（兼容旧版）
@@ -286,7 +292,7 @@ async def login(
                     materials.extend(old_materials)
                 else:
                     materials.append(old_materials)
-            except:
+            except Exception:
                 materials.append({"type": "text", "content": reference_materials})
 
         # 调用LLM生成目标
@@ -297,7 +303,7 @@ async def login(
                 goals = [
                     {"id": 1, "desc": "理解基本概念", "status": "pending"},
                     {"id": 2, "desc": "掌握核心方法", "status": "pending"},
-                    {"id": 3, "desc": "应用实践练习", "status": "pending"}
+                    {"id": 3, "desc": "应用实践练习", "status": "pending"},
                 ]
                 print("[WARN] LLM返回空，使用默认目标")
             else:
@@ -307,7 +313,7 @@ async def login(
             goals = [
                 {"id": 1, "desc": "理解基本概念", "status": "pending"},
                 {"id": 2, "desc": "掌握核心方法", "status": "pending"},
-                {"id": 3, "desc": "应用实践练习", "status": "pending"}
+                {"id": 3, "desc": "应用实践练习", "status": "pending"},
             ]
 
         # 生成教学设计（可选）
@@ -316,13 +322,13 @@ async def login(
             "phases": [
                 {"phase_name": "导入阶段", "duration": 10, "tasks": ["激活先验知识", "引入主题"]},
                 {"phase_name": "探究阶段", "duration": 25, "tasks": ["小组讨论", "实践操作"]},
-                {"phase_name": "总结阶段", "duration": 10, "tasks": ["归纳总结", "反思评价"]}
+                {"phase_name": "总结阶段", "duration": 10, "tasks": ["归纳总结", "反思评价"]},
             ],
             "division_strategy": {
                 "roles": ["记录员", "发言人", "协调员"],
-                "responsibilities": "明确分工，协作完成"
+                "responsibilities": "明确分工，协作完成",
             },
-            "evaluation_criteria": ["参与度", "贡献度", "协作能力"]
+            "evaluation_criteria": ["参与度", "贡献度", "协作能力"],
         }
 
         # 创建会议
@@ -334,7 +340,7 @@ async def login(
             teaching_design=teaching_design,
             knowledge_points=goals,
             status=CREATED,
-            template_path=template_path  # 保存模板路径
+            template_path=template_path,  # 保存模板路径
         )
         db.add(meeting)
         db.commit()
@@ -351,5 +357,5 @@ async def login(
             "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
             "started_at": None,
             "ended_at": None,
-            "message": "课堂创建成功"
+            "message": "课堂创建成功",
         }

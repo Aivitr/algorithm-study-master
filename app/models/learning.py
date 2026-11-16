@@ -2,15 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Float
-from sqlalchemy import ForeignKey
-from sqlalchemy import Index
-from sqlalchemy import Integer
-from sqlalchemy import JSON
-from sqlalchemy import String
-from sqlalchemy import Text
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.mssql import NVARCHAR
 
 from app.models.base import Base
@@ -24,6 +16,7 @@ class LearningReport(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     report_data = Column(JSON, nullable=False)  # [EMOJI]
     created_at = Column(DateTime, default=datetime.now)
+
 
 # [EMOJI]: [EMOJI]
 class Exercise(Base):
@@ -39,6 +32,7 @@ class Exercise(Base):
     difficulty = Column(Float)  # [EMOJI]0-1
     estimated_time = Column(Integer)  # [EMOJI]([EMOJI])
 
+
 # [EMOJI]: [EMOJI]
 class StudentAnswer(Base):
     __tablename__ = "student_answers"
@@ -48,6 +42,7 @@ class StudentAnswer(Base):
     answer_content = Column(Text)
     is_correct = Column(Integer, nullable=True)  # 1[EMOJI]/0[EMOJI]/null[EMOJI]
     submitted_at = Column(DateTime, default=datetime.now)
+
 
 # [EMOJI]: [EMOJI]
 class ReportTemplate(Base):
@@ -59,4 +54,5 @@ class ReportTemplate(Base):
     is_default = Column(Integer, default=0)  # [EMOJI]
     created_at = Column(DateTime, default=datetime.now)
 
-Index('idx_exercise_report', Exercise.report_id)
+
+Index("idx_exercise_report", Exercise.report_id)

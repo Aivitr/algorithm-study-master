@@ -5,7 +5,6 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 
-
 deepseek_client = AsyncOpenAI(
     api_key=settings.llm.api_key,
     base_url=settings.llm.base_url,

@@ -2,13 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Float
-from sqlalchemy import ForeignKey
-from sqlalchemy import Index
-from sqlalchemy import Integer
-from sqlalchemy import String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.mssql import NVARCHAR
 from sqlalchemy.orm import relationship
 
@@ -38,4 +32,5 @@ class Transcript(Base):
     created_at = Column(DateTime, default=datetime.now)
     user = relationship("User")
 
-Index('idx_transcript_meeting_user', Transcript.meeting_id, Transcript.user_id)
+
+Index("idx_transcript_meeting_user", Transcript.meeting_id, Transcript.user_id)
