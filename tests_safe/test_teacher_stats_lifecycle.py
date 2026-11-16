@@ -64,8 +64,10 @@ def empty_running_meeting(seeded_ids):
             cleanup.close()
 
 
-def test_created_class_is_not_scored(client, seeded_ids, created_meeting):
-    body = client.get(f"/api/teacher-classes/{seeded_ids['teacher_id']}").json()
+def test_created_class_is_not_scored(client, seeded_ids, created_meeting, teacher_headers):
+    body = client.get(
+        f"/api/teacher-classes/{seeded_ids['teacher_id']}", headers=teacher_headers
+    ).json()
     row = {item["meeting_id"]: item for item in body["classes"]}[created_meeting]
 
     assert row["status"] == "created"
@@ -74,9 +76,15 @@ def test_created_class_is_not_scored(client, seeded_ids, created_meeting):
     assert row["score_color"] == "blue"
 
 
-def test_created_class_is_excluded_from_risk_and_average(client, seeded_ids, created_meeting):
-    stats = client.get(f"/api/teacher-stats/{seeded_ids['teacher_id']}").json()["stats"]
-    classes = client.get(f"/api/teacher-classes/{seeded_ids['teacher_id']}").json()["classes"]
+def test_created_class_is_excluded_from_risk_and_average(
+    client, seeded_ids, created_meeting, teacher_headers
+):
+    stats = client.get(
+        f"/api/teacher-stats/{seeded_ids['teacher_id']}", headers=teacher_headers
+    ).json()["stats"]
+    classes = client.get(
+        f"/api/teacher-classes/{seeded_ids['teacher_id']}", headers=teacher_headers
+    ).json()["classes"]
 
     scored = [item for item in classes if item["score"] is not None]
     expected_risk = sum(1 for item in scored if item["score"] < 60)
@@ -89,10 +97,14 @@ def test_created_class_is_excluded_from_risk_and_average(client, seeded_ids, cre
 
 
 def test_empty_running_class_is_not_scored_or_counted_as_risk(
-    client, seeded_ids, empty_running_meeting
+    client, seeded_ids, empty_running_meeting, teacher_headers
 ):
-    stats = client.get(f"/api/teacher-stats/{seeded_ids['teacher_id']}").json()["stats"]
-    classes = client.get(f"/api/teacher-classes/{seeded_ids['teacher_id']}").json()["classes"]
+    stats = client.get(
+        f"/api/teacher-stats/{seeded_ids['teacher_id']}", headers=teacher_headers
+    ).json()["stats"]
+    classes = client.get(
+        f"/api/teacher-classes/{seeded_ids['teacher_id']}", headers=teacher_headers
+    ).json()["classes"]
     row = {item["meeting_id"]: item for item in classes}[empty_running_meeting]
 
     assert row["score"] is None

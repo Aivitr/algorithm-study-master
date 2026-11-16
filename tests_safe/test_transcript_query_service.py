@@ -65,9 +65,9 @@ def test_counts_by_user(seeded_ids):
     assert counts == {seeded_ids["student_id"]: 3, seeded_ids["student_id_b"]: 3}
 
 
-def test_route_response_shape_is_pinned(client):
+def test_route_response_shape_is_pinned(client, teacher_headers):
     """GET /api/transcripts/{meeting_id} 的字段集合必须保持不变。"""
-    resp = client.get("/api/transcripts/1")
+    resp = client.get("/api/transcripts/1", headers=teacher_headers)
     assert resp.status_code == 200
     body = resp.json()
 
@@ -93,6 +93,6 @@ def test_route_response_shape_is_pinned(client):
     assert items[0]["action"] == "举手"
 
 
-def test_route_limit_is_pinned(client):
-    body = client.get("/api/transcripts/1", params={"limit": 1}).json()
+def test_route_limit_is_pinned(client, teacher_headers):
+    body = client.get("/api/transcripts/1", params={"limit": 1}, headers=teacher_headers).json()
     assert len(body["transcripts"]) == 1

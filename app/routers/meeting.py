@@ -30,7 +30,7 @@ from app.services.meeting_context_service import MeetingContextService
 from app.services.session_service import SessionContext, require_session
 from app.services.transcript_query_service import TranscriptQueryService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_session)])
 
 
 @router.get("/summary")
