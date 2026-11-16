@@ -104,8 +104,9 @@ def local_app():
 @pytest.fixture(scope="session")
 def seeded_ids(local_app):
     """写入合成数据，返回固定 ID 表。"""
-    from app.core import database
     from fixtures import seed_all
+
+    from app.core import database
 
     db = database.SessionLocal()
     try:

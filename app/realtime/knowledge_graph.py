@@ -13,39 +13,41 @@ from app.core.meeting_state import RUNNING
 from app.models import KnowledgeGraph, Meeting, Transcript
 from app.services.knowledge_graph_service import kg_service
 
+
 def update_knowledge_graph(meeting_id: int, db: Session):
     """🧠"""
     try:
         # 🧠10🧠
-        transcripts = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.id.desc()).limit(10).all()
-        
+        transcripts = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.id.desc())
+            .limit(10)
+            .all()
+        )
+
         if len(transcripts) < 5:  # 🧠 5🧠
             return None
-        
+
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting or meeting.status != RUNNING:
             return None
 
         # 构建对话历史
         conversations = [
-            {"username": t.user.username, "content": t.content}
-            for t in reversed(transcripts)
+            {"username": t.user.username, "content": t.content} for t in reversed(transcripts)
         ]
 
         # 查询现有知识图谱
-        existing_kg = db.query(KnowledgeGraph).filter(
-            KnowledgeGraph.meeting_id == meeting_id
-        ).first()
+        existing_kg = (
+            db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
+        )
 
         existing_graph = existing_kg.graph_data if existing_kg else None
 
         # LLM提取新概念
         new_graph = kg_service.extract_concepts_from_conversation(
-            topic=meeting.topic,
-            conversations=conversations,
-            existing_graph=existing_graph
+            topic=meeting.topic, conversations=conversations, existing_graph=existing_graph
         )
 
         if not new_graph.get("nodes"):
@@ -64,15 +66,12 @@ def update_knowledge_graph(meeting_id: int, db: Session):
             existing_kg.graph_data = merged_graph
             existing_kg.updated_at = datetime.now()
         else:
-            existing_kg = KnowledgeGraph(
-                meeting_id=meeting_id,
-                graph_data=merged_graph
-            )
+            existing_kg = KnowledgeGraph(meeting_id=meeting_id, graph_data=merged_graph)
             db.add(existing_kg)
-        
+
         db.commit()
         return merged_graph
-        
+
     except Exception as e:
         print(f"知识图谱更新失败: {e}")
         return None

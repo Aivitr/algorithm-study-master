@@ -2,14 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Float
-from sqlalchemy import ForeignKey
-from sqlalchemy import Index
-from sqlalchemy import Integer
-from sqlalchemy import JSON
-from sqlalchemy import String
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -24,10 +17,11 @@ class EmotionLog(Base):
     emotion_type = Column(String(100))
     intensity = Column(Float)
     snapshot_path = Column(String(500))  # [EMOJI]URL[EMOJI]OSS[EMOJI]
-    video_url = Column(String(500))      # [EMOJI]URL[EMOJI]OSS[EMOJI]
+    video_url = Column(String(500))  # [EMOJI]URL[EMOJI]OSS[EMOJI]
     video_start_time = Column(Float, default=0)  # [EMOJI]
     created_at = Column(DateTime, default=datetime.now)
     user = relationship("User")
+
 
 # [EMOJI]: [EMOJI]
 class MentalHealthAssessment(Base):
@@ -40,4 +34,5 @@ class MentalHealthAssessment(Base):
     intervention_time = Column(DateTime, nullable=True)  # [EMOJI]
     created_at = Column(DateTime, default=datetime.now)
 
-Index('idx_emotion_meeting_user', EmotionLog.meeting_id, EmotionLog.user_id)
+
+Index("idx_emotion_meeting_user", EmotionLog.meeting_id, EmotionLog.user_id)

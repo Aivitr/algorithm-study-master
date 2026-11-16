@@ -225,9 +225,7 @@ def test_end_class_is_idempotent(
 
     db = SessionLocal()
     try:
-        first_ended_at = (
-            db.query(Meeting).filter(Meeting.id == lifecycle_meeting).one().ended_at
-        )
+        first_ended_at = db.query(Meeting).filter(Meeting.id == lifecycle_meeting).one().ended_at
     finally:
         db.close()
     assert first_ended_at is not None
@@ -278,9 +276,7 @@ def test_end_class_freezes_active_votes(
 
         db = SessionLocal()
         try:
-            record = (
-                db.query(ViewpointVote).filter(ViewpointVote.id == vote_id).one()
-            )
+            record = db.query(ViewpointVote).filter(ViewpointVote.id == vote_id).one()
             assert record.status == "closed"
             assert record.closed_at is not None
         finally:
@@ -288,16 +284,17 @@ def test_end_class_freezes_active_votes(
     finally:
         cleanup = SessionLocal()
         try:
-            cleanup.query(ViewpointVote).filter(
-                ViewpointVote.id == vote_id
-            ).delete()
+            cleanup.query(ViewpointVote).filter(ViewpointVote.id == vote_id).delete()
             cleanup.commit()
         finally:
             cleanup.close()
 
 
 def test_end_class_closes_realtime_connections(
-    client, lifecycle_meeting, lifecycle_broadcasts, lifecycle_report_schedules,
+    client,
+    lifecycle_meeting,
+    lifecycle_broadcasts,
+    lifecycle_report_schedules,
     monkeypatch,
 ):
     import app.routers.classroom_ops as classroom_ops
@@ -330,9 +327,7 @@ def test_end_class_closes_realtime_connections(
 
     monkeypatch.setattr(classroom_ops, "asr_manager", asr)
     monkeypatch.setattr(classroom_ops, "signal_manager", signal)
-    classroom_ops.manager.meeting_connections[lifecycle_meeting] = {
-        "李同学": chat_ws
-    }
+    classroom_ops.manager.meeting_connections[lifecycle_meeting] = {"李同学": chat_ws}
 
     try:
         assert _start(client, lifecycle_meeting).json()["status"] == "success"
@@ -358,17 +353,13 @@ def test_ended_class_cannot_be_restarted(client, lifecycle_meeting, lifecycle_br
 
 
 def test_created_class_rejects_running_only_operation(client, lifecycle_meeting):
-    response = client.post(
-        "/api/quick-decompose", data={"meeting_id": lifecycle_meeting}
-    )
+    response = client.post("/api/quick-decompose", data={"meeting_id": lifecycle_meeting})
     assert response.status_code == 200
     assert response.json()["status"] == "error"
     assert "尚未开始" in response.json()["message"]
 
 
-def test_student_cannot_start_or_end_class(
-    client, lifecycle_meeting, student_headers
-):
+def test_student_cannot_start_or_end_class(client, lifecycle_meeting, student_headers):
     started = client.post(
         "/api/start-class",
         data={"meeting_id": lifecycle_meeting, "username": "S2026001"},
@@ -396,9 +387,7 @@ def test_student_cannot_start_or_end_class(
         db.close()
 
 
-def test_student_cannot_run_teacher_llm_actions(
-    client, lifecycle_meeting, student_headers
-):
+def test_student_cannot_run_teacher_llm_actions(client, lifecycle_meeting, student_headers):
     assert _start(client, lifecycle_meeting).json()["status"] == "success"
 
     for path in ("/api/quick-decompose", "/api/cluster-viewpoints"):
@@ -414,7 +403,12 @@ def test_student_cannot_run_teacher_llm_actions(
 def test_teacher_actions_require_login(client, lifecycle_meeting):
     assert _start(client, lifecycle_meeting).json()["status"] == "success"
 
-    for path in ("/api/end-class", "/api/quick-decompose", "/api/cluster-viewpoints", "/api/suggest-topic"):
+    for path in (
+        "/api/end-class",
+        "/api/quick-decompose",
+        "/api/cluster-viewpoints",
+        "/api/suggest-topic",
+    ):
         response = client.post(
             path,
             data={"meeting_id": lifecycle_meeting, "username": "T2026001"},

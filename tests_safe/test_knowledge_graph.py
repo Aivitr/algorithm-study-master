@@ -7,9 +7,7 @@ from app.models import KnowledgeGraph
 def _delete_graph(meeting_id: int) -> None:
     db = SessionLocal()
     try:
-        db.query(KnowledgeGraph).filter(
-            KnowledgeGraph.meeting_id == meeting_id
-        ).delete()
+        db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).delete()
         db.commit()
     finally:
         db.close()
@@ -23,17 +21,13 @@ def test_generate_knowledge_graph_requires_login(client, seeded_ids):
     assert response.status_code == 401
 
 
-def test_generate_knowledge_graph_rejects_student(
-    client, seeded_ids, student_headers, monkeypatch
-):
+def test_generate_knowledge_graph_rejects_student(client, seeded_ids, student_headers, monkeypatch):
     import app.services.knowledge_trace_service as trace
 
     def fail_if_called(*args, **kwargs):
         raise AssertionError("学生越权时不应调用 LLM")
 
-    monkeypatch.setattr(
-        trace.kg_service, "extract_concepts_from_conversation", fail_if_called
-    )
+    monkeypatch.setattr(trace.kg_service, "extract_concepts_from_conversation", fail_if_called)
 
     response = client.post(
         f"/api/knowledge-graph/{seeded_ids['meeting_id_active']}/generate",
@@ -67,9 +61,7 @@ def test_generate_knowledge_graph_builds_and_persists(
             "edges": [],
         }
 
-    monkeypatch.setattr(
-        trace.kg_service, "extract_concepts_from_conversation", fake_extract
-    )
+    monkeypatch.setattr(trace.kg_service, "extract_concepts_from_conversation", fake_extract)
     _delete_graph(meeting_id)
 
     try:
@@ -85,9 +77,7 @@ def test_generate_knowledge_graph_builds_and_persists(
 
         db = SessionLocal()
         try:
-            row = db.query(KnowledgeGraph).filter(
-                KnowledgeGraph.meeting_id == meeting_id
-            ).one()
+            row = db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).one()
             assert row.graph_data["nodes"][0]["label"] == "细胞呼吸"
         finally:
             db.close()

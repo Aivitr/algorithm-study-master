@@ -24,9 +24,7 @@ def test_visualize_existing_graph(seeded_ids):
 def test_visualize_missing_graph_returns_empty(seeded_ids):
     db = _session()
     try:
-        result = KnowledgeTraceService(db).visualize(
-            seeded_ids["meeting_id_active"]
-        )
+        result = KnowledgeTraceService(db).visualize(seeded_ids["meeting_id_active"])
     finally:
         db.close()
 
@@ -78,9 +76,7 @@ def test_build_from_transcripts_reuses_kg_service_without_writing(seeded_ids, mo
 
     db = _session()
     try:
-        graph = KnowledgeTraceService(db).build_from_transcripts(
-            seeded_ids["meeting_id"], limit=10
-        )
+        graph = KnowledgeTraceService(db).build_from_transcripts(seeded_ids["meeting_id"], limit=10)
     finally:
         db.close()
 
@@ -122,11 +118,7 @@ def test_extract_prompt_has_no_placeholder_and_normalizes_output(monkeypatch):
             ensure_ascii=False,
         )
         return types.SimpleNamespace(
-            choices=[
-                types.SimpleNamespace(
-                    message=types.SimpleNamespace(content=content)
-                )
-            ]
+            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=content))]
         )
 
     monkeypatch.setattr(

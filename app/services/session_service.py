@@ -64,9 +64,9 @@ def _revoke_sessions(db: Session, sessions: list[UserSession], now: datetime) ->
     for item in sessions:
         item.revoked_at = now
     if ids:
-        db.query(ActiveClassroomSession).filter(
-            ActiveClassroomSession.session_id.in_(ids)
-        ).delete(synchronize_session=False)
+        db.query(ActiveClassroomSession).filter(ActiveClassroomSession.session_id.in_(ids)).delete(
+            synchronize_session=False
+        )
     return ids
 
 
@@ -110,16 +110,14 @@ def create_session(
     return token, row
 
 
-def get_valid_session(db: Session, token: Optional[str], touch: bool = True) -> Optional[UserSession]:
+def get_valid_session(
+    db: Session, token: Optional[str], touch: bool = True
+) -> Optional[UserSession]:
     token = (token or "").strip()
     if not token:
         return None
     now = _now()
-    row = (
-        db.query(UserSession)
-        .filter(UserSession.token_hash == hash_token(token))
-        .first()
-    )
+    row = db.query(UserSession).filter(UserSession.token_hash == hash_token(token)).first()
     if row is None:
         return None
     if row.revoked_at is not None:
@@ -134,7 +132,9 @@ def get_valid_session(db: Session, token: Optional[str], touch: bool = True) -> 
     return row
 
 
-def session_context(db: Session, token: Optional[str], touch: bool = True) -> Optional[SessionContext]:
+def session_context(
+    db: Session, token: Optional[str], touch: bool = True
+) -> Optional[SessionContext]:
     row = get_valid_session(db, token, touch=touch)
     if row is None:
         return None
@@ -259,7 +259,9 @@ def release_all_for_meeting(db: Session, meeting_id: int) -> int:
     return int(deleted or 0)
 
 
-def websocket_context(db: Session, token: Optional[str], meeting_id: int) -> Optional[SessionContext]:
+def websocket_context(
+    db: Session, token: Optional[str], meeting_id: int
+) -> Optional[SessionContext]:
     ctx = session_context(db, token)
     if ctx is None:
         return None

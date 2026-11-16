@@ -64,6 +64,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_dump_path.as_posix()}"
 config = _import_compat("config")  # 先加载 .env
 database = _import_compat("database")
 
+
 def _default_repr(default):
     if default is None:
         return None
@@ -92,47 +93,67 @@ metadata = models.Base.metadata
 tables = []
 for name in sorted(metadata.tables):
     table = metadata.tables[name]
-    tables.append({
-        "table": name,
-        "columns": [
-            {
-                "name": col.name,
-                "type": str(col.type),
-                "nullable": bool(col.nullable),
-                # default 可能是标量，也可能是 datetime.now / list / dict 这类可调用。
-                # 可调用**不能**直接 str()——那会带上内存地址，两次运行必然不同，
-                # 比对就会永远报差异，等于没有比对。取 __name__ 才是稳定的。
-                "default": _default_repr(col.default),
-                "primary_key": bool(col.primary_key),
-                "foreign_keys": sorted(
-                    f"{fk.column.table.name}.{fk.column.name}" for fk in col.foreign_keys
+    tables.append(
+        {
+            "table": name,
+            "columns": [
+                {
+                    "name": col.name,
+                    "type": str(col.type),
+                    "nullable": bool(col.nullable),
+                    # default 可能是标量，也可能是 datetime.now / list / dict 这类可调用。
+                    # 可调用**不能**直接 str()——那会带上内存地址，两次运行必然不同，
+                    # 比对就会永远报差异，等于没有比对。取 __name__ 才是稳定的。
+                    "default": _default_repr(col.default),
+                    "primary_key": bool(col.primary_key),
+                    "foreign_keys": sorted(
+                        f"{fk.column.table.name}.{fk.column.name}" for fk in col.foreign_keys
+                    ),
+                    "index": bool(col.index),
+                    "unique": bool(col.unique),
+                }
+                for col in table.columns
+            ],
+            "indexes": sorted(
+                (
+                    {"name": idx.name, "columns": [c.name for c in idx.columns]}
+                    for idx in table.indexes
                 ),
-                "index": bool(col.index),
-                "unique": bool(col.unique),
-            }
-            for col in table.columns
-        ],
-        "indexes": sorted(
-            ({"name": idx.name, "columns": [c.name for c in idx.columns]}
-             for idx in table.indexes),
-            key=lambda d: (d["name"] or "", d["columns"]),
-        ),
-        "foreign_key_targets": sorted(
-            f"{fk.parent.name}->{fk.column.table.name}.{fk.column.name}"
-            for fk in table.foreign_keys
-        ),
-    })
+                key=lambda d: (d["name"] or "", d["columns"]),
+            ),
+            "foreign_key_targets": sorted(
+                f"{fk.parent.name}->{fk.column.table.name}.{fk.column.name}"
+                for fk in table.foreign_keys
+            ),
+        }
+    )
 
 # 同时记录各模型的公开属性，确认 `relationship` 等描述符仍在
 descriptors = {}
-for attr in ("User", "Meeting", "Transcript", "EmotionLog", "KnowledgeGraph",
-             "GraphNode", "GraphEdge", "LearningReport", "Exercise", "StudentAnswer",
-             "MentalHealthAssessment", "ViewpointVote", "MemberConnection",
-             "ReportTemplate", "AIInsight"):
+for attr in (
+    "User",
+    "Meeting",
+    "Transcript",
+    "EmotionLog",
+    "KnowledgeGraph",
+    "GraphNode",
+    "GraphEdge",
+    "LearningReport",
+    "Exercise",
+    "StudentAnswer",
+    "MentalHealthAssessment",
+    "ViewpointVote",
+    "MemberConnection",
+    "ReportTemplate",
+    "AIInsight",
+):
     cls = getattr(models, attr, None)
-    descriptors[attr] = None if cls is None else sorted(
-        k for k in vars(cls) if not k.startswith("_")
+    descriptors[attr] = (
+        None if cls is None else sorted(k for k in vars(cls) if not k.startswith("_"))
     )
 
-print(json.dumps({"tables": tables, "descriptors": descriptors},
-                 ensure_ascii=False, indent=1, sort_keys=True))
+print(
+    json.dumps(
+        {"tables": tables, "descriptors": descriptors}, ensure_ascii=False, indent=1, sort_keys=True
+    )
+)

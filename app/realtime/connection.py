@@ -5,6 +5,7 @@
 
 import time
 
+
 # === WebSocket 连接管理器 (房间隔离) ===
 class ConnectionManager:
     def __init__(self):
@@ -33,7 +34,7 @@ class ConnectionManager:
         for cx in self.active:
             try:
                 await cx.send_json(msg)
-            except:
+            except Exception:
                 pass
 
     async def broadcast_to_meeting(self, meeting_id, msg):
@@ -79,7 +80,9 @@ class ConnectionManager:
         self.silence_notified[meeting_id] = False
         if meeting_id not in self.speech_counts:
             self.speech_counts[meeting_id] = {}
-        self.speech_counts[meeting_id][username] = self.speech_counts[meeting_id].get(username, 0) + 1
+        self.speech_counts[meeting_id][username] = (
+            self.speech_counts[meeting_id].get(username, 0) + 1
+        )
 
     def get_quiet_members(self, meeting_id, threshold=2):
         """获取发言明显偏少的在线成员（相对比较）

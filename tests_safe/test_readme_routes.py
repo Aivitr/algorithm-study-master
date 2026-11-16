@@ -53,9 +53,7 @@ _ROUTE_SOURCES = (
 
 # 认这些接收者：`@router.get(...)` / `@app.websocket(...)`
 _ROUTE_OWNERS = frozenset({"router", "app"})
-_ROUTE_DECORATORS = frozenset(
-    {"get", "post", "put", "delete", "patch", "websocket", "api_route"}
-)
+_ROUTE_DECORATORS = frozenset({"get", "post", "put", "delete", "patch", "websocket", "api_route"})
 
 # README 里**不该再有**的路由表行：`| `GET` | `/api/x` | 说明 |`。
 # 用它做反向断言——手抄清单一旦回流，这里先红。

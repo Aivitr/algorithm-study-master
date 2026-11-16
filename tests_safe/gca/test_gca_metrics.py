@@ -148,16 +148,23 @@ class TestGCA(unittest.TestCase):
             vectors = np.arange(n * 2, dtype=float).reshape(n, 2) + 1.0
             word_counts = [float(1 + (t % 3)) for t in range(n)]
             result = compute_gca_metrics(
-                f"M{k}", speakers, vectors, word_counts,
+                f"M{k}",
+                speakers,
+                vectors,
+                word_counts,
                 GCAConfig(spanning_window=2),
             )
             self.assertEqual(result.speakers, sorted(set(speakers)))
             self.assertEqual(len(result.speakers), k)
             self.assertEqual(result.n_utterances, n)
             self.assertAlmostEqual(sum(result.participation.values()), 1.0)
-            for name in ("internal_cohesion", "overall_responsivity",
-                         "social_impact", "newness_by_speaker",
-                         "density_by_speaker"):
+            for name in (
+                "internal_cohesion",
+                "overall_responsivity",
+                "social_impact",
+                "newness_by_speaker",
+                "density_by_speaker",
+            ):
                 self.assertEqual(set(getattr(result, name)), set(result.speakers))
             assert_all_finite(result.to_dict())
 
@@ -176,9 +183,7 @@ class TestGCA(unittest.TestCase):
         # responsivity: the only pair (B responds to A) has an undefined
         # cosine -> 0.0 by policy, and the pair is recorded.
         rb = np.array(result.responsivity_matrix)
-        self.assertAlmostEqual(
-            rb[result.speakers.index("B"), result.speakers.index("A")], 0.0
-        )
+        self.assertAlmostEqual(rb[result.speakers.index("B"), result.speakers.index("A")], 0.0)
         self.assertEqual(result.zero_vector["n_zero_vectors"], 1)
         self.assertEqual(result.zero_vector["zero_vector_indices"], [0])
         self.assertEqual(result.zero_vector["n_zero_word_counts"], 1)
@@ -220,7 +225,10 @@ class TestGCA(unittest.TestCase):
         # k = 1: OR and SI have no off-diagonal participants -> 0.0;
         # internal cohesion = R[A,A] = cosine 1.
         result = compute_gca_metrics(
-            "S", ["A", "A"], np.array([[1.0, 0.0], [1.0, 0.0]]), [1.0, 1.0],
+            "S",
+            ["A", "A"],
+            np.array([[1.0, 0.0], [1.0, 0.0]]),
+            [1.0, 1.0],
             GCAConfig(spanning_window=1),
         )
         self.assertAlmostEqual(result.internal_cohesion["A"], 1.0)
@@ -264,9 +272,7 @@ class TestGCA(unittest.TestCase):
 
     def test_deterministic(self):
         speakers = ["A", "B", "A", "C", "B"]
-        vectors = np.array(
-            [[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 0.0]]
-        )
+        vectors = np.array([[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 0.0]])
         word_counts = [1.0, 1.0, 3.0, 4.0, 2.0]
         cfg = GCAConfig(spanning_window=2)
         r1 = compute_gca_metrics("D", speakers, vectors, word_counts, cfg)

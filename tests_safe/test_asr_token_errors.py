@@ -70,9 +70,7 @@ def _patch_get(monkeypatch, response):
 
 def test_disabled_key_reason_is_printed(monkeypatch, capsys, fresh_token_cache):
     """密钥被禁用时，Code 与 Message 必须出现在日志里。"""
-    calls = _patch_get(
-        monkeypatch, _FakeResponse(ALIYUN_DISABLED_KEY_BODY, status_code=400)
-    )
+    calls = _patch_get(monkeypatch, _FakeResponse(ALIYUN_DISABLED_KEY_BODY, status_code=400))
 
     token = ai_core.refresh_aliyun_token()
     out = capsys.readouterr().out

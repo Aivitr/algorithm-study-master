@@ -52,8 +52,4 @@ class TranscriptQueryService:
             .group_by(Transcript.user_id)
             .all()
         )
-        return {
-            int(user_id): int(count)
-            for user_id, count in rows
-            if user_id is not None
-        }
+        return {int(user_id): int(count) for user_id, count in rows if user_id is not None}

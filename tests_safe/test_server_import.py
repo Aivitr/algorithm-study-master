@@ -30,8 +30,8 @@ def test_can_import_server(monkeypatch):
 
 def test_server_uses_local_database():
     """期望：server 导入后，其 ORM engine 仍指向本地库。"""
-    from app.core import database
     import server  # noqa: F401
+    from app.core import database
 
     url = database.SQLALCHEMY_DATABASE_URL
     assert not url.startswith("mssql"), f"server 连到了生产库：{url}"

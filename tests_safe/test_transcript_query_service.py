@@ -32,9 +32,7 @@ def test_list_for_meeting_is_chronological(seeded_ids):
 def test_list_for_meeting_honours_limit(seeded_ids):
     db = _session()
     try:
-        rows = TranscriptQueryService(db).list_for_meeting(
-            seeded_ids["meeting_id"], limit=2
-        )
+        rows = TranscriptQueryService(db).list_for_meeting(seeded_ids["meeting_id"], limit=2)
     finally:
         db.close()
 
@@ -47,9 +45,7 @@ def test_list_for_meeting_honours_limit(seeded_ids):
 def test_recent_for_meeting_is_newest_first(seeded_ids):
     db = _session()
     try:
-        rows = TranscriptQueryService(db).recent_for_meeting(
-            seeded_ids["meeting_id"], limit=2
-        )
+        rows = TranscriptQueryService(db).recent_for_meeting(seeded_ids["meeting_id"], limit=2)
     finally:
         db.close()
 
@@ -62,9 +58,7 @@ def test_recent_for_meeting_is_newest_first(seeded_ids):
 def test_counts_by_user(seeded_ids):
     db = _session()
     try:
-        counts = TranscriptQueryService(db).counts_by_user(
-            seeded_ids["meeting_id_active"]
-        )
+        counts = TranscriptQueryService(db).counts_by_user(seeded_ids["meeting_id_active"])
     finally:
         db.close()
 

@@ -4,8 +4,8 @@
 不会访问真实课堂、真实数据库或外部模型。
 """
 
-from uuid import uuid4
 from datetime import datetime
+from uuid import uuid4
 
 import pytest
 
@@ -93,9 +93,7 @@ def _post_close(client, ids):
     )
 
 
-def test_repeated_close_only_appends_goals_once(
-    client, active_vote, isolated_vote_effects
-):
+def test_repeated_close_only_appends_goals_once(client, active_vote, isolated_vote_effects):
     from app.core.database import SessionLocal
     from app.models import Meeting, ViewpointVote
 
@@ -121,16 +119,8 @@ def test_repeated_close_only_appends_goals_once(
 
     db = SessionLocal()
     try:
-        vote = (
-            db.query(ViewpointVote)
-            .filter(ViewpointVote.id == active_vote["vote_id"])
-            .one()
-        )
-        meeting = (
-            db.query(Meeting)
-            .filter(Meeting.id == active_vote["meeting_id"])
-            .one()
-        )
+        vote = db.query(ViewpointVote).filter(ViewpointVote.id == active_vote["vote_id"]).one()
+        meeting = db.query(Meeting).filter(Meeting.id == active_vote["meeting_id"]).one()
         assert vote.status == "closed"
         assert vote.closed_at == first_closed_at
         assert [goal["desc"] for goal in meeting.knowledge_points] == [
@@ -155,18 +145,24 @@ def test_atomic_close_claim_can_only_succeed_once(active_vote):
     first_db = SessionLocal()
     second_db = SessionLocal()
     try:
-        assert _claim_vote_close(
-            first_db,
-            active_vote["vote_id"],
-            active_vote["meeting_id"],
-            1,
-        ) is True
-        assert _claim_vote_close(
-            second_db,
-            active_vote["vote_id"],
-            active_vote["meeting_id"],
-            1,
-        ) is False
+        assert (
+            _claim_vote_close(
+                first_db,
+                active_vote["vote_id"],
+                active_vote["meeting_id"],
+                1,
+            )
+            is True
+        )
+        assert (
+            _claim_vote_close(
+                second_db,
+                active_vote["vote_id"],
+                active_vote["meeting_id"],
+                1,
+            )
+            is False
+        )
     finally:
         first_db.close()
         second_db.close()
@@ -195,11 +191,7 @@ def test_confirm_after_manual_close_does_not_repeat_side_effects(
 
     db = SessionLocal()
     try:
-        meeting = (
-            db.query(Meeting)
-            .filter(Meeting.id == active_vote["meeting_id"])
-            .one()
-        )
+        meeting = db.query(Meeting).filter(Meeting.id == active_vote["meeting_id"]).one()
         assert len(meeting.knowledge_points) == 3
     finally:
         db.close()

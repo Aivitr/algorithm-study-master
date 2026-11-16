@@ -112,10 +112,14 @@ class VoiceprintManager:
             if starts and starts[-1] != len(audio) - win_len:
                 starts.append(len(audio) - win_len)
             if len(starts) > MAX_EMBEDDINGS_PER_SAMPLE - 1:
-                picks = np.linspace(0, len(starts) - 1, MAX_EMBEDDINGS_PER_SAMPLE - 1).round().astype(int)
+                picks = (
+                    np.linspace(0, len(starts) - 1, MAX_EMBEDDINGS_PER_SAMPLE - 1)
+                    .round()
+                    .astype(int)
+                )
                 starts = [starts[i] for i in sorted(set(picks.tolist()))]
             for start in starts:
-                segment = audio[start:start + win_len]
+                segment = audio[start : start + win_len]
                 if len(segment) >= min_len:
                     windows.append(segment)
 

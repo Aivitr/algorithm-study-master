@@ -28,13 +28,11 @@ def _make_utterances(meeting_id="demo-1"):
         ("u002", "I will write the tests", 280.0),
     ]
     return [
-        Utterance(meeting_id, spk, text, ts, f"t{i}")
-        for i, (spk, text, ts) in enumerate(lines)
+        Utterance(meeting_id, spk, text, ts, f"t{i}") for i, (spk, text, ts) in enumerate(lines)
     ]
 
 
 class TestAnalyzeGroup(unittest.TestCase):
-
     def tearDown(self):
         for mid in list_meetings():
             clear_meeting(mid)
@@ -69,8 +67,12 @@ class TestAnalyzeGroup(unittest.TestCase):
         # 学生指标：3 名学生，每人恰好 6 个指标
         self.assertEqual(set(result.student_metrics), {"u001", "u002", "u003"})
         expected_metrics = {
-            "participation", "internal_cohesion", "overall_responsivity",
-            "social_impact", "newness", "communication_density",
+            "participation",
+            "internal_cohesion",
+            "overall_responsivity",
+            "social_impact",
+            "newness",
+            "communication_density",
         }
         for spk, metrics in result.student_metrics.items():
             self.assertEqual(set(metrics), expected_metrics)
@@ -80,9 +82,7 @@ class TestAnalyzeGroup(unittest.TestCase):
         # 小组指标：6 个指标，每个都有 mean/min/max/std/count
         self.assertEqual(set(result.group_metrics), expected_metrics)
         for stats in result.group_metrics.values():
-            self.assertEqual(
-                set(stats), {"mean", "min", "max", "std", "count"}
-            )
+            self.assertEqual(set(stats), {"mean", "min", "max", "std", "count"})
             self.assertEqual(stats["count"], 3)
 
         # timeline（v0.2 已实现）：固定 5 分钟窗口 + 滑动 5 分钟窗口
@@ -115,27 +115,36 @@ class TestAnalyzeGroup(unittest.TestCase):
         self.assertEqual(result.status, AnalysisStatus.EMPTY_TRANSCRIPT)
 
     def test_single_speaker_still_computes(self):
-        register_meeting("solo-1", [
-            Utterance("solo-1", "u001", "I like apples", 1.0, "t1"),
-            Utterance("solo-1", "u001", "I like oranges", 10.0, "t2"),
-        ])
+        register_meeting(
+            "solo-1",
+            [
+                Utterance("solo-1", "u001", "I like apples", 1.0, "t1"),
+                Utterance("solo-1", "u001", "I like oranges", 10.0, "t2"),
+            ],
+        )
         result = analyze_group("solo-1")
         self.assertEqual(result.status, AnalysisStatus.SINGLE_SPEAKER)
         self.assertEqual(set(result.student_metrics), {"u001"})
         self.assertTrue(any("只有一名学生" in w for w in result.warnings))
 
     def test_insufficient_data_too_few(self):
-        register_meeting("tiny-1", [
-            Utterance("tiny-1", "u001", "I like apples", 1.0, "t1"),
-        ])
+        register_meeting(
+            "tiny-1",
+            [
+                Utterance("tiny-1", "u001", "I like apples", 1.0, "t1"),
+            ],
+        )
         result = analyze_group("tiny-1")
         self.assertEqual(result.status, AnalysisStatus.INSUFFICIENT_DATA)
 
     def test_insufficient_data_all_empty_text(self):
-        register_meeting("blank-1", [
-            Utterance("blank-1", "u001", "...", 1.0, "t1"),
-            Utterance("blank-1", "u002", "!!!", 10.0, "t2"),
-        ])
+        register_meeting(
+            "blank-1",
+            [
+                Utterance("blank-1", "u001", "...", 1.0, "t1"),
+                Utterance("blank-1", "u002", "!!!", 10.0, "t2"),
+            ],
+        )
         result = analyze_group("blank-1")
         self.assertEqual(result.status, AnalysisStatus.INSUFFICIENT_DATA)
 
@@ -184,7 +193,6 @@ class TestAnalyzeGroup(unittest.TestCase):
             set(result.student_metrics),
             {u.speaker_id for u in original},
         )
-
 
     def test_registration_isolated_from_caller_mutations(self):
         meeting_id = "snapshot-group"
@@ -237,15 +245,21 @@ class TestAnalyzeGroup(unittest.TestCase):
             status=AnalysisStatus.SUCCESS,
             student_metrics={},
             group_metrics={},
-            timeline={"fixed_5min": [
-                {"start_second": 0, "end_second": 300, "group_metrics": {}},
-            ]},
+            timeline={
+                "fixed_5min": [
+                    {"start_second": 0, "end_second": 300, "group_metrics": {}},
+                ]
+            },
             metadata={
                 "timeline": {"fixed_window_seconds": 300, "n_fixed_windows": 1},
-                "window_errors": [{
-                    "kind": "fixed", "start_second": 0, "end_second": 300,
-                    "error": "RuntimeError: simulated window failure",
-                }],
+                "window_errors": [
+                    {
+                        "kind": "fixed",
+                        "start_second": 0,
+                        "end_second": 300,
+                        "error": "RuntimeError: simulated window failure",
+                    }
+                ],
             },
             warnings=["有 1 个时间窗口计算失败"],
         )
@@ -259,8 +273,11 @@ class TestAnalyzeGroup(unittest.TestCase):
         meeting_id = "no-timeline-group"
         register_meeting(meeting_id, _make_utterances(meeting_id))
         expected = GroupAnalysisResult(
-            meeting_id=meeting_id, status=AnalysisStatus.SUCCESS,
-            student_metrics={}, group_metrics={}, timeline=None,
+            meeting_id=meeting_id,
+            status=AnalysisStatus.SUCCESS,
+            student_metrics={},
+            group_metrics={},
+            timeline=None,
         )
         with patch("gca_engine.service.analyze_utterances", return_value=expected):
             self.assertIsNone(analyze_group(meeting_id).timeline)

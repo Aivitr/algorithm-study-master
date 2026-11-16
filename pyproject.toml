@@ -86,3 +86,20 @@ explicit = true
 torch = { index = "pytorch-cpu" }
 torchvision = { index = "pytorch-cpu" }
 torchaudio = { index = "pytorch-cpu" }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["archive", "venv", ".venv", "__pycache__", "storage", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# 这些文件必须先做 sys.path/环境初始化，再导入应用模块，E402 是有意为之
+"server.py" = ["E402", "F401"]
+"app/realtime/emotion_helpers.py" = ["E402"]
+"app/services/research_runtime.py" = ["E402"]
+"gca_engine/adapters/classroom.py" = ["E402"]
+"gca_engine/preprocessing/chinese.py" = ["E402"]
+

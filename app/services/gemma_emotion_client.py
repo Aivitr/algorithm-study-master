@@ -3,14 +3,24 @@ Gemma 4 情绪识别客户端
 通过 Ollama 本地部署的 Gemma 4 (gemma:4b) 进行面部情绪分析
 """
 
-import requests
-import time
 import re
-from typing import Tuple, Optional
+import time
+from typing import Optional, Tuple
+
+import requests
 
 # 有效的情绪标签
-VALID_EMOTIONS = {"happy", "sad", "angry", "surprised", "neutral",
-                  "excited", "confused", "thinking", "calm"}
+VALID_EMOTIONS = {
+    "happy",
+    "sad",
+    "angry",
+    "surprised",
+    "neutral",
+    "excited",
+    "confused",
+    "thinking",
+    "calm",
+}
 
 
 class GemmaEmotionClient:
@@ -25,14 +35,14 @@ class GemmaEmotionClient:
             "temperature": 0.1,
             "num_predict": 80,
             "num_ctx": 1024,
-            "num_thread": 4
+            "num_thread": 4,
         }
         # 低内存回退参数：当 Ollama 报内存布局错误时使用
         self.low_memory_options = {
             "temperature": 0.1,
             "num_predict": 24,
             "num_ctx": 512,
-            "num_thread": 2
+            "num_thread": 2,
         }
         self.chat_timeout = 12
         self.generate_timeout = 8
@@ -51,7 +61,7 @@ class GemmaEmotionClient:
             "calm": 60,
             "neutral": 50,
             "sad": 25,
-            "angry": 15
+            "angry": 15,
         }
 
     def _check_health(self) -> bool:
@@ -87,15 +97,13 @@ class GemmaEmotionClient:
                     f"{self.base_url}/api/chat",
                     json={
                         "model": self.model,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
+                        "messages": [{"role": "user", "content": prompt}],
                         "stream": False,
                         "think": False,  # 禁用 Gemma 的 thinking 模式
                         "keep_alive": "0s",
-                        "options": self.default_options
+                        "options": self.default_options,
                     },
-                    timeout=min(timeout, self.chat_timeout)
+                    timeout=min(timeout, self.chat_timeout),
                 )
 
                 if response.status_code == 200:
@@ -107,8 +115,12 @@ class GemmaEmotionClient:
                     return content.strip()
                 else:
                     last_error_text = response.text or ""
-                    print(f"[GemmaEmotion] /api/chat 错误: {response.status_code} - {last_error_text}")
-                    force_low_memory = "memory layout cannot be allocated" in last_error_text.lower()
+                    print(
+                        f"[GemmaEmotion] /api/chat 错误: {response.status_code} - {last_error_text}"
+                    )
+                    force_low_memory = (
+                        "memory layout cannot be allocated" in last_error_text.lower()
+                    )
 
             except requests.exceptions.Timeout:
                 print(f"[GemmaEmotion] /api/chat 超时(>{self.chat_timeout}s)，尝试快速回退...")
@@ -117,7 +129,9 @@ class GemmaEmotionClient:
                 print(f"[GemmaEmotion] /api/chat 失败: {e}")
 
             # 回退到 /api/generate (旧版 Ollama)
-            use_low_memory = force_low_memory or "memory layout cannot be allocated" in last_error_text.lower()
+            use_low_memory = (
+                force_low_memory or "memory layout cannot be allocated" in last_error_text.lower()
+            )
             options = self.low_memory_options if use_low_memory else self.default_options
             if use_low_memory:
                 print("[GemmaEmotion] 检测到内存不足，切换低内存参数重试...")
@@ -129,9 +143,9 @@ class GemmaEmotionClient:
                     "prompt": prompt,
                     "stream": False,
                     "keep_alive": "0s",
-                    "options": options
+                    "options": options,
                 },
-                timeout=min(timeout, self.generate_timeout)
+                timeout=min(timeout, self.generate_timeout),
             )
 
             if response.status_code == 200:
@@ -243,7 +257,7 @@ class GemmaEmotionClient:
                 "disgust": "confused",
                 "contempt": "confused",
                 "relaxed": "calm",
-                "neutrality": "neutral"
+                "neutrality": "neutral",
             }
             emotion = mapping.get(emotion, None)
 
@@ -292,7 +306,7 @@ class GemmaEmotionClient:
         prompt = f"""你是一个面部情绪识别专家。根据以下面部特征描述，判断人物情绪。
 
 面部特征: {description}
-关键数值: mouth_open={normalized_features['mouth_open']:.3f}, smile_lift={normalized_features['smile_lift']:.3f}, brow_raise={normalized_features['brow_raise']:.3f}, eye_open={normalized_features['eye_open']:.3f}
+关键数值: mouth_open={normalized_features["mouth_open"]:.3f}, smile_lift={normalized_features["smile_lift"]:.3f}, brow_raise={normalized_features["brow_raise"]:.3f}, eye_open={normalized_features["eye_open"]:.3f}
 
 可选情绪标签: happy, sad, angry, surprised, neutral, excited, confused, thinking, calm
 
@@ -337,7 +351,7 @@ confidence: [0.0-1.0]
         if not self._check_health():
             return "neutral", 0.5
 
-        prompt = f"""分析这张人脸图片中的情绪表情。
+        prompt = """分析这张人脸图片中的情绪表情。
 
 可选情绪标签: happy, sad, angry, surprised, neutral, excited, confused, thinking, calm
 
@@ -356,12 +370,9 @@ confidence: [0.0-1.0]
                     "images": [image_base64],
                     "stream": False,
                     "think": False,  # 禁用 Gemma 的 thinking 模式
-                    "options": {
-                        "temperature": 0.1,
-                        "num_predict": 100
-                    }
+                    "options": {"temperature": 0.1, "num_predict": 100},
                 },
-                timeout=60
+                timeout=60,
             )
 
             if response.status_code == 200:

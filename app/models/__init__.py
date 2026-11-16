@@ -7,23 +7,14 @@
 """
 
 from app.models.base import Base
-
-from app.models.user import User
-from app.models.session import ActiveClassroomSession
-from app.models.session import UserSession
-from app.models.classroom import Meeting
-from app.models.classroom import MemberConnection
-from app.models.transcript import Transcript
-from app.models.emotion import EmotionLog
-from app.models.emotion import MentalHealthAssessment
+from app.models.classroom import Meeting, MemberConnection
+from app.models.emotion import EmotionLog, MentalHealthAssessment
 from app.models.insight import AIInsight
-from app.models.knowledge_graph import KnowledgeGraph
-from app.models.knowledge_graph import GraphNode
-from app.models.knowledge_graph import GraphEdge
-from app.models.learning import LearningReport
-from app.models.learning import Exercise
-from app.models.learning import StudentAnswer
-from app.models.learning import ReportTemplate
+from app.models.knowledge_graph import GraphEdge, GraphNode, KnowledgeGraph
+from app.models.learning import Exercise, LearningReport, ReportTemplate, StudentAnswer
+from app.models.session import ActiveClassroomSession, UserSession
+from app.models.transcript import Transcript
+from app.models.user import User
 from app.models.vote import ViewpointVote
 
 __all__ = [

@@ -38,7 +38,6 @@ def _fake_analyzer(subset):
 
 
 class TestDuration(unittest.TestCase):
-
     def test_duration_uses_timestamp_when_no_end_time(self):
         us = [_u("a", 10), _u("b", 250)]
         self.assertEqual(duration_seconds(us), 250.0)
@@ -55,7 +54,6 @@ class TestDuration(unittest.TestCase):
 
 
 class TestFixedWindows(unittest.TestCase):
-
     def test_splits_by_five_minutes(self):
         us = [_u("a", 10), _u("b", 290), _u("c", 310), _u("a", 470)]
         windows = build_fixed_windows(us, analyzer=_fake_analyzer)
@@ -114,9 +112,7 @@ class TestFixedWindows(unittest.TestCase):
             raise RuntimeError("模拟向量异常")
 
         errors = []
-        windows = build_fixed_windows(
-            [_u("a", 10)], analyzer=boom, errors=errors
-        )
+        windows = build_fixed_windows([_u("a", 10)], analyzer=boom, errors=errors)
         self.assertEqual(windows[0]["group_metrics"], {})
         self.assertEqual(len(errors), 1)
         self.assertIn("RuntimeError", errors[0]["error"])
@@ -127,7 +123,6 @@ class TestFixedWindows(unittest.TestCase):
 
 
 class TestSlidingWindows(unittest.TestCase):
-
     def test_update_points_every_30_seconds(self):
         us = [_u("a", 10), _u("b", 100)]
         windows = build_sliding_windows(us, analyzer=_fake_analyzer, duration=150)
@@ -135,9 +130,7 @@ class TestSlidingWindows(unittest.TestCase):
         self.assertEqual(centers, [30, 60, 90, 120, 150])
 
     def test_tail_point_added_when_duration_not_multiple_of_step(self):
-        windows = build_sliding_windows(
-            [_u("a", 10)], analyzer=_fake_analyzer, duration=100
-        )
+        windows = build_sliding_windows([_u("a", 10)], analyzer=_fake_analyzer, duration=100)
         centers = [w["center_second"] for w in windows]
         self.assertEqual(centers, [30, 60, 90, 100])
 
@@ -165,7 +158,6 @@ class TestSlidingWindows(unittest.TestCase):
 
 
 class TestTimeline(unittest.TestCase):
-
     def test_timeline_has_both_sections(self):
         us = [_u("a", 10), _u("b", 100), _u("c", 400)]
         timeline, warnings, errors = build_timeline(us, _fake_analyzer, duration=400)
@@ -268,9 +260,7 @@ class TestEngineTimeline(unittest.TestCase):
             if w["group_metrics"]:
                 self.assertEqual(set(w["group_metrics"]), set(SIX_METRICS))
                 for stats in w["group_metrics"].values():
-                    self.assertEqual(
-                        set(stats), {"mean", "min", "max", "std", "count"}
-                    )
+                    self.assertEqual(set(stats), {"mean", "min", "max", "std", "count"})
 
 
 if __name__ == "__main__":

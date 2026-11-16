@@ -61,17 +61,13 @@ class TestNewnessLegacyBehaviour(unittest.TestCase):
 
     def test_rank_deficient_history(self):
         # 历史三个相同向量（秩 1），再来一个正交向量 -> 1.0
-        vectors = np.array(
-            [[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
-        )
+        vectors = np.array([[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
         result = contribution_newness(vectors)
         np.testing.assert_allclose(result, [1.0, 0.0, 0.0, 1.0], atol=1e-12)
 
     def test_history_longer_than_dimension(self):
         # 历史向量个数超过维度（2 维空间 4 条历史）
-        vectors = np.array(
-            [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0], [3.0, -2.0]]
-        )
+        vectors = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0], [3.0, -2.0]])
         result = contribution_newness(vectors)
         # 前两条铺满 2 维空间，后面全部在子空间内 -> 0.0
         np.testing.assert_allclose(result, [1.0, 1.0, 0.0, 0.0, 0.0], atol=1e-10)

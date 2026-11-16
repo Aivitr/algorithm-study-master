@@ -121,10 +121,7 @@ def main() -> int:
             sub_hit = {ln for ln in hits[server] if lo <= ln <= hi}
             if not sub_total:
                 continue
-            print(
-                f"  {name:<34}{f'{lo}-{hi}':>14}"
-                f"{100 * len(sub_hit) / len(sub_total):>9.1f}%"
-            )
+            print(f"  {name:<34}{f'{lo}-{hi}':>14}{100 * len(sub_hit) / len(sub_total):>9.1f}%")
 
     return int(code)
 

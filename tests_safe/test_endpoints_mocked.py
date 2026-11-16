@@ -200,7 +200,9 @@ def test_ai_tutor_reports_error_when_llm_raises(seeded_client, llm, monkeypatch)
 
 def test_suggest_topic_returns_llm_suggestion(seeded_client, teacher_headers, stub_chat_completion):
     """正常路径：把 LLM 的输出放进 `suggestion` 字段。"""
-    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 2}, headers=teacher_headers)
+    response = seeded_client.post(
+        "/api/suggest-topic", data={"meeting_id": 2}, headers=teacher_headers
+    )
 
     assert response.status_code == 200
     assert response.json() == {"status": "success", "suggestion": "打桩生成的建议内容"}
@@ -221,9 +223,13 @@ def test_suggest_topic_prompt_includes_class_topic_and_transcripts(
     assert "李同学" in prompt, "提示词缺少近期发言"
 
 
-def test_suggest_topic_missing_meeting_returns_error(seeded_client, teacher_headers, stub_chat_completion):
+def test_suggest_topic_missing_meeting_returns_error(
+    seeded_client, teacher_headers, stub_chat_completion
+):
     """课堂不存在时返回 error，且**不调用 LLM**。"""
-    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 99999}, headers=teacher_headers)
+    response = seeded_client.post(
+        "/api/suggest-topic", data={"meeting_id": 99999}, headers=teacher_headers
+    )
 
     assert response.json() == {"status": "error", "message": "会议不存在"}
     assert stub_chat_completion == []

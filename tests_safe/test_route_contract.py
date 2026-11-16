@@ -236,17 +236,12 @@ def test_route_table_matches_contract(actual_routes):
 
     problems = []
     if missing:
-        problems.append(
-            "契约中存在、但应用未注册（路由被删或地址被改）：\n  " + _fmt(missing)
-        )
+        problems.append("契约中存在、但应用未注册（路由被删或地址被改）：\n  " + _fmt(missing))
     if added:
-        problems.append(
-            "应用注册了、但契约中没有（新增或改址后未更新契约）：\n  " + _fmt(added)
-        )
+        problems.append("应用注册了、但契约中没有（新增或改址后未更新契约）：\n  " + _fmt(added))
 
     assert not problems, (
-        "路由表与契约不一致——这是对外接口变更，会直接打断 nginx 反代。\n\n"
-        + "\n\n".join(problems)
+        "路由表与契约不一致——这是对外接口变更，会直接打断 nginx 反代。\n\n" + "\n\n".join(problems)
     )
 
 

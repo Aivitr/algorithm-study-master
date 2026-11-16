@@ -77,9 +77,7 @@ def test_clean_json_preserves_escaped_quotes(llm):
 
     这是 `replace("```", "")` 与 JSON 转义的交叉风险点。
     """
-    assert llm._clean_json('{"message": "She said \\"Hello\\""}') == {
-        "message": 'She said "Hello"'
-    }
+    assert llm._clean_json('{"message": "She said \\"Hello\\""}') == {"message": 'She said "Hello"'}
 
 
 @pytest.mark.parametrize(
