@@ -93,6 +93,4 @@ def test_balanced_stable_data_gets_neutral_observation():
             "4": {"participation": 0.25},
         }
     )
-    assert [item["type"] for item in build_collaboration_signals(result)] == [
-        "no_obvious_signal"
-    ]
+    assert [item["type"] for item in build_collaboration_signals(result)] == ["no_obvious_signal"]

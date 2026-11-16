@@ -85,9 +85,7 @@ def build_gca_dashboard(meeting_id: int, db: Session) -> Dict[str, Any]:
             continue
 
     users = (
-        db.query(User)
-        .filter(User.id.in_(student_ids), User.role != "teacher")
-        .all()
+        db.query(User).filter(User.id.in_(student_ids), User.role != "teacher").all()
         if student_ids
         else []
     )
@@ -175,9 +173,7 @@ def _anonymous_timeline(timeline: Dict[str, Any] | None) -> Dict[str, Any] | Non
     return sanitized
 
 
-def build_gca_student_view(
-    meeting_id: int, student: User, db: Session
-) -> Dict[str, Any]:
+def build_gca_student_view(meeting_id: int, student: User, db: Session) -> Dict[str, Any]:
     """Build a privacy-filtered GCA view for one student."""
     result = analyze_meeting_metrics(meeting_id, db)
     student_key = str(student.id)

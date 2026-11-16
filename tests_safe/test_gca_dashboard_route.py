@@ -7,18 +7,12 @@ def test_gca_dashboard_requires_login(client, seeded_ids):
 
 
 def test_gca_dashboard_rejects_student(client, seeded_ids, student_headers):
-    response = client.get(
-        f"/api/gca-dashboard/{seeded_ids['meeting_id']}", headers=student_headers
-    )
+    response = client.get(f"/api/gca-dashboard/{seeded_ids['meeting_id']}", headers=student_headers)
     assert response.status_code == 403
 
 
-def test_gca_dashboard_returns_named_students_for_owner(
-    client, seeded_ids, teacher_headers
-):
-    response = client.get(
-        f"/api/gca-dashboard/{seeded_ids['meeting_id']}", headers=teacher_headers
-    )
+def test_gca_dashboard_returns_named_students_for_owner(client, seeded_ids, teacher_headers):
+    response = client.get(f"/api/gca-dashboard/{seeded_ids['meeting_id']}", headers=teacher_headers)
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "success"
@@ -47,9 +41,7 @@ def test_student_gca_view_rejects_teacher(client, seeded_ids, teacher_headers):
     assert response.status_code == 403
 
 
-def test_student_gca_view_contains_only_current_student(
-    client, seeded_ids, student_headers
-):
+def test_student_gca_view_contains_only_current_student(client, seeded_ids, student_headers):
     response = client.get(
         f"/api/gca-student-view/{seeded_ids['meeting_id']}", headers=student_headers
     )
@@ -74,9 +66,7 @@ def test_student_gca_view_contains_only_current_student(
             assert set(stats) == {"mean"}
 
 
-def test_student_gca_view_requires_participation(
-    client, seeded_ids, student_headers
-):
+def test_student_gca_view_requires_participation(client, seeded_ids, student_headers):
     from app.core import database
     from app.models import Meeting
 
@@ -96,8 +86,6 @@ def test_student_gca_view_requires_participation(
     finally:
         db.close()
 
-    response = client.get(
-        f"/api/gca-student-view/{meeting_id}", headers=student_headers
-    )
+    response = client.get(f"/api/gca-student-view/{meeting_id}", headers=student_headers)
     assert response.status_code == 403
     assert response.json()["detail"] == "你尚未加入该课堂"

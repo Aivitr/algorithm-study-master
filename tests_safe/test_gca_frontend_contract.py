@@ -38,9 +38,7 @@ def test_dashboard_has_all_six_canonical_metrics():
 def test_gca_demo_mode_is_explicit_and_database_free():
     html = (ROOT / "index.html").read_text(encoding="utf-8")
     javascript = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
-    demo = json.loads(
-        (ROOT / "static/mock/gca-dashboard-demo.json").read_text(encoding="utf-8")
-    )
+    demo = json.loads((ROOT / "static/mock/gca-dashboard-demo.json").read_text(encoding="utf-8"))
 
     assert "?gca_demo=1" in javascript
     assert "/static/mock/gca-dashboard-demo.json" in javascript
@@ -61,9 +59,7 @@ def test_gca_demo_mode_is_explicit_and_database_free():
 def test_student_gca_view_has_role_scoped_ui_and_demo_fixture():
     html = (ROOT / "index.html").read_text(encoding="utf-8")
     javascript = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
-    demo = json.loads(
-        (ROOT / "static/mock/gca-student-view-demo.json").read_text(encoding="utf-8")
-    )
+    demo = json.loads((ROOT / "static/mock/gca-student-view-demo.json").read_text(encoding="utf-8"))
 
     assert "openStudentGca" in html
     assert "我的协作" in html
