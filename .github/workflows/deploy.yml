@@ -31,13 +31,13 @@ jobs:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
               echo "RDS backup not confirmed"
               exit 1
             fi
-            cd ${{ secrets.DEPLOY_PATH }}
+            cd ${{ vars.DEPLOY_PATH }}
             CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh ${{ github.event.inputs.ref }}

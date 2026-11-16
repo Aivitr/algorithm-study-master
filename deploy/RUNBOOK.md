@@ -2,14 +2,14 @@
 
 ## 一次性配置（GitHub）
 
-仓库 Settings → Secrets and variables → Actions 添加：
+仓库 Settings → Secrets and variables → Actions：
 
-| Secret | 值 |
-|---|---|
-| `DEPLOY_HOST` | `47.114.103.74` |
-| `DEPLOY_USER` | `deploy` |
-| `DEPLOY_PATH` | `/opt/smartclass` |
-| `DEPLOY_SSH_KEY` | 服务器 `/home/deploy/.ssh/id_ed25519` 的完整内容 |
+| 类型 | 名称 | 值 |
+|---|---|---|
+| Variable | `DEPLOY_HOST` | `47.114.103.74` |
+| Variable | `DEPLOY_USER` | `deploy` |
+| Variable | `DEPLOY_PATH` | `/opt/smartclass` |
+| Secret | `DEPLOY_SSH_KEY` | 服务器 `/home/deploy/.ssh/id_ed25519` 的完整内容 |
 
 Settings → Environments 新建 `production`：
 
