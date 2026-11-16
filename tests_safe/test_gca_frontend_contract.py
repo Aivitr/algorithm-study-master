@@ -1,9 +1,7 @@
 """Static wiring checks for the teacher GCA dashboard."""
 
 import json
-
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parent.parent
 

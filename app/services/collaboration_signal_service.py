@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable
 
-
 MIN_UTTERANCES_FOR_SIGNALS = 8
 MIN_SPEAKERS_FOR_IMBALANCE = 4
 TOP_TWO_PARTICIPATION_WARNING = 0.65

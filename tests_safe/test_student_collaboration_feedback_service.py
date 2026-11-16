@@ -4,7 +4,6 @@ from app.services.student_collaboration_feedback_service import (
     build_student_collaboration_feedback,
 )
 
-
 AVERAGE = {
     "participation": 0.25,
     "internal_cohesion": 0.55,
