@@ -1,317 +1,83 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# 智能协作学习系统 - 一键部署脚本
-# 域名: smartclass1.top
-# 部署路径: /opt/smartclass1
+# 服务器原地部署：git checkout -> 迁移 -> docker compose build/up -> 健康检查。
 #
+# 由 GitHub Actions 以 deploy 用户调用：
+#   ./deploy/deploy.sh <git-ref-or-sha>
+#
+# 失败时回滚到上一版 commit 与镜像；数据库迁移不做自动回滚。
+set -euo pipefail
 
-set -e  # 遇到错误立即退出
+APP_DIR="${APP_DIR:-/opt/smartclass}"
+BRANCH="${BRANCH:-main}"
+LOG_FILE="${LOG_FILE:-/var/log/smartclass-deploy.log}"
+LOCK_FILE="${LOCK_FILE:-/var/lock/smartclass-deploy.lock}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/healthz}"
+TARGET_REF="${1:-origin/main}"
 
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    echo "another deploy is already running" >&2
+    exit 1
+fi
+exec >>"$LOG_FILE" 2>&1
 
-# 配置变量
-DEPLOY_DIR="/opt/smartclass1"
-SERVICE_NAME="smartclass1"
-DOMAIN="smartclass1.top"
-PYTHON_VERSION="3.8"
+echo "=== $(date -Is) deploy target=$TARGET_REF ==="
 
-# 日志函数
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+cd "$APP_DIR"
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
+avail_kb="$(df -Pk "$APP_DIR" | awk 'NR==2 {print $4}')"
+if [ "${avail_kb:-0}" -lt 5000000 ]; then
+    echo "not enough disk space: ${avail_kb} KB available, need 5 GB"
+    exit 1
+fi
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+if [ "${CONFIRM_DB_BACKUP:-}" != "1" ]; then
+    echo "database backup not confirmed; take an RDS snapshot, then set CONFIRM_DB_BACKUP=1"
+    exit 1
+fi
 
-# 检查是否为 root 用户
-check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        log_error "请使用 root 用户或 sudo 运行此脚本"
-        exit 1
+git fetch --depth 1 origin "$BRANCH"
+PREV="$(git rev-parse HEAD)"
+
+if ! git cat-file -e "${TARGET_REF}^{commit}" 2>/dev/null; then
+    git fetch --depth 1 origin "$TARGET_REF"
+fi
+
+git checkout -f "$TARGET_REF"
+NEW="$(git rev-parse HEAD)"
+echo "previous=$PREV new=$NEW"
+
+# 保留上一版镜像，健康检查失败时回滚
+docker tag algorithm-study-master:dev "algorithm-study-master:pre-$PREV" 2>/dev/null || true
+
+echo "--- migrations ---"
+docker compose run --rm --no-deps app python tools/apply_migrations.py --dry-run
+docker compose run --rm --no-deps app python tools/apply_migrations.py
+
+echo "--- build ---"
+docker compose build app
+docker tag algorithm-study-master:dev "algorithm-study-master:$NEW"
+
+echo "--- restart ---"
+docker compose up -d app
+
+healthy=0
+for _ in $(seq 1 30); do
+    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+        healthy=1
+        break
     fi
-}
+    sleep 2
+done
 
-# 检查系统类型
-check_system() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$ID
-        log_info "检测到操作系统: $OS $VERSION"
-    else
-        log_error "无法检测操作系统类型"
-        exit 1
-    fi
-}
+if [ "$healthy" -ne 1 ]; then
+    echo "health check failed, rolling back to $PREV"
+    git checkout -f "$PREV"
+    docker tag "algorithm-study-master:pre-$PREV" algorithm-study-master:dev 2>/dev/null || true
+    docker compose up -d app
+    echo "rollback triggered; previous container restored (migrations are not rolled back)"
+    exit 1
+fi
 
-# 安装系统依赖
-install_dependencies() {
-    log_info "开始安装系统依赖..."
-
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        apt update
-        apt install -y python3 python3-pip python3-venv ffmpeg nginx certbot python3-certbot-nginx git curl wget
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        yum update -y
-        yum install -y python3 python3-pip ffmpeg nginx certbot python3-certbot-nginx git curl wget
-        yum install -y epel-release
-    else
-        log_error "不支持的操作系统: $OS"
-        exit 1
-    fi
-
-    log_info "系统依赖安装完成"
-}
-
-# 创建部署目录
-create_directories() {
-    log_info "创建部署目录..."
-
-    mkdir -p $DEPLOY_DIR
-    mkdir -p /etc/$SERVICE_NAME
-    mkdir -p /var/log/$SERVICE_NAME
-    mkdir -p $DEPLOY_DIR/storage/{video_chunks,audio_chunks,snapshots}
-    mkdir -p $DEPLOY_DIR/storage/{research_models,research_gallery,research_runtime_cache}
-
-    log_info "目录创建完成"
-}
-
-# 上传项目文件
-upload_project() {
-    log_info "准备上传项目文件..."
-    log_warn "请手动上传项目文件到 $DEPLOY_DIR"
-    log_warn "或使用以下命令从本地上传:"
-    echo ""
-    echo "  scp -r algorithm-study-master/* root@your-server:$DEPLOY_DIR/"
-    echo ""
-    echo "  或使用 git clone:"
-    echo "  cd $DEPLOY_DIR"
-    echo "  git clone <your-repo-url> ."
-    echo ""
-    read -p "项目文件已上传? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_error "请先上传项目文件"
-        exit 1
-    fi
-}
-
-# 创建 Python 虚拟环境
-create_venv() {
-    log_info "创建 Python 虚拟环境..."
-
-    cd $DEPLOY_DIR
-    python3 -m venv venv
-    source venv/bin/activate
-
-    log_info "升级 pip..."
-    pip install --upgrade pip
-
-    log_info "安装 Python 依赖..."
-    if [ -f requirements.txt ]; then
-        pip install -r requirements.txt
-    else
-        log_warn "未找到 requirements.txt, 安装基础依赖..."
-        pip install fastapi uvicorn[standard] sqlalchemy pymssql opencv-python numpy openai aiohttp websockets python-multipart
-    fi
-
-    deactivate
-    log_info "Python 环境配置完成"
-}
-
-# 配置环境变量
-configure_env() {
-    log_info "配置环境变量..."
-
-    if [ -f $DEPLOY_DIR/deploy/smartclass1.env.example ]; then
-        cp $DEPLOY_DIR/deploy/smartclass1.env.example /etc/$SERVICE_NAME/$SERVICE_NAME.env
-        log_warn "请编辑 /etc/$SERVICE_NAME/$SERVICE_NAME.env 填写实际配置"
-        log_warn "必须配置: DATABASE_URL, LLM_API_KEY, ALIYUN_* 等"
-        echo ""
-        read -p "是否现在编辑配置文件? (y/n) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            ${EDITOR:-nano} /etc/$SERVICE_NAME/$SERVICE_NAME.env
-        fi
-    else
-        log_error "未找到环境变量模板文件"
-        exit 1
-    fi
-}
-
-# 配置 Systemd 服务
-configure_systemd() {
-    log_info "配置 Systemd 服务..."
-
-    if [ -f $DEPLOY_DIR/deploy/$SERVICE_NAME.service ]; then
-        cp $DEPLOY_DIR/deploy/$SERVICE_NAME.service /etc/systemd/system/
-        systemctl daemon-reload
-        log_info "Systemd 服务配置完成"
-    else
-        log_error "未找到 Systemd 服务文件"
-        exit 1
-    fi
-}
-
-# 配置 Nginx
-configure_nginx() {
-    log_info "配置 Nginx..."
-
-    if [ -f $DEPLOY_DIR/deploy/nginx-smartclass1.conf ]; then
-        cp $DEPLOY_DIR/deploy/nginx-smartclass1.conf /etc/nginx/sites-available/$SERVICE_NAME
-
-        # 创建软链接
-        if [ ! -L /etc/nginx/sites-enabled/$SERVICE_NAME ]; then
-            ln -s /etc/nginx/sites-available/$SERVICE_NAME /etc/nginx/sites-enabled/
-        fi
-
-        # 测试配置
-        nginx -t
-        if [ $? -eq 0 ]; then
-            log_info "Nginx 配置测试通过"
-        else
-            log_error "Nginx 配置测试失败"
-            exit 1
-        fi
-    else
-        log_error "未找到 Nginx 配置文件"
-        exit 1
-    fi
-}
-
-# 配置 SSL 证书
-configure_ssl() {
-    log_info "配置 SSL 证书..."
-
-    read -p "是否配置 Let's Encrypt SSL 证书? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "开始申请 SSL 证书..."
-        certbot --nginx -d $DOMAIN -d www.$DOMAIN
-
-        if [ $? -eq 0 ]; then
-            log_info "SSL 证书配置成功"
-        else
-            log_warn "SSL 证书配置失败,请稍后手动配置"
-        fi
-    else
-        log_warn "跳过 SSL 证书配置,请稍后手动配置"
-    fi
-}
-
-# 配置防火墙
-configure_firewall() {
-    log_info "配置防火墙..."
-
-    if command -v ufw &> /dev/null; then
-        ufw allow 22/tcp
-        ufw allow 80/tcp
-        ufw allow 443/tcp
-        ufw --force enable
-        log_info "UFW 防火墙配置完成"
-    elif command -v firewall-cmd &> /dev/null; then
-        firewall-cmd --permanent --add-service=ssh
-        firewall-cmd --permanent --add-service=http
-        firewall-cmd --permanent --add-service=https
-        firewall-cmd --reload
-        log_info "Firewalld 防火墙配置完成"
-    else
-        log_warn "未检测到防火墙,请手动配置"
-    fi
-}
-
-# 设置文件权限
-set_permissions() {
-    log_info "设置文件权限..."
-
-    chown -R www-data:www-data $DEPLOY_DIR
-    chmod -R 755 $DEPLOY_DIR
-    chmod 600 /etc/$SERVICE_NAME/$SERVICE_NAME.env
-    chown -R www-data:www-data /var/log/$SERVICE_NAME
-
-    log_info "文件权限设置完成"
-}
-
-# 启动服务
-start_services() {
-    log_info "启动服务..."
-
-    # 启动应用服务
-    systemctl enable $SERVICE_NAME
-    systemctl start $SERVICE_NAME
-
-    # 重启 Nginx
-    systemctl restart nginx
-
-    # 检查服务状态
-    sleep 3
-    if systemctl is-active --quiet $SERVICE_NAME; then
-        log_info "应用服务启动成功"
-    else
-        log_error "应用服务启动失败,请检查日志: journalctl -u $SERVICE_NAME -n 50"
-        exit 1
-    fi
-
-    if systemctl is-active --quiet nginx; then
-        log_info "Nginx 服务运行正常"
-    else
-        log_error "Nginx 服务异常"
-        exit 1
-    fi
-}
-
-# 显示部署信息
-show_info() {
-    echo ""
-    echo "=========================================="
-    log_info "部署完成!"
-    echo "=========================================="
-    echo ""
-    echo "访问地址: https://$DOMAIN"
-    echo "部署目录: $DEPLOY_DIR"
-    echo "配置文件: /etc/$SERVICE_NAME/$SERVICE_NAME.env"
-    echo "服务名称: $SERVICE_NAME"
-    echo ""
-    echo "常用命令:"
-    echo "  查看服务状态: systemctl status $SERVICE_NAME"
-    echo "  查看应用日志: tail -f /var/log/$SERVICE_NAME/app.log"
-    echo "  查看错误日志: tail -f /var/log/$SERVICE_NAME/error.log"
-    echo "  重启服务: systemctl restart $SERVICE_NAME"
-    echo "  重启 Nginx: systemctl restart nginx"
-    echo ""
-    echo "=========================================="
-}
-
-# 主函数
-main() {
-    log_info "开始部署智能协作学习系统..."
-    echo ""
-
-    check_root
-    check_system
-    install_dependencies
-    create_directories
-    upload_project
-    create_venv
-    configure_env
-    configure_systemd
-    configure_nginx
-    configure_ssl
-    configure_firewall
-    set_permissions
-    start_services
-    show_info
-
-    log_info "部署流程全部完成!"
-}
-
-# 执行主函数
-main
+echo "=== deploy ok: $NEW ==="

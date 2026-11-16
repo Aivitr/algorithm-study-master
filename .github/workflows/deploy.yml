@@ -1,0 +1,43 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref or SHA to deploy"
+        required: true
+        default: "main"
+      confirm_db_backup:
+        description: "I have taken an RDS snapshot / confirmed the database backup"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://47.114.103.74
+    timeout-minutes: 30
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
+              echo "RDS backup not confirmed"
+              exit 1
+            fi
+            cd ${{ vars.DEPLOY_PATH }}
+            CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh ${{ github.event.inputs.ref }}
