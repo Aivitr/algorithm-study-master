@@ -172,14 +172,17 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                 # 阿里云会话收到音频后立即启动；实时转文字不使用声纹门控。
                 if not session_started:
                     print(f"[ASR] 启动阿里云实时会话，声纹门控已关闭: {username}")
-                    success = await asr_manager.start_session(username, meeting_id, websocket)
+                    success, asr_error = await asr_manager.start_session(
+                        username, meeting_id, websocket
+                    )
                     if not success:
                         print("[ASR] 阿里云会话启动失败，继续接收但不转发")
                         try:
                             await websocket.send_json(
                                 {
                                     "type": "asr_error",
-                                    "message": "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置",
+                                    "message": asr_error
+                                    or "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置",
                                 }
                             )
                         except Exception:
