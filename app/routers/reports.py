@@ -286,14 +286,20 @@ async def generate_learning_report(
 
 
 @router.get("/api/reports/{user_id}")
-async def get_user_reports(user_id: int, db: Session = Depends(get_db)):
+async def get_user_reports(
+    user_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """获取用户的所有报告"""
-    reports = (
-        db.query(LearningReport)
-        .filter(LearningReport.user_id == user_id)
-        .order_by(LearningReport.created_at.desc())
-        .all()
-    )
+    query = db.query(LearningReport).filter(LearningReport.user_id == user_id)
+    if ctx.user.role == "teacher":
+        query = query.join(Meeting, Meeting.id == LearningReport.meeting_id).filter(
+            Meeting.teacher_id == ctx.user.id
+        )
+    elif int(ctx.user.id) != int(user_id):
+        return {"status": "error", "message": "无权查看该用户的报告"}
+    reports = query.order_by(LearningReport.created_at.desc()).all()
     result = []
     for r in reports:
         meeting = db.query(Meeting).filter(Meeting.id == r.meeting_id).first()
@@ -313,10 +319,18 @@ async def get_user_reports(user_id: int, db: Session = Depends(get_db)):
 
 # 获取某次课堂的所有学生报告
 @router.get("/api/meeting-reports/{meeting_id}")
-async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
+async def get_meeting_reports(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """获取课堂的所有学生报告"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "无权查看该课堂报告"}
         reports = (
             db.query(LearningReport)
             .filter(LearningReport.meeting_id == meeting_id)

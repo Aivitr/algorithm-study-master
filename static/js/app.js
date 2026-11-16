@@ -6549,8 +6549,20 @@ new Vue({
             }
         },
         // 下载习题
-        downloadExercises(reportId) {
-            window.open(`/api/download-exercises/${reportId}`, '_blank');
+        async downloadExercises(reportId) {
+            try {
+                const res = await axios.get(`/api/download-exercises/${reportId}`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `exercises_${reportId}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                this.showAlert('下载习题失败: ' + (e.message || e), 'error', '下载失败');
+            }
         },
         // 格式化日期
         formatDate(isoStr) {
