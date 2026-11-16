@@ -6,12 +6,13 @@
 - GCA 六指标：gca_service
 """
 
+import json
 from collections import Counter
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import Meeting
+from app.models import AIInsight, Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.gca_service import analyze_meeting_metrics
 from app.services.knowledge_trace_service import KnowledgeTraceService
@@ -38,9 +39,7 @@ class ClassroomAgentService:
         limit = max(1, min(int(limit), 1000))
         rows = [
             row
-            for row in TranscriptQueryService(db).list_for_meeting(
-                meeting_id, limit=limit
-            )
+            for row in TranscriptQueryService(db).list_for_meeting(meeting_id, limit=limit)
             if getattr(row.user, "role", None) != "teacher"
         ]
         items = [
@@ -65,9 +64,7 @@ class ClassroomAgentService:
         transcripts = self.get_transcripts(db, meeting_id, limit=1000)["items"]
         speech_counts = Counter(item["speaker"] for item in transcripts)
         qualities = [
-            item["quality_score"]
-            for item in transcripts
-            if item["quality_score"] is not None
+            item["quality_score"] for item in transcripts if item["quality_score"] is not None
         ]
         interactions = Counter(
             (left["speaker"], right["speaker"])
@@ -132,10 +129,50 @@ class ClassroomAgentService:
             "group_metrics": result["group_metrics"],
             "timeline": result["timeline"],
             "warnings": result["warnings"],
+            "metadata": result.get("metadata") or {},
         }
         if not ok:
             payload["reason"] = result.get("error") or result["status"]
         return payload
+
+    def confirm_action(
+        self,
+        db: Session,
+        meeting_id: int,
+        *,
+        target: str,
+        action: str,
+        script: str,
+        expected: str,
+        risk: str,
+        evidence: list[str],
+    ) -> dict[str, Any]:
+        """教师确认一条干预动作：只落一条 AIInsight 审计记录，不向学生下发。"""
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if meeting is None:
+            return {"ok": False, "reason": "课堂不存在"}
+        if not action.strip():
+            return {"ok": False, "reason": "动作内容不能为空"}
+        payload = {
+            "meeting_id": meeting_id,
+            "target": target.strip(),
+            "action": action.strip(),
+            "script": script.strip(),
+            "expected": expected.strip(),
+            "risk": risk.strip(),
+            "evidence": evidence,
+            "confirmation_source": "teacher",
+        }
+        insight = AIInsight(
+            meeting_id=meeting_id,
+            target_user=target.strip() or "小组",
+            content=json.dumps(payload, ensure_ascii=False),
+            type="agent_action_confirm",
+        )
+        db.add(insight)
+        db.commit()
+        db.refresh(insight)
+        return {"ok": True, "confirmation_id": insight.id}
 
 
 classroom_agent_service = ClassroomAgentService()

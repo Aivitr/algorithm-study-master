@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from agents import Agent, ModelSettings
+from agents import Agent, AgentOutputSchema, ModelSettings
 from pydantic import BaseModel, Field
 
 from app.agents.model import deepseek_model
@@ -82,5 +82,6 @@ group_analysis_agent = Agent[ClassroomToolContext](
     model=deepseek_model,
     model_settings=ModelSettings(temperature=0.2, max_tokens=1600),
     tools=list(CLASSROOM_TOOLS),
-    output_type=GroupAnalysisOutput,
+    # GroupAnalysisOutput 含 dict[str, Any]，严格 schema 会抛 additionalProperties
+    output_type=AgentOutputSchema(GroupAnalysisOutput, strict_json_schema=False),
 )

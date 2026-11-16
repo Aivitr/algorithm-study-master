@@ -8,13 +8,16 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.paths import PROJECT_ROOT
 from app.models import Transcript
-from app.services.research_enhanced_adapters import build_enhanced_adapters, cosine_similarity, get_adapter_statuses
+from app.services.research_enhanced_adapters import (
+    build_enhanced_adapters,
+    cosine_similarity,
+    get_adapter_statuses,
+)
 from app.services.research_registry import (
     get_algorithm_registry,
     get_backbone_registry,
     get_classroom_dataset_registry,
 )
-
 
 AUTO_DOWNLOAD_IMPLEMENTED = True
 
@@ -134,7 +137,10 @@ class ResearchRuntime:
 
     @property
     def model_source(self) -> str:
-        return _safe_text(getattr(settings.research, "model_source", "manual_local")).lower() or "manual_local"
+        return (
+            _safe_text(getattr(settings.research, "model_source", "manual_local")).lower()
+            or "manual_local"
+        )
 
     @property
     def auto_download_requested(self) -> bool:
@@ -167,29 +173,6 @@ class ResearchRuntime:
             )
         return self._adapters
 
-    def get_model_manifest(self) -> List[Dict]:
-        adapter_statuses = get_adapter_statuses(self.adapters)
-        manifest = []
-        for slot in MODEL_SLOTS:
-            expected_path = self.model_root / slot.expected_subdir
-            has_real_files = self._slot_has_real_files(expected_path)
-            item = {
-                "key": slot.key,
-                "name": slot.name,
-                "role": slot.role,
-                "expected_path": str(expected_path),
-                "required_in_enhanced": slot.required_in_enhanced,
-                "available": has_real_files,
-                "auto_download_supported": slot.auto_download_supported,
-            }
-            if slot.key in adapter_statuses:
-                item["adapter_status"] = adapter_statuses[slot.key]
-                item["runtime_ready"] = adapter_statuses[slot.key].get("ready", False)
-            else:
-                item["runtime_ready"] = item["available"]
-            manifest.append(item)
-        return manifest
-
     def get_missing_required_models(self) -> List[Dict]:
         missing = []
         for item in self.get_model_manifest():
@@ -203,7 +186,9 @@ class ResearchRuntime:
                 reason = adapter_status.get("detail", "")
             elif not item.get("available"):
                 expected_path = Path(item.get("expected_path", ""))
-                reason = "model files missing" if expected_path.exists() else "model directory missing"
+                reason = (
+                    "model files missing" if expected_path.exists() else "model directory missing"
+                )
             missing.append(
                 {
                     "key": item.get("key"),
@@ -220,35 +205,16 @@ class ResearchRuntime:
             return False
         return len(self.get_missing_required_models()) == 0
 
-    def get_profile_options(self) -> List[Dict]:
-        return [
-            {
-                "key": "standard",
-                "label": "标准版",
-                "recommended_for": "评委本地快速部署、普通演示、低GPU环境",
-                "gpu_requirement": "低",
-                "pipeline": [
-                    "沿用现有 Aliyun ASR / 视觉情绪识别 / LLM 分析主链路",
-                    "研究算法仅保留轻量接入层和状态记录",
-                    "无需额外部署增强版模型目录",
-                ],
-            },
-            {
-                "key": "enhanced",
-                "label": "精确增强版",
-                "recommended_for": "4090 等独立 GPU 服务器、精度展示、课后精修",
-                "gpu_requirement": "中到高",
-                "pipeline": [
-                    "保留现有实时主链路，避免课堂实时性明显下降",
-                    "启用 pyannote + WeSpeaker + TalkNet-ASD + InsightFace 的增强分支",
-                    "支持后续与 One-Shot MVG / CCM / CDL / CLPC 的更深层集成",
-                ],
-            },
-        ]
-
     def get_model_manifest(self) -> List[Dict]:
         adapter_statuses = get_adapter_statuses(self.adapters)
-        auto_downloadable = {"pyannote", "wespeaker", "talknet_asd", "insightface", "clip_vit_b16", "bge_m3"}
+        auto_downloadable = {
+            "pyannote",
+            "wespeaker",
+            "talknet_asd",
+            "insightface",
+            "clip_vit_b16",
+            "bge_m3",
+        }
         manifest = []
         for slot in MODEL_SLOTS:
             expected_path = self.model_root / slot.expected_subdir
@@ -260,7 +226,8 @@ class ResearchRuntime:
                 "expected_path": str(expected_path),
                 "required_in_enhanced": slot.required_in_enhanced,
                 "available": has_real_files,
-                "auto_download_supported": slot.key in auto_downloadable or slot.auto_download_supported,
+                "auto_download_supported": slot.key in auto_downloadable
+                or slot.auto_download_supported,
             }
             if slot.key in adapter_statuses:
                 item["adapter_status"] = adapter_statuses[slot.key]
@@ -269,59 +236,6 @@ class ResearchRuntime:
                 item["runtime_ready"] = item["available"]
             manifest.append(item)
         return manifest
-
-    def get_runtime_summary(self) -> Dict:
-        missing_models = self.get_missing_required_models()
-        effective_mode = self._resolve_effective_mode(missing_models)
-        adapter_statuses = get_adapter_statuses(self.adapters)
-
-        return {
-            "deployment_profile": self.deployment_profile,
-            "profile_label": "精确增强版" if self.enhanced_profile_selected else "标准版",
-            "effective_mode": effective_mode,
-            "enabled": self.enabled,
-            "hook_layer_active": True,
-            "enhanced_profile_selected": self.enhanced_profile_selected,
-            "enhanced_stack_ready": self.enhanced_stack_ready,
-            "gpu_inference_worker_enabled": self.enhanced_stack_ready,
-            "gpu_inference_worker_note": (
-                "增强版运行时已经能在模型目录和依赖齐备时真实调用 "
-                "pyannote / WeSpeaker / TalkNet-ASD / InsightFace。"
-            ),
-            "model_root": str(self.model_root),
-            "gallery_root": str(self.gallery_root),
-            "cache_root": str(self.cache_root),
-            "model_source": self.model_source,
-            "auto_download_requested": self.auto_download_requested,
-            "auto_download_implemented": AUTO_DOWNLOAD_IMPLEMENTED,
-            "missing_required_models": missing_models,
-            "adapter_statuses": adapter_statuses,
-            "profile_options": self.get_profile_options(),
-            "selection_guide": [
-                "评委本地部署默认推荐标准版：对 GPU 要求低，可以直接按现有流程运行。",
-                "如果要展示高精度说话人绑定和观点精修能力，可切换到精确增强版。",
-                "精确增强版当前采用手动本地部署模型目录，不会自动联网下载研究模型。",
-            ],
-            "live_pipeline": [
-                "Aliyun ASR / 现有实时识别主链路",
-                "登录用户种子绑定",
-                "轻量 CDL 一致性评分",
-            ],
-            "async_pipeline": [
-                "pyannote 说话人切分",
-                "WeSpeaker 语音原型聚合",
-                "TalkNet-ASD 屏幕说话检测",
-                "InsightFace 人脸原型聚合与图库匹配",
-            ],
-            "post_class_pipeline": [
-                "CLPC 风格观点聚类增强挂载点",
-                "课后高置信身份回放校验",
-            ],
-            "model_manifest": self.get_model_manifest(),
-            "backbones": get_backbone_registry(),
-            "algorithms": get_algorithm_registry(),
-            "classroom_datasets": get_classroom_dataset_registry(),
-        }
 
     def stage_runtime_assets(
         self,
@@ -387,7 +301,9 @@ class ResearchRuntime:
             identity_review_status=status,
             identity_review_note=note,
             cross_modal_consistency=round(
-                self._estimate_cross_modal_consistency(text_value, emotion_tag, body_action, audio_tone),
+                self._estimate_cross_modal_consistency(
+                    text_value, emotion_tag, body_action, audio_tone
+                ),
                 3,
             ),
         )
@@ -455,7 +371,11 @@ class ResearchRuntime:
         result = dict(base_result or {})
         viewpoints = result.get("viewpoints") or []
         speaker_pool = sorted(
-            {_safe_text(item.get("username")) for item in all_transcripts if _safe_text(item.get("username"))}
+            {
+                _safe_text(item.get("username"))
+                for item in all_transcripts
+                if _safe_text(item.get("username"))
+            }
         )
 
         refined_viewpoints = []
@@ -536,9 +456,9 @@ class ResearchRuntime:
             "enhanced_profile_selected",
             "logged_in_user_seed+enhanced_profile",
             (
-                f"当前已选择精确增强版，增强模型目录与依赖校验通过；"
-                f"系统保留现有实时主链路，同时启用 pyannote + WeSpeaker、"
-                f"TalkNet-ASD + InsightFace 的增强评估分支。"
+                "当前已选择精确增强版，增强模型目录与依赖校验通过；"
+                "系统保留现有实时主链路，同时启用 pyannote + WeSpeaker、"
+                "TalkNet-ASD + InsightFace 的增强评估分支。"
             ),
         )
 
@@ -575,7 +495,9 @@ class ResearchRuntime:
             audio_tone=audio_tone,
         )
 
-        consistency = self._estimate_cross_modal_consistency(text, emotion_tag, body_action, audio_tone)
+        consistency = self._estimate_cross_modal_consistency(
+            text, emotion_tag, body_action, audio_tone
+        )
         adjusted_confidence = initial["binding_confidence"]
         status = initial["identity_review_status"]
         binding_source = initial["binding_source"]
@@ -636,7 +558,11 @@ class ResearchRuntime:
         evidence = {}
         adapters = self.adapters
 
-        pyannote_result = adapters["pyannote"].diarize(audio_path) if audio_path else {"ok": False, "reason": "audio_path missing"}
+        pyannote_result = (
+            adapters["pyannote"].diarize(audio_path)
+            if audio_path
+            else {"ok": False, "reason": "audio_path missing"}
+        )
         evidence["pyannote"] = pyannote_result
         if pyannote_result.get("ok"):
             speaker_count = int(pyannote_result.get("speaker_count", 0))
@@ -646,12 +572,18 @@ class ResearchRuntime:
                 notes.append("pyannote 检测到单说话人片段，语音归属更稳定。")
             else:
                 confidence_delta -= min(0.12, 0.04 * (speaker_count - 1))
-                notes.append(f"pyannote 检测到 {speaker_count} 个说话人，需警惕串音或多人同时发言。")
+                notes.append(
+                    f"pyannote 检测到 {speaker_count} 个说话人，需警惕串音或多人同时发言。"
+                )
             if dominant_ratio >= 0.78:
                 confidence_delta += 0.03
                 notes.append("dominant speaker 占比高，主导发言片段较明确。")
 
-        wespeaker_result = adapters["wespeaker"].extract_embedding(audio_path) if audio_path else {"ok": False, "reason": "audio_path missing"}
+        wespeaker_result = (
+            adapters["wespeaker"].extract_embedding(audio_path)
+            if audio_path
+            else {"ok": False, "reason": "audio_path missing"}
+        )
         evidence["wespeaker"] = wespeaker_result
         voice_cluster = None
         if wespeaker_result.get("ok") and wespeaker_result.get("embedding"):
@@ -664,11 +596,16 @@ class ResearchRuntime:
                 threshold=0.72,
             )
             evidence["wespeaker"]["cluster"] = voice_cluster
-            delta, cluster_note = self._evaluate_cluster_alignment(voice_cluster, identity_key, "语音")
+            delta, cluster_note = self._evaluate_cluster_alignment(
+                voice_cluster, identity_key, "语音"
+            )
             confidence_delta += delta
             if cluster_note:
                 notes.append(cluster_note)
-            if voice_cluster.get("majority_identity") and voice_cluster.get("majority_identity") != identity_key:
+            if (
+                voice_cluster.get("majority_identity")
+                and voice_cluster.get("majority_identity") != identity_key
+            ):
                 status = "enhanced_review_warning"
                 binding_source = "logged_in_user_seed+enhanced_runtime_voice_warning"
 
@@ -690,7 +627,9 @@ class ResearchRuntime:
                 threshold=0.62,
             )
             evidence["insightface"]["cluster"] = face_cluster
-            delta, cluster_note = self._evaluate_cluster_alignment(face_cluster, identity_key, "人脸")
+            delta, cluster_note = self._evaluate_cluster_alignment(
+                face_cluster, identity_key, "人脸"
+            )
             confidence_delta += delta
             if cluster_note:
                 notes.append(cluster_note)
@@ -761,7 +700,9 @@ class ResearchRuntime:
             return {}
 
         with self._lock:
-            meeting_bucket = self._meeting_clusters.setdefault(meeting_id, {"voice": [], "face": []})
+            meeting_bucket = self._meeting_clusters.setdefault(
+                meeting_id, {"voice": [], "face": []}
+            )
             clusters = meeting_bucket.setdefault(modality, [])
 
             best_cluster = None
@@ -808,7 +749,9 @@ class ResearchRuntime:
                 "majority_username": majority_username,
             }
 
-    def _evaluate_cluster_alignment(self, cluster: Dict, identity_key: str, modality_label: str) -> Tuple[float, str]:
+    def _evaluate_cluster_alignment(
+        self, cluster: Dict, identity_key: str, modality_label: str
+    ) -> Tuple[float, str]:
         if not cluster:
             return 0.0, ""
 
@@ -853,10 +796,15 @@ class ResearchRuntime:
             return None
         return [float(x) / length for x in embedding]
 
-    def _blend_embeddings(self, current: Optional[List[float]], new: List[float], count: int) -> List[float]:
+    def _blend_embeddings(
+        self, current: Optional[List[float]], new: List[float], count: int
+    ) -> List[float]:
         if not current or count <= 0:
             return list(new)
-        mixed = [((current[i] * count) + new[i]) / (count + 1) for i in range(min(len(current), len(new)))]
+        mixed = [
+            ((current[i] * count) + new[i]) / (count + 1)
+            for i in range(min(len(current), len(new)))
+        ]
         normalized = self._normalize_embedding(mixed)
         return normalized or list(new)
 
@@ -929,7 +877,11 @@ class ResearchRuntime:
             score -= 0.05
 
         confusion_cues = ("?", "？", "为什么", "怎么", "不理解", "疑问")
-        if any(token in text_value for token in confusion_cues) and emotion_value in {"confused", "thinking", "sad"}:
+        if any(token in text_value for token in confusion_cues) and emotion_value in {
+            "confused",
+            "thinking",
+            "sad",
+        }:
             score += 0.06
 
         assertive_cues = ("我认为", "我觉得", "因为", "所以", "例如", "首先")
@@ -1101,7 +1053,9 @@ class ResearchRuntime:
             audio_tone=audio_tone,
         )
 
-        consistency = self._estimate_cross_modal_consistency(text, emotion_tag, body_action, audio_tone)
+        consistency = self._estimate_cross_modal_consistency(
+            text, emotion_tag, body_action, audio_tone
+        )
         adjusted_confidence = initial["binding_confidence"]
         status = initial["identity_review_status"]
         binding_source = initial["binding_source"]
@@ -1154,7 +1108,6 @@ research_runtime = ResearchRuntime()
 
 
 from app.services.research_algorithm_fusion import ResearchAlgorithmFusion
-
 
 _ORIGINAL_GET_RUNTIME_SUMMARY = ResearchRuntime.get_runtime_summary
 _ORIGINAL_REFINE_VIEWPOINT_CLUSTERS = ResearchRuntime.refine_viewpoint_clusters
@@ -1286,11 +1239,18 @@ def _research_runtime_run_enhanced_stack(
         baseline_consistency=baseline_consistency,
     )
 
-    merged_notes = list(base_summary.get("notes") or []) + list(algorithm_summary.get("notes") or [])
+    merged_notes = list(base_summary.get("notes") or []) + list(
+        algorithm_summary.get("notes") or []
+    )
     merged_status = base_summary.get("status") or "enhanced_review_completed"
-    if algorithm_summary.get("status") and algorithm_summary.get("status") != "enhanced_review_completed":
+    if (
+        algorithm_summary.get("status")
+        and algorithm_summary.get("status") != "enhanced_review_completed"
+    ):
         merged_status = algorithm_summary["status"]
-    merged_binding_source = base_summary.get("binding_source") or "logged_in_user_seed+enhanced_runtime"
+    merged_binding_source = (
+        base_summary.get("binding_source") or "logged_in_user_seed+enhanced_runtime"
+    )
     if algorithm_summary.get("binding_source"):
         merged_binding_source = algorithm_summary["binding_source"]
 
@@ -1298,7 +1258,8 @@ def _research_runtime_run_enhanced_stack(
     return {
         "status": merged_status,
         "binding_source": merged_binding_source,
-        "confidence_delta": float(base_summary.get("confidence_delta", 0.0)) + float(algorithm_summary.get("confidence_delta", 0.0)),
+        "confidence_delta": float(base_summary.get("confidence_delta", 0.0))
+        + float(algorithm_summary.get("confidence_delta", 0.0)),
         "notes": merged_notes,
         "evidence": evidence,
         "consistency_override": algorithm_summary.get("consistency_override", baseline_consistency),

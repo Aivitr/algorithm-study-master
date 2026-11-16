@@ -1,0 +1,149 @@
+[project]
+name = "algorithm-study-master"
+version = "0.1.0"
+description = "Smart collaborative learning platform"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy",
+    "numpy",
+    "opencv-python",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "openai",
+    "openai-agents==0.24.0",
+    "requests",
+    "websocket-client",
+    "websockets<17",
+    "aiohttp",
+    "python-multipart",
+    "scipy",
+    "librosa",
+    "soundfile",
+    "mediapipe",
+    "speechbrain",
+    "resemblyzer",
+    "sentence-transformers",
+    "insightface",
+    "onnxruntime",
+    "pyannote.audio",
+    "python_speech_features",
+    "scenedetect",
+    "tqdm",
+    "gdown",
+    "scikit-learn",
+    "jieba>=0.42",
+    "pandas",
+    "huggingface-hub",
+    "transformers",
+    "reportlab",
+    "oss2",
+    "pymssql",
+    "alibabacloud-tea-openapi",
+    "alibabacloud-facebody20191230",
+    "agora-token-builder==1.0.0",
+    # webrtcvad 在模块顶层 import pkg_resources；setuptools 81 起移除了它
+    "setuptools<81",
+]
+
+[project.optional-dependencies]
+# 本地 FunASR 语音识别（可选；默认走阿里云 NLS）
+funasr = [
+    "funasr",
+    "modelscope",
+]
+# 增强研究运行时（可选）：wespeaker 无 PyPI 发行包，仍由 setup_enhanced_runtime.ps1 从 GitHub 安装
+enhanced = [
+    "onnxruntime-gpu",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+]
+lint = [
+    "ruff",
+    "mypy",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["archive", "venv", ".venv", "__pycache__", "storage", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# 这些文件必须先做 sys.path/环境初始化，再导入应用模块，E402 是有意为之
+"server.py" = ["E402", "F401"]
+"app/realtime/emotion_helpers.py" = ["E402"]
+"app/services/research_runtime.py" = ["E402"]
+"gca_engine/adapters/classroom.py" = ["E402"]
+"gca_engine/preprocessing/chinese.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "gca_engine", "server.py"]
+exclude = ["^archive/", "^tests_safe/", "^venv/", "^\\.venv/"]
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = false
+
+# mypy 首轮基线：以下模块的既有错误先冻结，后续逐步清理；
+# 新代码不要在其它模块新增错误。
+[[tool.mypy.overrides]]
+module = [
+    "server",
+    "app.core.meeting_state",
+    "app.core.oss",
+    "app.realtime.knowledge_graph",
+    "app.realtime.speech",
+    "app.realtime.state",
+    "app.routers.classroom_ops",
+    "app.routers.emotion_stats",
+    "app.routers.quiz",
+    "app.routers.realtime",
+    "app.routers.reports",
+    "app.routers.voiceprint",
+    "app.routers.votes",
+    "app.services.class_stats_service",
+    "app.services.gemma_emotion_client",
+    "app.services.knowledge_graph_service",
+    "app.services.knowledge_trace_service",
+    "app.services.llm_service",
+    "app.services.meeting_context_service",
+    "app.services.research_algorithm_fusion",
+    "app.services.research_enhanced_adapters",
+    "app.services.research_registry",
+    "app.services.research_runtime",
+    "gca_engine.core.metrics",
+    "gca_engine.core.responsivity",
+    "gca_engine.engine",
+    "gca_engine.windows",
+]
+ignore_errors = true
+
+
+

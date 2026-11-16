@@ -1,18 +1,25 @@
-import time, uuid, base64, hmac, hashlib, requests, re, os, json
-from app.core import config  # 先加载 .env，确保 os.getenv 能读到阿里云密钥
+import base64
+import hashlib
+import hmac
+import json
+import os
+import threading
+import time
 import urllib.parse
+import uuid
+
+import requests
 import urllib3
 import websocket
-import threading
 
 # 禁用 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # === 阿里云 NLS 配置 ===
 ALIYUN_CONFIG = {
-    'ACCESS_KEY_ID': os.getenv("ALIYUN_ACCESS_KEY_ID", ""),
-    'ACCESS_KEY_SECRET': os.getenv("ALIYUN_ACCESS_KEY_SECRET", ""),
-    'APP_KEY': os.getenv("ALIYUN_APP_KEY", "")
+    "ACCESS_KEY_ID": os.getenv("ALIYUN_ACCESS_KEY_ID", ""),
+    "ACCESS_KEY_SECRET": os.getenv("ALIYUN_ACCESS_KEY_SECRET", ""),
+    "APP_KEY": os.getenv("ALIYUN_APP_KEY", ""),
 }
 
 # === 共享 Token 管理 ===
@@ -28,8 +35,8 @@ def refresh_aliyun_token():
         if _shared_token and time.time() < _shared_token_expire - 60:
             return _shared_token
         try:
-            client_id = ALIYUN_CONFIG['ACCESS_KEY_ID']
-            client_secret = ALIYUN_CONFIG['ACCESS_KEY_SECRET']
+            client_id = ALIYUN_CONFIG["ACCESS_KEY_ID"]
+            client_secret = ALIYUN_CONFIG["ACCESS_KEY_SECRET"]
             params = {
                 "Action": "CreateToken",
                 "Format": "JSON",
@@ -38,20 +45,29 @@ def refresh_aliyun_token():
                 "SignatureMethod": "HMAC-SHA1",
                 "SignatureVersion": "1.0",
                 "SignatureNonce": str(uuid.uuid4()),
-                "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
             sorted_params = sorted(params.items())
-            qs = "&".join([f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}" for k, v in sorted_params])
-            string_to_sign = 'GET&%2F&' + urllib.parse.quote(qs, safe='')
-            key = client_secret + '&'
-            sign = base64.b64encode(hmac.new(key.encode(), string_to_sign.encode(), hashlib.sha1).digest()).decode()
-            params['Signature'] = sign
+            qs = "&".join(
+                [
+                    f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}"
+                    for k, v in sorted_params
+                ]
+            )
+            string_to_sign = "GET&%2F&" + urllib.parse.quote(qs, safe="")
+            key = client_secret + "&"
+            sign = base64.b64encode(
+                hmac.new(key.encode(), string_to_sign.encode(), hashlib.sha1).digest()
+            ).decode()
+            params["Signature"] = sign
 
-            resp = requests.get("https://nls-meta.cn-shanghai.aliyuncs.com/", params=params, timeout=5, verify=False)
+            resp = requests.get(
+                "https://nls-meta.cn-shanghai.aliyuncs.com/", params=params, timeout=5, verify=False
+            )
             d = resp.json()
-            if 'Token' in d:
-                _shared_token = d['Token']['Id']
-                _shared_token_expire = d['Token']['ExpireTime']
+            if "Token" in d:
+                _shared_token = d["Token"]["Id"]
+                _shared_token_expire = d["Token"]["ExpireTime"]
                 print("[OK] 阿里云Token刷新成功")
                 return _shared_token
             # 失败分支：接口返回 4xx 且不带 Token 字段时，记录响应码与消息。
@@ -89,20 +105,20 @@ class AIEngine:
         result_text = []
         is_complete = threading.Event()
         task_started = threading.Event()
-        task_id = str(uuid.uuid4()).replace('-', '')
+        task_id = str(uuid.uuid4()).replace("-", "")
 
         def on_message(ws, message):
             try:
                 msg = json.loads(message)
-                msg_name = msg.get('header', {}).get('name')
+                msg_name = msg.get("header", {}).get("name")
 
-                if msg_name == 'TaskStarted' or msg_name == 'TranscriptionStarted':
+                if msg_name == "TaskStarted" or msg_name == "TranscriptionStarted":
                     task_started.set()
-                elif msg_name == 'SentenceEnd':
-                    text = msg.get('payload', {}).get('result')
+                elif msg_name == "SentenceEnd":
+                    text = msg.get("payload", {}).get("result")
                     if text:
                         result_text.append(text)
-                elif msg_name == 'TranscriptionCompleted':
+                elif msg_name == "TranscriptionCompleted":
                     is_complete.set()
             except Exception as e:
                 print(f"[DEBUG] Message parse error: {e}", flush=True)
@@ -119,19 +135,19 @@ class AIEngine:
                 try:
                     start_msg = {
                         "header": {
-                            "message_id": str(uuid.uuid4()).replace('-', ''),
+                            "message_id": str(uuid.uuid4()).replace("-", ""),
                             "task_id": task_id,
                             "namespace": "SpeechTranscriber",
                             "name": "StartTranscription",
-                            "appkey": ALIYUN_CONFIG['APP_KEY']
+                            "appkey": ALIYUN_CONFIG["APP_KEY"],
                         },
                         "payload": {
                             "format": "pcm",
                             "sample_rate": 16000,
                             "enable_intermediate_result": False,
                             "enable_punctuation_prediction": True,
-                            "enable_inverse_text_normalization": True
-                        }
+                            "enable_inverse_text_normalization": True,
+                        },
                     }
                     ws.send(json.dumps(start_msg))
 
@@ -140,22 +156,22 @@ class AIEngine:
                         is_complete.set()
                         return
 
-                    with open(audio_path, 'rb') as f:
+                    with open(audio_path, "rb") as f:
                         audio_data = f.read()
 
                     chunk_size = 3200
                     for i in range(0, len(audio_data), chunk_size):
-                        chunk = audio_data[i:i+chunk_size]
+                        chunk = audio_data[i : i + chunk_size]
                         ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
                         time.sleep(0.01)
 
                     stop_msg = {
                         "header": {
-                            "message_id": str(uuid.uuid4()).replace('-', ''),
+                            "message_id": str(uuid.uuid4()).replace("-", ""),
                             "task_id": task_id,
                             "namespace": "SpeechTranscriber",
                             "name": "StopTranscription",
-                            "appkey": ALIYUN_CONFIG['APP_KEY']
+                            "appkey": ALIYUN_CONFIG["APP_KEY"],
                         }
                     }
                     ws.send(json.dumps(stop_msg))
@@ -167,11 +183,7 @@ class AIEngine:
 
         try:
             ws = websocket.WebSocketApp(
-                ws_url,
-                on_open=on_open,
-                on_message=on_message,
-                on_error=on_error,
-                on_close=on_close
+                ws_url, on_open=on_open, on_message=on_message, on_error=on_error, on_close=on_close
             )
 
             ws_thread = threading.Thread(target=ws.run_forever)
@@ -181,7 +193,7 @@ class AIEngine:
             is_complete.wait(timeout=20)
             ws.close()
 
-            final_result = ''.join(result_text) if result_text else None
+            final_result = "".join(result_text) if result_text else None
             if final_result:
                 print(f"[OK] 识别结果: {final_result}")
             return final_result
@@ -199,7 +211,14 @@ class RealtimeTranscriber:
     生命周期: start() → feed_audio(chunk) ... → stop()
     """
 
-    def __init__(self, on_partial=None, on_final=None, on_error=None, enable_speaker_diarization=False, username=None):
+    def __init__(
+        self,
+        on_partial=None,
+        on_final=None,
+        on_error=None,
+        enable_speaker_diarization=False,
+        username=None,
+    ):
         """
         on_partial(text, payload=None) - TranscriptionResultChanged 中间结果回调
         on_final(text, payload=None)   - SentenceEnd 最终结果回调
@@ -234,40 +253,44 @@ class RealtimeTranscriber:
             return False
 
         ws_url = f"wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1?token={token}"
-        self.task_id = str(uuid.uuid4()).replace('-', '')
+        self.task_id = str(uuid.uuid4()).replace("-", "")
         self._task_started.clear()
 
         def on_message(ws, message):
             try:
                 msg = json.loads(message)
-                name = msg.get('header', {}).get('name', '')
+                name = msg.get("header", {}).get("name", "")
 
-                if name == 'TaskStarted' or name == 'TranscriptionStarted':
+                if name == "TaskStarted" or name == "TranscriptionStarted":
                     self._task_started.set()
 
-                elif name == 'TranscriptionResultChanged':
+                elif name == "TranscriptionResultChanged":
                     # 中间结果 — 实时显示的关键
-                    payload = msg.get('payload', {})
-                    text = payload.get('result', '')
+                    payload = msg.get("payload", {})
+                    text = payload.get("result", "")
                     if text:
                         if self.enable_speaker_diarization:
-                            print(f"[DEBUG] 中间结果 payload: {json.dumps(payload, ensure_ascii=False)}")
+                            print(
+                                f"[DEBUG] 中间结果 payload: {json.dumps(payload, ensure_ascii=False)}"
+                            )
                         self._emit_callback(self.on_partial, text, payload)
 
-                elif name == 'SentenceEnd':
+                elif name == "SentenceEnd":
                     # 最终结果
-                    payload = msg.get('payload', {})
-                    text = payload.get('result', '')
+                    payload = msg.get("payload", {})
+                    text = payload.get("result", "")
                     if text:
                         if self.enable_speaker_diarization:
-                            print(f"[DEBUG] 最终结果 payload: {json.dumps(payload, ensure_ascii=False)}")
+                            print(
+                                f"[DEBUG] 最终结果 payload: {json.dumps(payload, ensure_ascii=False)}"
+                            )
                         self._emit_callback(self.on_final, text, payload)
 
-                elif name == 'TranscriptionCompleted':
+                elif name == "TranscriptionCompleted":
                     pass  # StopTranscription 后的正常完成
 
-                elif name == 'TaskFailed':
-                    reason = msg.get('header', {}).get('status_text', 'unknown')
+                elif name == "TaskFailed":
+                    reason = msg.get("header", {}).get("status_text", "unknown")
                     self.on_error(f"TaskFailed: {reason}")
 
             except Exception as e:
@@ -278,16 +301,16 @@ class RealtimeTranscriber:
 
         def on_close(ws, status, msg):
             self.is_started = False
-            print(f"[ASR] 阿里云NLS连接关闭")
+            print("[ASR] 阿里云NLS连接关闭")
 
         def on_open(ws):
             start_msg = {
                 "header": {
-                    "message_id": str(uuid.uuid4()).replace('-', ''),
+                    "message_id": str(uuid.uuid4()).replace("-", ""),
                     "task_id": self.task_id,
                     "namespace": "SpeechTranscriber",
                     "name": "StartTranscription",
-                    "appkey": ALIYUN_CONFIG['APP_KEY']
+                    "appkey": ALIYUN_CONFIG["APP_KEY"],
                 },
                 "payload": {
                     "format": "pcm",
@@ -295,8 +318,8 @@ class RealtimeTranscriber:
                     "enable_intermediate_result": True,
                     "enable_punctuation_prediction": True,
                     "enable_inverse_text_normalization": True,
-                    "max_sentence_silence": 800
-                }
+                    "max_sentence_silence": 800,
+                },
             }
 
             # ⭐ 如果启用说话人分离，添加参数
@@ -310,11 +333,7 @@ class RealtimeTranscriber:
             ws.send(json.dumps(start_msg))
 
         self.ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error_ws,
-            on_close=on_close
+            ws_url, on_open=on_open, on_message=on_message, on_error=on_error_ws, on_close=on_close
         )
 
         ws_thread = threading.Thread(target=self.ws.run_forever, daemon=True)
@@ -346,11 +365,11 @@ class RealtimeTranscriber:
             try:
                 stop_msg = {
                     "header": {
-                        "message_id": str(uuid.uuid4()).replace('-', ''),
+                        "message_id": str(uuid.uuid4()).replace("-", ""),
                         "task_id": self.task_id,
                         "namespace": "SpeechTranscriber",
                         "name": "StopTranscription",
-                        "appkey": ALIYUN_CONFIG['APP_KEY']
+                        "appkey": ALIYUN_CONFIG["APP_KEY"],
                     }
                 }
                 self.ws.send(json.dumps(stop_msg))
@@ -362,7 +381,7 @@ class RealtimeTranscriber:
                 self.ws.close()
             except Exception:
                 pass
-            print(f"[ASR] 实时转写会话已停止")
+            print("[ASR] 实时转写会话已停止")
 
     def _emit_callback(self, callback, text, payload):
         """兼容旧的一参回调，同时把阿里云 payload 透传给新链路。"""
@@ -386,8 +405,8 @@ class RealtimeTranscriber:
             }
         }
         """
-        payload = msg.get('payload', {})
-        speaker_id = payload.get('speaker_id', None)
+        payload = msg.get("payload", {})
+        payload.get("speaker_id", None)
 
         return True
 

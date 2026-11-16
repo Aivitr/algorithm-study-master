@@ -31,6 +31,7 @@ router = APIRouter()
 
 BASE_DIR = str(PROJECT_ROOT)  # 与 server.py 的同名常量同源同值
 
+
 @router.get("/api/download-exercises/{report_id}")
 async def download_exercises(report_id: int, db: Session = Depends(get_db)):
     """下载练习题"""
@@ -49,7 +50,7 @@ async def download_exercises(report_id: int, db: Session = Depends(get_db)):
         os.makedirs(exercise_dir, exist_ok=True)
         filename = f"exercises_{report_id}_{int(time.time())}.txt"
         filepath = os.path.join(exercise_dir, filename)
-        
+
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(f"练习题集 - {meeting.topic if meeting else '未知课堂'}\n")
             f.write("=" * 50 + "\n\n")
@@ -64,16 +65,16 @@ async def download_exercises(report_id: int, db: Session = Depends(get_db)):
                     # 处理不同格式
                     if isinstance(ex.options, dict):
                         for opt_key, opt_val in ex.options.items():
-                            opt_text = str(opt_val or '').strip()
+                            opt_text = str(opt_val or "").strip()
                             # 避免出现类似 “A. A. xxx” 的重复前缀
-                            opt_text = re.sub(r'^\s*[A-Da-d]\s*[\.、:：]\s*', '', opt_text)
+                            opt_text = re.sub(r"^\s*[A-Da-d]\s*[\.、:：]\s*", "", opt_text)
                             f.write(f"  {opt_key}. {opt_text}\n")
                     elif isinstance(ex.options, list):
                         for idx, opt in enumerate(ex.options):
                             opt_key = chr(65 + idx)  # A, B, C, D...
-                            opt_text = str(opt or '').strip()
+                            opt_text = str(opt or "").strip()
                             # 避免出现类似 “A. A. xxx” 的重复前缀
-                            opt_text = re.sub(r'^\s*[A-Da-d]\s*[\.、:：]\s*', '', opt_text)
+                            opt_text = re.sub(r"^\s*[A-Da-d]\s*[\.、:：]\s*", "", opt_text)
                             f.write(f"  {opt_key}. {opt_text}\n")
                     else:
                         f.write(f"  {ex.options}\n")
@@ -81,11 +82,11 @@ async def download_exercises(report_id: int, db: Session = Depends(get_db)):
                 f.write(f"知识点: {ex.knowledge_tag or '综合'}\n")
                 f.write(f"答案: {ex.answer}\n")
                 f.write("-" * 40 + "\n\n")
-        
+
         return FileResponse(
             path=filepath,
             filename=f"??_{meeting.topic if meeting else 'exercises'}.txt",
-            media_type="text/plain"
+            media_type="text/plain",
         )
     except Exception as e:
         print(f"[ERROR] ??: {e}")
@@ -94,21 +95,22 @@ async def download_exercises(report_id: int, db: Session = Depends(get_db)):
 
 @router.post("/api/quiz-error-analysis")
 async def quiz_error_analysis(
-    wrong_questions: str = Form(...),
-    topic: str = Form(default=""),
-    db: Session = Depends(get_db)
+    wrong_questions: str = Form(...), topic: str = Form(default=""), db: Session = Depends(get_db)
 ):
     """AI分析错题，给出学习建议"""
     try:
         import json as _json
+
         questions = _json.loads(wrong_questions)
         if not questions:
             return {"status": "success", "analysis": "没有错题，表现很棒！"}
 
-        wrong_text = "\n".join([
-            f"- 题目：{q.get('question', '未知')}\n  正确答案：{q.get('correctAnswer', '未知')}"
-            for q in questions
-        ])
+        wrong_text = "\n".join(
+            [
+                f"- 题目：{q.get('question', '未知')}\n  正确答案：{q.get('correctAnswer', '未知')}"
+                for q in questions
+            ]
+        )
 
         prompt = f"""课程主题：{topic}
 
@@ -127,11 +129,14 @@ async def quiz_error_analysis(
             response = llm.client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
-                    {"role": "system", "content": "你是一位经验丰富的教育分析师，善于从错题中发现学生的薄弱点并给出针对性建议。使用Markdown格式回复。"},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "你是一位经验丰富的教育分析师，善于从错题中发现学生的薄弱点并给出针对性建议。使用Markdown格式回复。",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.4,
-                max_tokens=800
+                max_tokens=800,
             )
             analysis = response.choices[0].message.content.strip()
         except Exception as e:
@@ -149,7 +154,7 @@ async def grade_short_answer(
     question: str = Form(...),
     correct_answer: str = Form(...),
     student_answer: str = Form(...),
-    question_type: str = Form("简答题")
+    question_type: str = Form("简答题"),
 ):
     """大模型评判简答/讨论题"""
     try:
@@ -184,15 +189,16 @@ async def submit_answer(
     user_id: int = Form(...),
     answer_content: str = Form(...),
     is_correct: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """保存学生答题记录"""
     try:
         # 检查是否已有该题的回答记录
-        existing = db.query(StudentAnswer).filter(
-            StudentAnswer.exercise_id == exercise_id,
-            StudentAnswer.user_id == user_id
-        ).first()
+        existing = (
+            db.query(StudentAnswer)
+            .filter(StudentAnswer.exercise_id == exercise_id, StudentAnswer.user_id == user_id)
+            .first()
+        )
 
         if existing:
             existing.answer_content = answer_content
@@ -203,7 +209,7 @@ async def submit_answer(
                 exercise_id=exercise_id,
                 user_id=user_id,
                 answer_content=answer_content,
-                is_correct=is_correct
+                is_correct=is_correct,
             )
             db.add(sa)
         db.commit()
@@ -228,15 +234,17 @@ async def get_student_quiz_history(user_id: int, db: Session = Depends(get_db)):
         for wa in wrong_answers:
             ex = db.query(Exercise).filter(Exercise.id == wa.exercise_id).first()
             if ex:
-                wrong_details.append({
-                    "exercise_id": ex.id,
-                    "question": ex.question,
-                    "type": ex.question_type,
-                    "correct_answer": ex.answer,
-                    "student_answer": wa.answer_content,
-                    "knowledge_tag": ex.knowledge_tag,
-                    "submitted_at": wa.submitted_at.isoformat() if wa.submitted_at else None
-                })
+                wrong_details.append(
+                    {
+                        "exercise_id": ex.id,
+                        "question": ex.question,
+                        "type": ex.question_type,
+                        "correct_answer": ex.answer,
+                        "student_answer": wa.answer_content,
+                        "knowledge_tag": ex.knowledge_tag,
+                        "submitted_at": wa.submitted_at.isoformat() if wa.submitted_at else None,
+                    }
+                )
 
         return {
             "status": "success",
@@ -244,7 +252,7 @@ async def get_student_quiz_history(user_id: int, db: Session = Depends(get_db)):
             "correct": correct,
             "wrong": wrong,
             "accuracy": round(correct / total * 100, 1) if total > 0 else 0,
-            "wrong_details": wrong_details
+            "wrong_details": wrong_details,
         }
     except Exception as e:
         print(f"[ERROR] student-quiz-history: {e}")

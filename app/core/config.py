@@ -222,11 +222,15 @@ class Settings:
 def _build_settings() -> Settings:
     llm_provider = _get_env("LLM_PROVIDER", "deepseek").lower()
     default_model = "gemma4:e4b" if llm_provider == "ollama" else "deepseek-chat"
-    default_base_url = "http://127.0.0.1:11434/v1" if llm_provider == "ollama" else "https://api.deepseek.com"
+    default_base_url = (
+        "http://127.0.0.1:11434/v1" if llm_provider == "ollama" else "https://api.deepseek.com"
+    )
     llm_api_key = _get_env("LLM_API_KEY", "ollama" if llm_provider == "ollama" else "")
     research_profile = _get_env("RESEARCH_DEPLOYMENT_PROFILE", "standard").lower()
     default_research_enabled = research_profile == "enhanced"
-    default_research_runtime_mode = "enhanced_strict" if research_profile == "enhanced" else "documented_only"
+    default_research_runtime_mode = (
+        "enhanced_strict" if research_profile == "enhanced" else "documented_only"
+    )
     default_research_model_root = str(BASE_DIR / "storage" / "research_models")
     default_research_gallery_root = str(BASE_DIR / "storage" / "research_gallery")
     default_research_cache_root = str(BASE_DIR / "storage" / "research_runtime_cache")
@@ -285,12 +289,18 @@ def _build_settings() -> Settings:
             auto_download_allowed=_get_bool("RESEARCH_AUTO_DOWNLOAD_MODELS", False),
             hf_token=_get_env("RESEARCH_HF_TOKEN", ""),
             enhanced_python=_get_env("RESEARCH_ENHANCED_PYTHON", sys.executable),
-            pyannote_model_id=_get_env("RESEARCH_PYANNOTE_MODEL_ID", "pyannote/speaker-diarization-3.1"),
+            pyannote_model_id=_get_env(
+                "RESEARCH_PYANNOTE_MODEL_ID", "pyannote/speaker-diarization-3.1"
+            ),
             wespeaker_model_name=_get_env("RESEARCH_WESPEAKER_MODEL_NAME", "chinese"),
             clip_model_id=_get_env("RESEARCH_CLIP_MODEL_ID", "openai/clip-vit-base-patch16"),
             bge_model_id=_get_env("RESEARCH_BGE_MODEL_ID", "BAAI/bge-m3"),
-            wespeaker_repo_url=_get_env("RESEARCH_WESPEAKER_REPO_URL", "https://github.com/wenet-e2e/wespeaker.git"),
-            talknet_repo_url=_get_env("RESEARCH_TALKNET_REPO_URL", "https://github.com/TaoRuijie/TalkNet-ASD.git"),
+            wespeaker_repo_url=_get_env(
+                "RESEARCH_WESPEAKER_REPO_URL", "https://github.com/wenet-e2e/wespeaker.git"
+            ),
+            talknet_repo_url=_get_env(
+                "RESEARCH_TALKNET_REPO_URL", "https://github.com/TaoRuijie/TalkNet-ASD.git"
+            ),
         ),
     )
 

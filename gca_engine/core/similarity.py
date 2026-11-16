@@ -37,8 +37,7 @@ def pairwise_cosine(x, y, zero_vector_policy: str = "zero"):
     y = np.asarray(y, dtype=float)
     if x.ndim != 2 or y.ndim != 2 or x.shape != y.shape:
         raise ValueError(
-            "pairwise_cosine needs equal-shaped 2-D arrays, "
-            f"got {x.shape} and {y.shape}"
+            f"pairwise_cosine needs equal-shaped 2-D arrays, got {x.shape} and {y.shape}"
         )
     nx = np.linalg.norm(x, axis=1)
     ny = np.linalg.norm(y, axis=1)

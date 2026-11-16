@@ -16,15 +16,28 @@ from gca_engine.adapters.conversation_json import (
 
 
 class TestRecordsToUtterances(unittest.TestCase):
-
     def test_field_mapping(self):
         records = [
-            {"dataset": "AMI", "meeting": "EN2002a", "group": "EN2002a",
-             "speaker": "A", "start": 0.0, "end": 1.5,
-             "message": "Hello, world!", "source": "human"},
-            {"dataset": "AMI", "meeting": "EN2002a", "group": "EN2002a",
-             "speaker": "B", "start": 2.0, "end": 3.0,
-             "message": "Bye!!", "source": "human"},
+            {
+                "dataset": "AMI",
+                "meeting": "EN2002a",
+                "group": "EN2002a",
+                "speaker": "A",
+                "start": 0.0,
+                "end": 1.5,
+                "message": "Hello, world!",
+                "source": "human",
+            },
+            {
+                "dataset": "AMI",
+                "meeting": "EN2002a",
+                "group": "EN2002a",
+                "speaker": "B",
+                "start": 2.0,
+                "end": 3.0,
+                "message": "Bye!!",
+                "source": "human",
+            },
         ]
         utterances = records_to_utterances(records)
         self.assertEqual(len(utterances), 2)
@@ -49,13 +62,10 @@ class TestRecordsToUtterances(unittest.TestCase):
 
 
 class TestLoadConversationJson(unittest.TestCase):
-
     def test_load_file(self):
         records = [
-            {"meeting": "M1", "speaker": "A", "start": 0.0, "end": 1.0,
-             "message": "hello"},
-            {"meeting": "M1", "speaker": "B", "start": 1.0, "end": 2.0,
-             "message": "world"},
+            {"meeting": "M1", "speaker": "A", "start": 0.0, "end": 1.0, "message": "hello"},
+            {"meeting": "M1", "speaker": "B", "start": 1.0, "end": 2.0, "message": "world"},
         ]
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "conversation.json"

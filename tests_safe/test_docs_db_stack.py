@@ -38,17 +38,42 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # 不扫的目录。`archive/` 是**刻意保留的史料**（含 dev-docs 与 ops-scripts），
 # 与 docs/DEPLOYMENT.md 同性质：留档，不是让人照做。
-_EXCLUDED_DIRS = frozenset({
-    ".git", ".github", "archive", "node_modules", "venv", ".venv", "env",
-    "static", "storage", "__pycache__", ".pytest_cache", ".codegraph",
-})
+_EXCLUDED_DIRS = frozenset(
+    {
+        ".git",
+        ".github",
+        "archive",
+        "node_modules",
+        "venv",
+        ".venv",
+        "env",
+        "static",
+        "storage",
+        "__pycache__",
+        ".pytest_cache",
+        ".codegraph",
+    }
+)
 
 # Markdown 走"只看围栏代码块"；其余后缀整份都是指令。
 _DOC_SUFFIXES = frozenset({".md", ".markdown"})
-_INSTRUCTION_SUFFIXES = frozenset({
-    ".md", ".markdown", ".sh", ".bash", ".ps1", ".bat",
-    ".example", ".service", ".conf", ".env", ".yml", ".yaml", ".txt",
-})
+_INSTRUCTION_SUFFIXES = frozenset(
+    {
+        ".md",
+        ".markdown",
+        ".sh",
+        ".bash",
+        ".ps1",
+        ".bat",
+        ".example",
+        ".service",
+        ".conf",
+        ".env",
+        ".yml",
+        ".yaml",
+        ".txt",
+    }
+)
 
 # 围栏：开合标记必须同类同长（``` 配 ```，~~~ 配 ~~~）。
 _FENCE = re.compile(r"^([`~]{3,})[^\n]*\n(.*?)^\1[ \t]*$", re.DOTALL | re.MULTILINE)
@@ -65,10 +90,9 @@ _MYSQL_ERA = (
 # 下面 test_every_allowlisted_file_still_needs_its_exemption 会盯着，
 # 免得它退化成一张"看着烦就放行"的名单。
 _ALLOWLIST = {
-    "docs/DEPLOYMENT.md":
-        "陈旧史料：整篇描述 MySQL/3308 时代的部署方式，README 已明写不要照做。"
-        "它是**刻意留档的错**，不是待修的活文件；里面那些 `pip install … pymysql` "
-        "与 `mysql+pymysql://` 连接串正是它该有的样子。",
+    "docs/DEPLOYMENT.md": "陈旧史料：整篇描述 MySQL/3308 时代的部署方式，README 已明写不要照做。"
+    "它是**刻意留档的错**，不是待修的活文件；里面那些 `pip install … pymysql` "
+    "与 `mysql+pymysql://` 连接串正是它该有的样子。",
 }
 
 
@@ -125,7 +149,7 @@ def test_no_live_file_tells_you_to_use_the_mysql_stack():
         "以下文件仍在教人用 MySQL 时代的栈，而本系统跑的是 SQL Server 2022：\n"
         + "\n".join(f"  {rel}  -> {sorted(labels)}" for rel, labels in sorted(offenders.items()))
         + "\n\n若某一处确实是**描述**（「某某文档是陈旧的」）而非**指令**，把它写进正文、"
-          "别放进代码块；若确实是需要留档的史料，加进 _ALLOWLIST 并写清理由。"
+        "别放进代码块；若确实是需要留档的史料，加进 _ALLOWLIST 并写清理由。"
     )
 
 
@@ -146,10 +170,13 @@ def test_the_scanner_actually_reaches_the_files_it_is_supposed_to_guard():
 
     # 围栏提取器自检：正确栈的指令（sqlcmd）必须能被它读出来。
     with_sqlcmd = [
-        rel for rel in sorted(scanned)
+        rel
+        for rel in sorted(scanned)
         if rel.endswith(".md")
-        and any("sqlcmd" in b for b in _fenced_blocks(
-            (REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace")))
+        and any(
+            "sqlcmd" in b
+            for b in _fenced_blocks((REPO_ROOT / rel).read_text(encoding="utf-8", errors="replace"))
+        )
     ]
     assert with_sqlcmd, (
         "没有一个 .md 的围栏代码块里读得到 sqlcmd——围栏正则失效了，"
@@ -167,7 +194,7 @@ def test_the_guard_catches_an_offender_and_spares_a_lookalike():
     # 正面：正确驱动与正确连接串，一个都不许报
     assert not _hits_in(["DATABASE_URL=mssql+pymssql://sa:pw@db:1433/cscl_db?charset=utf8"])
     assert not _hits_in(["pip install sqlalchemy pymssql opencv-python"])
-    assert not _hits_in(["sqlcmd -S host,1433 -U user -P pw -d cscl_db -C -Q \"SELECT 1\""])
+    assert not _hits_in(['sqlcmd -S host,1433 -U user -P pw -d cscl_db -C -Q "SELECT 1"'])
 
     # 代码块才算指令；正文里的"某某文档是陈旧的"不算。
     prose_only = "说明：旧文档里的 `mysqldump` 命令对 SQL Server 无效。\n"

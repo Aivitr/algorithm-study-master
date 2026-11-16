@@ -1,56 +1,56 @@
 {
   "states": {
     "默认（落地页）": {
-      "hash": "82779b3c802e0f01",
-      "length": 6448
+      "hash": "c4550e6baadcd7b3",
+      "length": 5165
     },
     "登录页": {
-      "hash": "f6103214fdf6e8bf",
-      "length": 2691
+      "hash": "7c02c8680ecc4ca1",
+      "length": 2742
     },
     "注册页": {
-      "hash": "15250dbe370a9a00",
-      "length": 4109
+      "hash": "f098bd59cfbe3e47",
+      "length": 4249
     },
     "大厅（学生）": {
-      "hash": "da35d8c4f4f61763",
-      "length": 5446
+      "hash": "e612b2e2558819bc",
+      "length": 5227
     },
     "大厅（教师）": {
-      "hash": "7976f6d11674c07b",
-      "length": 7000
+      "hash": "00468b7114a565d3",
+      "length": 6782
     },
     "个人中心（学生）": {
-      "hash": "6967c40ec7216ad0",
-      "length": 10430
+      "hash": "e1d072a63d00e71b",
+      "length": 10205
     },
     "课堂（学生）": {
-      "hash": "1a09cbc701eecae1",
-      "length": 8110
+      "hash": "4c20b1595423a0fd",
+      "length": 7969
     },
     "课堂（教师）": {
-      "hash": "ff6afa9c7de35879",
-      "length": 8477
+      "hash": "d452c5d49b7317d8",
+      "length": 8699
     },
     "AI 辅导弹窗": {
-      "hash": "64c5c7fd537f5305",
-      "length": 7215
+      "hash": "2a6b89369106145e",
+      "length": 6996
     },
     "进入课堂弹窗": {
-      "hash": "1ba7c059bebd783e",
-      "length": 10248
+      "hash": "c93a1fd349bfc7ec",
+      "length": 10402
     },
     "小组报告弹窗": {
-      "hash": "855eb9d7b600b783",
-      "length": 7802
+      "hash": "de19bce2d6280289",
+      "length": 7584
     },
     "通用弹窗": {
-      "hash": "5e8a08ede64df754",
-      "length": 5798
+      "hash": "d2585c97657b7ad0",
+      "length": 5579
     },
     "通用弹窗（确认）": {
-      "hash": "0ef96fa8932c78d6",
-      "length": 5845
+      "hash": "4bab3bf164d54330",
+      "length": 5626
     }
   },
   "clicks": {
@@ -64,6 +64,15 @@
       "ok": true
     },
     "注册页点“返回首页” → 回落地页": {
+      "ok": true
+    },
+    "登录页点“立即注册” → 注册页并清空表单": {
+      "ok": true
+    },
+    "注册页点“立即登录” → 登录页并清空表单": {
+      "ok": true
+    },
+    "自定义确认按钮文案并返回 false": {
       "ok": true
     },
     "通用弹窗点“确定” → 关闭": {
@@ -96,6 +105,12 @@
     "进入课堂弹窗点遮罩 → 关": {
       "ok": true
     },
+    "进入课堂弹窗点“取消” → 关并清空表单": {
+      "ok": true
+    },
+    "进入课堂弹窗空课堂号 → 字段旁报错": {
+      "ok": true
+    },
     "个人中心点“开始对话” → 开 AI 辅导弹窗": {
       "ok": true
     },
@@ -105,7 +120,22 @@
     "AI 辅导弹窗点遮罩 → 关": {
       "ok": true
     },
-    "大厅（教师）点“设置” → 切到设置页": {
+    "课堂（教师）点“收起面板” → 折叠右栏": {
+      "ok": true
+    },
+    "课堂（学生）点“退出课堂” → 打开确认": {
+      "ok": true
+    },
+    "Agora UID 非 ASCII → 合法 ASCII UID": {
+      "ok": true
+    },
+    "登录态写入 sessionStorage 并可清除": {
+      "ok": true
+    },
+    "刷新页面不撤销登录会话": {
+      "ok": true
+    },
+    "大厅（教师）点“课堂管理” → 切到课堂管理页": {
       "ok": true
     }
   },

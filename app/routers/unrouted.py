@@ -47,12 +47,13 @@ BASE_DIR = str(PROJECT_ROOT)
 # 故意为空：本模块不注册任何路由，见文件头的说明。
 router = APIRouter()
 
+
 async def select_viewpoint(
     meeting_id: int = Form(...),
     viewpoint_id: int = Form(...),
     viewpoint_title: str = Form(...),
     viewpoint_desc: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """老师直接选择观点（不投票）"""
     try:
@@ -63,26 +64,24 @@ async def select_viewpoint(
         selected_viewpoint = {
             "id": viewpoint_id,
             "title": viewpoint_title,
-            "description": viewpoint_desc
+            "description": viewpoint_desc,
         }
 
         # 生成子目标
-        result = llm.generate_sub_goals(
-            selected_viewpoint,
-            meeting.topic,
-            meeting.knowledge_points
-        )
+        result = llm.generate_sub_goals(selected_viewpoint, meeting.topic, meeting.knowledge_points)
 
         # 更新教学目标
         if result.get("sub_goals"):
             new_goals = meeting.knowledge_points or []
             for sg in result["sub_goals"]:
-                new_goals.append({
-                    "id": len(new_goals) + 1,
-                    "desc": f"[深入探讨] {sg['desc']}",
-                    "status": "pending",
-                    "parent_viewpoint": viewpoint_title
-                })
+                new_goals.append(
+                    {
+                        "id": len(new_goals) + 1,
+                        "desc": f"[深入探讨] {sg['desc']}",
+                        "status": "pending",
+                        "parent_viewpoint": viewpoint_title,
+                    }
+                )
             meeting.knowledge_points = new_goals
             db.commit()
 
@@ -90,65 +89,58 @@ async def select_viewpoint(
             "status": "success",
             "sub_goals": result.get("sub_goals", []),
             "guidance": result.get("guidance", ""),
-            "updated_goals": meeting.knowledge_points
+            "updated_goals": meeting.knowledge_points,
         }
     except Exception as e:
         print(f"[ERROR] 选择观点失败: {e}")
         return {"status": "error", "message": str(e)}
 
 
-
-
-
-
 # 获取快照
-
-
 
 
 async def upload_report_template(
     template_file: UploadFile = File(...),
     teacher_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """??"""
     try:
         from app.models import ReportTemplate
-        
+
         template_dir = os.path.join(BASE_DIR, "storage", "templates")
         os.makedirs(template_dir, exist_ok=True)
-        
+
         original_filename = template_file.filename
         filename = f"template_{teacher_id}_{int(time.time())}_{original_filename}"
         filepath = os.path.join(template_dir, filename)
-        
+
         with open(filepath, "wb") as f:
             content = await template_file.read()
             f.write(content)
-        
+
         # ??
         template = ReportTemplate(
             teacher_id=teacher_id,
             filename=original_filename,
             filepath=filepath,
-            is_default=1  # ??
+            is_default=1,  # ??
         )
-        
+
         # ??
         db.query(ReportTemplate).filter(
-            ReportTemplate.teacher_id == teacher_id,
-            ReportTemplate.is_default == 1
+            ReportTemplate.teacher_id == teacher_id, ReportTemplate.is_default == 1
         ).update({"is_default": 0})
-        
+
         db.add(template)
         db.commit()
         db.refresh(template)
-        
+
         return {
             "status": "success",
             "template_id": template.id,
             "template_path": filepath,
-            "filename": original_filename
+            "filename": original_filename,
         }
     except Exception as e:
         print(f"[ERROR] ??: {e}")

@@ -52,6 +52,7 @@ def tokenize(text: str | None) -> list[str]:
 
     try:
         import jieba
+
         words = [w for w in jieba.cut(cleaned) if w.strip()]
     except ImportError:
         words = [w for w in cleaned.split(" ") if w.strip()]

@@ -1,10 +1,10 @@
-import os
-from app.core import config  # 先加载 .env，确保 os.getenv 能读到 LLM_API_KEY
 import json
-import time
+import os
 import threading
+import time
 from collections import OrderedDict
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from openai import OpenAI
 
 from app.services.context_builder import normalize_context_lines, normalize_text
@@ -113,7 +113,9 @@ class LLMService:
     def _normalize_text(self, text: Any, max_len: int = 500) -> str:
         return normalize_text(text, max_len)
 
-    def _normalize_context_lines(self, items: List[Any], max_items: int = 8, each_len: int = 80, total_len: int = 500) -> str:
+    def _normalize_context_lines(
+        self, items: List[Any], max_items: int = 8, each_len: int = 80, total_len: int = 500
+    ) -> str:
         return normalize_context_lines(items, max_items, each_len, total_len)
 
     def _get_cache_key(self, method: str, *args, **kwargs) -> str:
@@ -145,9 +147,25 @@ class LLMService:
                     data[field] = 50
                 elif field == "relevance":
                     data[field] = 50
-                elif field in ["summary", "feedback", "guidance", "hint", "discussion_process", "class_atmosphere"]:
+                elif field in [
+                    "summary",
+                    "feedback",
+                    "guidance",
+                    "hint",
+                    "discussion_process",
+                    "class_atmosphere",
+                ]:
                     data[field] = "暂无有效内容"
-                elif field in ["materials", "exercises", "viewpoints", "sub_goals", "core_questions", "student_reviews", "key_findings", "updated_goals"]:
+                elif field in [
+                    "materials",
+                    "exercises",
+                    "viewpoints",
+                    "sub_goals",
+                    "core_questions",
+                    "student_reviews",
+                    "key_findings",
+                    "updated_goals",
+                ]:
                     data[field] = []
                 elif field == "dimensions":
                     data[field] = {"relevance": 50, "depth": 50, "creativity": 50, "expression": 50}
@@ -222,8 +240,8 @@ class LLMService:
     ) -> str:
         goals_json = json.dumps((current_goals or [])[:8], ensure_ascii=False)
         return f"""
-课程主题：{topic or '未提供'}
-课堂最近上下文：{recent_context or '无'}
+课程主题：{topic or "未提供"}
+课堂最近上下文：{recent_context or "无"}
 当前学生发言：{speech_content}
 当前目标列表：{goals_json}
 
@@ -272,7 +290,7 @@ class LLMService:
                     break
                 nxt = buffer[i + 1]
                 if nxt == "u":
-                    hex_part = buffer[i + 2:i + 6]
+                    hex_part = buffer[i + 2 : i + 6]
                     if len(hex_part) < 4:
                         break
                     try:
@@ -355,7 +373,7 @@ class LLMService:
                 buffer += delta
                 current_feedback, _ = self._extract_json_string_prefix(buffer, "feedback")
                 if len(current_feedback) > len(emitted_feedback):
-                    new_text = current_feedback[len(emitted_feedback):]
+                    new_text = current_feedback[len(emitted_feedback) :]
                     emitted_feedback = current_feedback
                     yield {"type": "feedback_delta", "delta": new_text}
 
@@ -420,12 +438,17 @@ class LLMService:
         )
 
         try:
-            result = self._call_json(prompt, temperature=0.1, max_tokens=420, timeout=10.0, max_retries=0) or {}
+            result = (
+                self._call_json(
+                    prompt, temperature=0.1, max_tokens=420, timeout=10.0, max_retries=0
+                )
+                or {}
+            )
             result = self._validate_and_complement(
                 result,
                 ["score", "feedback", "dimensions", "relevance", "updated_goals", "hint"],
             )
-            default_score = self._default_score_result(speech_content)
+            self._default_score_result(speech_content)
             default_progress = self._default_progress_result(current_goals, student_name)
             if not result.get("feedback") or result.get("feedback") == "暂无有效内容":
                 result["feedback"] = "大模型未返回有效评语，请稍后重试"
@@ -445,7 +468,9 @@ class LLMService:
                 **progress_result,
             }
 
-    def score_speech_quality(self, speech_content: str, topic: str, recent_context: str = "") -> Dict:
+    def score_speech_quality(
+        self, speech_content: str, topic: str, recent_context: str = ""
+    ) -> Dict:
         """兼容旧接口：内部自动复用联合分析结果。"""
         result = self.analyze_speech_and_progress(
             speech_content=speech_content,
@@ -463,7 +488,9 @@ class LLMService:
             ),
         }
 
-    def analyze_progress(self, lesson_plan: str, current_goals: List[Dict], recent_context: str, student_name: str) -> Optional[Dict]:
+    def analyze_progress(
+        self, lesson_plan: str, current_goals: List[Dict], recent_context: str, student_name: str
+    ) -> Optional[Dict]:
         """兼容旧接口：若 recent_context 与评分接口一致，可直接命中联合分析缓存。"""
         if not recent_context:
             return None
@@ -529,7 +556,9 @@ class LLMService:
         topic = self._normalize_text(topic, 120)
         full_text = self._normalize_text(full_text, 1000)
         emotion_stats = emotion_stats or {}
-        cache_key = self._get_cache_key("analyze_emotion_and_summary", topic, full_text, emotion_stats)
+        cache_key = self._get_cache_key(
+            "analyze_emotion_and_summary", topic, full_text, emotion_stats
+        )
         cached = self.cache.get(cache_key)
         if cached:
             return cached
@@ -549,7 +578,9 @@ class LLMService:
 """
         try:
             result = self._call_json(prompt, temperature=0.2, max_tokens=320) or {}
-            result = self._validate_and_complement(result, ["summary", "emotion_analysis", "goal_status", "next_step"])
+            result = self._validate_and_complement(
+                result, ["summary", "emotion_analysis", "goal_status", "next_step"]
+            )
             self.cache.set(cache_key, result)
             return result
         except Exception as e:
@@ -561,11 +592,21 @@ class LLMService:
                 "next_step": "围绕主题整理关键观点并完成课后巩固。",
             }
 
-    def generate_course_report(self, meeting_topic: str, all_transcripts: List[Dict], emotion_stats: Dict, student_performances: List[Dict]) -> Dict:
+    def generate_course_report(
+        self,
+        meeting_topic: str,
+        all_transcripts: List[Dict],
+        emotion_stats: Dict,
+        student_performances: List[Dict],
+    ) -> Dict:
         meeting_topic = self._normalize_text(meeting_topic, 120)
-        transcript_text = self._normalize_context_lines(all_transcripts, max_items=20, each_len=120, total_len=1600)
+        transcript_text = self._normalize_context_lines(
+            all_transcripts, max_items=20, each_len=120, total_len=1600
+        )
         perf_text = self._normalize_text(student_performances, 800)
-        cache_key = self._get_cache_key("generate_course_report", meeting_topic, transcript_text, emotion_stats, perf_text)
+        cache_key = self._get_cache_key(
+            "generate_course_report", meeting_topic, transcript_text, emotion_stats, perf_text
+        )
         cached = self.cache.get(cache_key)
         if cached:
             return cached
@@ -654,7 +695,11 @@ JSON 结构：
                 ],
             )
             if not isinstance(result.get("basic_info"), dict):
-                result["basic_info"] = {"topic": meeting_topic, "members": [], "recorder": "课程助手"}
+                result["basic_info"] = {
+                    "topic": meeting_topic,
+                    "members": [],
+                    "recorder": "课程助手",
+                }
             result["basic_info"].setdefault("topic", meeting_topic)
             result["basic_info"].setdefault("members", [])
             result["basic_info"].setdefault("recorder", "课程助手")
@@ -732,7 +777,9 @@ JSON 结构：
 
     def recommend_materials(self, discussion_context: List[Dict], topic: str) -> Dict:
         topic = self._normalize_text(topic, 120)
-        context_text = self._normalize_context_lines(discussion_context, max_items=8, each_len=80, total_len=480)
+        context_text = self._normalize_context_lines(
+            discussion_context, max_items=8, each_len=80, total_len=480
+        )
         cache_key = self._get_cache_key("recommend_materials", topic, context_text)
         cached = self.cache.get(cache_key)
         if cached:
@@ -776,7 +823,9 @@ JSON 结构：
             print(f"推荐学习材料失败: {e}")
             return {"materials": [], "trigger_reason": ""}
 
-    def monitor_class_atmosphere(self, recent_transcripts: List[Dict], emotion_stats: Dict, time_window_minutes: int = 5) -> Dict:
+    def monitor_class_atmosphere(
+        self, recent_transcripts: List[Dict], emotion_stats: Dict, time_window_minutes: int = 5
+    ) -> Dict:
         speech_count = len(recent_transcripts or [])
         total_emotions = sum((emotion_stats or {}).values()) if emotion_stats else 0
         positive_ratio = 0.0
@@ -821,7 +870,9 @@ JSON 结构：
             return {"viewpoints": [], "summary": "讨论内容较少，暂不适合聚类", "suggested_next": ""}
 
         topic = self._normalize_text(topic, 120)
-        context_text = self._normalize_context_lines(all_transcripts, max_items=20, each_len=100, total_len=1200)
+        context_text = self._normalize_context_lines(
+            all_transcripts, max_items=20, each_len=100, total_len=1200
+        )
         cache_key = self._get_cache_key("cluster_viewpoints", topic, context_text)
         cached = self.cache.get(cache_key)
         if cached:
@@ -871,7 +922,9 @@ JSON 结构：
 """
         try:
             result = self._call_json(prompt, temperature=0.25, max_tokens=700, timeout=60.0) or {}
-            result = self._validate_and_complement(result, ["viewpoints", "summary", "suggested_next"])
+            result = self._validate_and_complement(
+                result, ["viewpoints", "summary", "suggested_next"]
+            )
 
             # 确保恰好有 4 个观点
             viewpoints = result.get("viewpoints", [])
@@ -879,12 +932,14 @@ JSON 结构：
                 print(f"[WARNING] LLM 只返回了 {len(viewpoints)} 个观点，需要补充到 4 个")
                 # 补充观点到 4 个
                 while len(viewpoints) < 4:
-                    viewpoints.append({
-                        "id": len(viewpoints) + 1,
-                        "title": f"观点{len(viewpoints) + 1}",
-                        "description": "待补充的观点",
-                        "supporters": []
-                    })
+                    viewpoints.append(
+                        {
+                            "id": len(viewpoints) + 1,
+                            "title": f"观点{len(viewpoints) + 1}",
+                            "description": "待补充的观点",
+                            "supporters": [],
+                        }
+                    )
                 result["viewpoints"] = viewpoints
             elif len(viewpoints) > 4:
                 print(f"[WARNING] LLM 返回了 {len(viewpoints)} 个观点，截取前 4 个")
@@ -896,10 +951,14 @@ JSON 结构：
             print(f"观点聚类失败: {e}")
             return {"viewpoints": [], "summary": "暂未生成观点聚类结果", "suggested_next": ""}
 
-    def generate_sub_goals(self, selected_viewpoint: Dict, topic: str, current_goals: List[Dict]) -> Dict:
+    def generate_sub_goals(
+        self, selected_viewpoint: Dict, topic: str, current_goals: List[Dict]
+    ) -> Dict:
         topic = self._normalize_text(topic, 120)
         selected_viewpoint = selected_viewpoint or {}
-        cache_key = self._get_cache_key("generate_sub_goals", selected_viewpoint, topic, current_goals)
+        cache_key = self._get_cache_key(
+            "generate_sub_goals", selected_viewpoint, topic, current_goals
+        )
         cached = self.cache.get(cache_key)
         if cached:
             return cached
@@ -927,13 +986,18 @@ JSON 结构：
         except Exception as e:
             print(f"[ERROR] 生成子目标失败: {e}")
             import traceback
+
             traceback.print_exc()
             return {"sub_goals": [], "guidance": ""}
 
-    def quick_decompose(self, all_transcripts: List[Dict], topic: str, current_goals: List[Dict]) -> Dict:
+    def quick_decompose(
+        self, all_transcripts: List[Dict], topic: str, current_goals: List[Dict]
+    ) -> Dict:
         """一步到位：直接分析发言内容并生成子任务（跳过聚类+投票）"""
         topic = self._normalize_text(topic, 120)
-        context_text = self._normalize_context_lines(all_transcripts, max_items=20, each_len=100, total_len=1200)
+        context_text = self._normalize_context_lines(
+            all_transcripts, max_items=20, each_len=100, total_len=1200
+        )
         cache_key = self._get_cache_key("quick_decompose", topic, context_text)
         cached = self.cache.get(cache_key)
         if cached:
@@ -956,14 +1020,18 @@ JSON 结构：
 """
         try:
             result = self._call_json(prompt, temperature=0.25, max_tokens=500) or {}
-            result = self._validate_and_complement(result, ["main_viewpoint", "sub_goals", "guidance"])
+            result = self._validate_and_complement(
+                result, ["main_viewpoint", "sub_goals", "guidance"]
+            )
             self.cache.set(cache_key, result)
             return result
         except Exception as e:
             print(f"快速分解失败: {e}")
             return {"main_viewpoint": "", "sub_goals": [], "guidance": ""}
 
-    def generate_topic_suggestion(self, topic: str, recent_context: str, current_goals: list, target_type: str = "quiet") -> str:
+    def generate_topic_suggestion(
+        self, topic: str, recent_context: str, current_goals: list, target_type: str = "quiet"
+    ) -> str:
         """为沉默成员或全组生成话题建议"""
         topic = self._normalize_text(topic, 120)
         recent_context = self._normalize_text(recent_context, 500)
@@ -991,10 +1059,10 @@ JSON 结构：
                 model="deepseek-chat",
                 messages=[
                     {"role": "system", "content": "你是一位善于引导讨论的课堂助手。"},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.6,
-                max_tokens=150
+                max_tokens=150,
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -1016,7 +1084,10 @@ JSON 结构：
             response = self.client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
-                    {"role": "system", "content": "你是一位耐心的AI导师，擅长用简单易懂的方式解答学生问题。请使用Markdown格式来组织你的回答，合理使用标题、列表、代码块、表格等。"},
+                    {
+                        "role": "system",
+                        "content": "你是一位耐心的AI导师，擅长用简单易懂的方式解答学生问题。请使用Markdown格式来组织你的回答，合理使用标题、列表、代码块、表格等。",
+                    },
                     {"role": "user", "content": question},
                 ],
                 temperature=0.4,
@@ -1043,12 +1114,17 @@ JSON 结构：
             return
 
         messages = [
-            {"role": "system", "content": "你是一位耐心的AI导师，擅长用简单易懂的方式解答学生问题。请使用Markdown格式来组织你的回答，合理使用标题、列表、代码块、表格等。"},
+            {
+                "role": "system",
+                "content": "你是一位耐心的AI导师，擅长用简单易懂的方式解答学生问题。请使用Markdown格式来组织你的回答，合理使用标题、列表、代码块、表格等。",
+            },
         ]
         # 添加历史对话上下文（最近6轮）
         if history:
             for msg in history[-6:]:
-                messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                messages.append(
+                    {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                )
         messages.append({"role": "user", "content": question})
 
         try:

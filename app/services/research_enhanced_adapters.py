@@ -149,7 +149,12 @@ class BaseAdapter:
                 }
 
             if not output_path.exists():
-                return {"ok": False, "error": "bridge did not produce output json", "stdout": stdout, "stderr": stderr}
+                return {
+                    "ok": False,
+                    "error": "bridge did not produce output json",
+                    "stdout": stdout,
+                    "stderr": stderr,
+                }
 
             payload = json.loads(output_path.read_text(encoding="utf-8"))
             payload.setdefault("stdout", stdout)
@@ -188,7 +193,11 @@ class PyannoteAdapter(BaseAdapter):
         dependency_available = _has_module("pyannote.audio")
         model_available = self._model_exists()
         ready = dependency_available and model_available
-        detail = "ready for local diarization" if ready else "requires pyannote.audio + local model directory"
+        detail = (
+            "ready for local diarization"
+            if ready
+            else "requires pyannote.audio + local model directory"
+        )
         return AdapterStatus(
             key=self.key,
             name=self.name,
@@ -203,10 +212,12 @@ class PyannoteAdapter(BaseAdapter):
         if self._pipeline is not None:
             return True
         try:
-            from pyannote.audio import Pipeline
             import torch
+            from pyannote.audio import Pipeline
 
-            self._pipeline = Pipeline.from_pretrained(str(self.model_dir), use_auth_token=self.hf_token or None)
+            self._pipeline = Pipeline.from_pretrained(
+                str(self.model_dir), use_auth_token=self.hf_token or None
+            )
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if hasattr(self._pipeline, "to"):
                 self._pipeline.to(device)
@@ -248,7 +259,9 @@ class PyannoteAdapter(BaseAdapter):
             dominant_ratio = 0.0
             if durations:
                 dominant_speaker = max(durations, key=durations.get)
-                dominant_ratio = (durations[dominant_speaker] / total_duration) if total_duration > 0 else 0.0
+                dominant_ratio = (
+                    (durations[dominant_speaker] / total_duration) if total_duration > 0 else 0.0
+                )
 
             return {
                 "ok": True,
@@ -286,18 +299,26 @@ class WeSpeakerAdapter(BaseAdapter):
     def _build_status(self) -> AdapterStatus:
         dependency_available = _has_module("wespeaker")
         repo_present = (self.model_dir / "repo").exists()
-        downloaded_assets_present = (self.model_dir / "pretrained").exists() or (self.model_dir / "model_meta.json").exists()
+        downloaded_assets_present = (self.model_dir / "pretrained").exists() or (
+            self.model_dir / "model_meta.json"
+        ).exists()
         model_available = downloaded_assets_present or self._model_exists()
         uses_bridge = self._bridge_exists()
         bridge_ready = self._bridge_marked_ready()
         ready = (dependency_available and model_available) or (
-            uses_bridge and bridge_ready and model_available and (dependency_available or repo_present)
+            uses_bridge
+            and bridge_ready
+            and model_available
+            and (dependency_available or repo_present)
         )
         detail = (
             "ready via direct package"
             if dependency_available and model_available
             else "ready via bridge.py"
-            if uses_bridge and bridge_ready and model_available and (dependency_available or repo_present)
+            if uses_bridge
+            and bridge_ready
+            and model_available
+            and (dependency_available or repo_present)
             else "requires a downloaded wespeaker model plus package support or a ready bridge.py with the official repo"
         )
         return AdapterStatus(
@@ -422,7 +443,11 @@ class InsightFaceAdapter(BaseAdapter):
         dependency_available = _has_module("insightface")
         model_available = self._model_exists()
         ready = dependency_available and model_available
-        detail = "ready for direct face embedding" if ready else "requires insightface package + local model pack"
+        detail = (
+            "ready for direct face embedding"
+            if ready
+            else "requires insightface package + local model pack"
+        )
         return AdapterStatus(
             key=self.key,
             name=self.name,
@@ -458,8 +483,8 @@ class InsightFaceAdapter(BaseAdapter):
         if self._app is not None:
             return True
         try:
-            from insightface.app import FaceAnalysis
             import torch
+            from insightface.app import FaceAnalysis
 
             pack_name = self._resolve_pack_name()
             root_dir = self._resolve_root_dir()
@@ -537,7 +562,11 @@ class InsightFaceAdapter(BaseAdapter):
                     best_identity = identity_dir.name
 
         if best_identity is None:
-            return {"ok": False, "reason": "no valid gallery embeddings", "comparisons": comparisons}
+            return {
+                "ok": False,
+                "reason": "no valid gallery embeddings",
+                "comparisons": comparisons,
+            }
 
         return {
             "ok": True,

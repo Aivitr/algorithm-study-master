@@ -50,6 +50,7 @@ from app.services.user_lookup import resolve_user_by_identifier
 # （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
+
 def _persist_speech_emotion_artifacts(
     db: Session,
     *,
@@ -92,7 +93,9 @@ def _persist_speech_emotion_artifacts(
                 oss_snapshot_url = None
                 if _has_snapshot and _snapshot_path and os.path.exists(_snapshot_path):
                     print("[FAST] 上传快照到OSS...")
-                    oss_snapshot_url = oss_mgr.upload_snapshot(_snapshot_path, _user_id, _meeting_id)
+                    oss_snapshot_url = oss_mgr.upload_snapshot(
+                        _snapshot_path, _user_id, _meeting_id
+                    )
 
                     try:
                         os.remove(_snapshot_path)
@@ -101,11 +104,16 @@ def _persist_speech_emotion_artifacts(
 
                 db_update = SessionLocal()
                 try:
-                    emotion_log = db_update.query(EmotionLog).filter(
-                        EmotionLog.meeting_id == _meeting_id,
-                        EmotionLog.user_id == _user_id,
-                        EmotionLog.video_url == _video_url
-                    ).order_by(EmotionLog.id.desc()).first()
+                    emotion_log = (
+                        db_update.query(EmotionLog)
+                        .filter(
+                            EmotionLog.meeting_id == _meeting_id,
+                            EmotionLog.user_id == _user_id,
+                            EmotionLog.video_url == _video_url,
+                        )
+                        .order_by(EmotionLog.id.desc())
+                        .first()
+                    )
 
                     if emotion_log:
                         emotion_log.video_url = oss_video_url
@@ -124,6 +132,7 @@ def _persist_speech_emotion_artifacts(
             except Exception as e:
                 print(f"[ERROR] 上传到OSS失败: {e}")
                 import traceback
+
                 traceback.print_exc()
 
         threading.Thread(target=async_upload, daemon=True).start()
@@ -133,14 +142,16 @@ def _persist_speech_emotion_artifacts(
     if len(emo_str) > 90:
         emo_str = emo_str[:90]
 
-    db.add(EmotionLog(
-        meeting_id=meeting_id,
-        user_id=user.id,
-        emotion_type=emo_str,
-        intensity=0.8,
-        video_url=video_url,
-        snapshot_path=snapshot_url
-    ))
+    db.add(
+        EmotionLog(
+            meeting_id=meeting_id,
+            user_id=user.id,
+            emotion_type=emo_str,
+            intensity=0.8,
+            video_url=video_url,
+            snapshot_path=snapshot_url,
+        )
+    )
     db.commit()
 
     return {
@@ -162,7 +173,9 @@ def _create_realtime_transcript_entry(
     if not clean_text:
         return None
 
-    dedup_decision = _reserve_recent_speech_by_volume(meeting_id, username, clean_text, audio_volume=audio_volume)
+    dedup_decision = _reserve_recent_speech_by_volume(
+        meeting_id, username, clean_text, audio_volume=audio_volume
+    )
     if dedup_decision.get("skip"):
         return None
 
@@ -174,7 +187,9 @@ def _create_realtime_transcript_entry(
             print(f"[WARN] 用户或课堂不存在: username={username}, meeting_id={meeting_id}")
             return None
         if meeting.status != RUNNING:
-            print(f"[WARN] 非进行中课堂拒绝保存发言: meeting_id={meeting_id}, status={meeting.status}")
+            print(
+                f"[WARN] 非进行中课堂拒绝保存发言: meeting_id={meeting_id}, status={meeting.status}"
+            )
             return None
 
         media_state = _get_recent_media_state(meeting_id, username)
@@ -204,13 +219,21 @@ def _create_realtime_transcript_entry(
             body_action=body_action,
             audio_tone=audio_tone or None,
             binding_source=research_binding.get("binding_source") if research_binding else None,
-            binding_confidence=research_binding.get("binding_confidence") if research_binding else None,
-            identity_review_status=research_binding.get("identity_review_status") if research_binding else None,
-            identity_review_note=research_binding.get("identity_review_note") if research_binding else None,
-            cross_modal_consistency=research_binding.get("cross_modal_consistency") if research_binding else None,
+            binding_confidence=research_binding.get("binding_confidence")
+            if research_binding
+            else None,
+            identity_review_status=research_binding.get("identity_review_status")
+            if research_binding
+            else None,
+            identity_review_note=research_binding.get("identity_review_note")
+            if research_binding
+            else None,
+            cross_modal_consistency=research_binding.get("cross_modal_consistency")
+            if research_binding
+            else None,
             timestamp=datetime.now(),
             quality_score=50,
-            quality_feedback="评估中..."
+            quality_feedback="评估中...",
         )
         trans.quality_feedback = "已断句，正在评分..."
         trans.audio_file_path = _storage_relative_path(audio_path)
@@ -246,7 +269,9 @@ def _create_realtime_transcript_entry(
         _attach_recent_speech_transcript(meeting_id, username, clean_text, trans.id, timestamp)
         replaced = dedup_decision.get("replace") or {}
         if replaced.get("transcript_id"):
-            old_trans = db.query(Transcript).filter(Transcript.id == int(replaced["transcript_id"])).first()
+            old_trans = (
+                db.query(Transcript).filter(Transcript.id == int(replaced["transcript_id"])).first()
+            )
             if old_trans:
                 db.delete(old_trans)
                 db.commit()
@@ -261,7 +286,7 @@ def _create_realtime_transcript_entry(
             "timestamp": timestamp,
             "goals": goals_snapshot,
             "quality_score": 50,
-            "quality_feedback": "评估中..."
+            "quality_feedback": "评估中...",
         }
         if asr_sentence_id:
             fast_payload["asr_sentence_id"] = asr_sentence_id
@@ -299,7 +324,9 @@ def _create_realtime_transcript_entry(
         db.close()
 
 
-def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def _run_realtime_speech_analysis(
+    prepared: Dict[str, Any], precomputed_combined: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
     db = SessionLocal()
     try:
         meeting_id = int(prepared["meeting_id"])
@@ -320,11 +347,16 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
         if not meeting or meeting.status != RUNNING or not trans:
             return []
 
-        recents = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id,
-            Transcript.id != transcript_id
-        ).order_by(Transcript.id.desc()).limit(3).all()
-        ctx = "\n".join([f"{t.user.username}:{t.content}" for t in recents if getattr(t, "user", None)])
+        recents = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id, Transcript.id != transcript_id)
+            .order_by(Transcript.id.desc())
+            .limit(3)
+            .all()
+        )
+        ctx = "\n".join(
+            [f"{t.user.username}:{t.content}" for t in recents if getattr(t, "user", None)]
+        )
 
         if precomputed_combined and isinstance(precomputed_combined, dict):
             print("[AI] 使用流式返回的同一份联合分析结果")
@@ -336,7 +368,7 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
                 topic=meeting.topic,
                 recent_context=ctx,
                 current_goals=meeting.knowledge_points,
-                student_name=username
+                student_name=username,
             )
 
         quality_score = int(combined.get("score", 50) or 50)
@@ -344,14 +376,26 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
         relevance = int(combined.get("relevance", 50) or 50)
         hint = combined.get("hint", "") or ""
         updated_goals = combined.get("updated_goals") or (meeting.knowledge_points or [])
-        dimensions = combined.get("dimensions") or {"relevance": 50, "depth": 50, "creativity": 50, "expression": 50}
-        quality_distribution = {"relevance": 0.25, "depth": 0.25, "creativity": 0.25, "expression": 0.25}
+        dimensions = combined.get("dimensions") or {
+            "relevance": 50,
+            "depth": 50,
+            "creativity": 50,
+            "expression": 50,
+        }
+        quality_distribution = {
+            "relevance": 0.25,
+            "depth": 0.25,
+            "creativity": 0.25,
+            "expression": 0.25,
+        }
         quality_research = {}
 
         events: List[Dict[str, Any]] = []
 
         if updated_goals:
-            old_done = {g["id"] for g in (meeting.knowledge_points or []) if g.get("status") == "done"}
+            old_done = {
+                g["id"] for g in (meeting.knowledge_points or []) if g.get("status") == "done"
+            }
             new_done = {g["id"] for g in updated_goals if g.get("status") == "done"}
             newly_completed = new_done - old_done
             meeting.knowledge_points = updated_goals
@@ -359,12 +403,14 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
             if newly_completed:
                 completed_descs = [g["desc"] for g in updated_goals if g["id"] in newly_completed]
                 all_done = all(g.get("status") == "done" for g in updated_goals)
-                events.append({
-                    "type": "goal_completed",
-                    "completed_goals": completed_descs,
-                    "all_done": all_done,
-                    "goals": updated_goals
-                })
+                events.append(
+                    {
+                        "type": "goal_completed",
+                        "completed_goals": completed_descs,
+                        "all_done": all_done,
+                        "goals": updated_goals,
+                    }
+                )
 
         if enhanced_runtime_active:
             pdl_result = research_runtime.refine_speech_assessment(
@@ -391,12 +437,9 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
         db.commit()
 
         if hint:
-            db.add(AIInsight(
-                meeting_id=meeting_id,
-                target_user=username,
-                content=hint,
-                type="hint"
-            ))
+            db.add(
+                AIInsight(meeting_id=meeting_id, target_user=username, content=hint, type="hint")
+            )
             db.commit()
 
         analysis_payload = {
@@ -412,39 +455,46 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
             "goals": meeting.knowledge_points,
             "hint": hint,
             "asr_sentence_id": asr_sentence_id,
-            "asr_index": asr_index
+            "asr_index": asr_index,
         }
         if enhanced_runtime_active:
-            analysis_payload["research_binding"] = research_runtime.get_transcript_review(trans.id) or research_binding
+            analysis_payload["research_binding"] = (
+                research_runtime.get_transcript_review(trans.id) or research_binding
+            )
             analysis_payload["quality_distribution"] = quality_distribution
             analysis_payload["quality_research"] = quality_research
         events.append(analysis_payload)
 
-        transcript_count = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).count()
+        transcript_count = db.query(Transcript).filter(Transcript.meeting_id == meeting_id).count()
 
         if transcript_count > 0 and transcript_count % 10 == 0:
             print(f"[BOOK] 触发材料推荐: {transcript_count}条发言")
             try:
-                recent_5 = db.query(Transcript).filter(
-                    Transcript.meeting_id == meeting_id
-                ).order_by(Transcript.id.desc()).limit(5).all()
+                recent_5 = (
+                    db.query(Transcript)
+                    .filter(Transcript.meeting_id == meeting_id)
+                    .order_by(Transcript.id.desc())
+                    .limit(5)
+                    .all()
+                )
 
                 if len(recent_5) >= 3:
-                    discussion_ctx = [{
-                        "username": t.user.username,
-                        "content": t.content
-                    } for t in reversed(recent_5) if getattr(t, "user", None)]
+                    discussion_ctx = [
+                        {"username": t.user.username, "content": t.content}
+                        for t in reversed(recent_5)
+                        if getattr(t, "user", None)
+                    ]
 
                     materials_result = llm.recommend_materials(discussion_ctx, meeting.topic)
 
                     if materials_result.get("materials"):
-                        events.append({
-                            "type": "material_recommendation",
-                            "materials": materials_result["materials"],
-                            "trigger_reason": materials_result.get("trigger_reason", "")
-                        })
+                        events.append(
+                            {
+                                "type": "material_recommendation",
+                                "materials": materials_result["materials"],
+                                "trigger_reason": materials_result.get("trigger_reason", ""),
+                            }
+                        )
             except Exception as e:
                 print(f"[ERROR] 材料推荐失败: {e}")
 
@@ -454,15 +504,13 @@ def _run_realtime_speech_analysis(prepared: Dict[str, Any], precomputed_combined
             updated_graph = update_knowledge_graph(meeting_id, db)
             if updated_graph:
                 viz_data = kg_service.generate_graph_visualization_data(updated_graph)
-                events.append({
-                    "type": "knowledge_graph_update",
-                    "data": viz_data
-                })
+                events.append({"type": "knowledge_graph_update", "data": viz_data})
 
         return events
     except Exception as e:
         print(f"[ERROR] 实时评分失败: {e}")
         import traceback
+
         traceback.print_exc()
         return []
     finally:
@@ -487,11 +535,16 @@ def _stream_realtime_speech_analysis_events(prepared: Dict[str, Any]):
             yield {"__combined": None}
             return
 
-        recents = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id,
-            Transcript.id != transcript_id
-        ).order_by(Transcript.id.desc()).limit(3).all()
-        ctx = "\n".join([f"{t.user.username}:{t.content}" for t in recents if getattr(t, "user", None)])
+        recents = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id, Transcript.id != transcript_id)
+            .order_by(Transcript.id.desc())
+            .limit(3)
+            .all()
+        )
+        ctx = "\n".join(
+            [f"{t.user.username}:{t.content}" for t in recents if getattr(t, "user", None)]
+        )
 
         yield {
             "type": "speech_feedback_stream_start",
@@ -504,13 +557,16 @@ def _stream_realtime_speech_analysis_events(prepared: Dict[str, Any]):
             "asr_index": asr_index,
         }
 
-        for item in llm.stream_speech_analysis_and_progress(
-            speech_content=text,
-            topic=meeting.topic,
-            recent_context=ctx,
-            current_goals=meeting.knowledge_points,
-            student_name=username,
-        ) or []:
+        for item in (
+            llm.stream_speech_analysis_and_progress(
+                speech_content=text,
+                topic=meeting.topic,
+                recent_context=ctx,
+                current_goals=meeting.knowledge_points,
+                student_name=username,
+            )
+            or []
+        ):
             if not isinstance(item, dict):
                 continue
             if item.get("type") == "feedback_delta":

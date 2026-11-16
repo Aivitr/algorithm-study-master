@@ -8,7 +8,6 @@ from gca_engine.aggregation import group_metric_stats
 
 
 class TestGroupMetricStats(unittest.TestCase):
-
     def _full_metrics(self, participation, newness):
         """补齐六个指标（聚合的输入契约：每个学生必须有完整六指标）。"""
         return {

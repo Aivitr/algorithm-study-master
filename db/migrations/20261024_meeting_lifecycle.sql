@@ -17,9 +17,13 @@ BEGIN
     ALTER TABLE [dbo].[meetings] ADD [started_at] datetime NULL;
 END;
 
+-- 新列与引用它的语句同批提交时，SQL Server 在编译整批阶段就报
+-- Invalid column name，ALTER 还没来得及执行。动态 SQL 把名字解析推迟到执行期。
+EXEC(N'
 UPDATE [dbo].[meetings]
 SET [started_at] = COALESCE([started_at], [created_at])
-WHERE [status] IN ('active', 'paused', 'ended') AND [started_at] IS NULL;
+WHERE [status] IN (''active'', ''paused'', ''ended'') AND [started_at] IS NULL;
+');
 
 UPDATE [dbo].[meetings]
 SET [status] = CASE

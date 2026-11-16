@@ -37,11 +37,19 @@ from app.realtime.registry import manager, signal_manager
 from app.services.llm_service import llm
 from app.services.meeting_lifecycle import claim_end, claim_start
 from app.services.research_runtime import research_runtime
+from app.services.session_service import SessionContext, release_all_for_meeting, require_session
 
 router = APIRouter()
 
 
 _report_tasks: set[asyncio.Task] = set()
+
+
+def _teacher_only(ctx: SessionContext, meeting: Meeting, action: str) -> Optional[dict]:
+    """教师操作只认服务端会话，不认客户端提交的 username。"""
+    if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+        return {"status": "error", "message": f"只有本课堂教师可以{action}"}
+    return None
 
 
 def _run_one_report(meeting_id: int, user_id: int) -> None:
@@ -55,11 +63,7 @@ def _run_one_report(meeting_id: int, user_id: int) -> None:
 
     db = SessionLocal()
     try:
-        asyncio.run(
-            generate_learning_report(
-                meeting_id=meeting_id, user_id=user_id, db=db
-            )
-        )
+        asyncio.run(generate_learning_report(meeting_id=meeting_id, user_id=user_id, db=db))
     finally:
         db.close()
 
@@ -91,10 +95,7 @@ async def _generate_class_reports(meeting_id: int) -> None:
         try:
             await asyncio.to_thread(_run_one_report, meeting_id, user_id)
         except Exception as exc:
-            print(
-                f"[ERROR] 课后报告生成失败: meeting_id={meeting_id}, "
-                f"user_id={user_id}: {exc}"
-            )
+            print(f"[ERROR] 课后报告生成失败: meeting_id={meeting_id}, user_id={user_id}: {exc}")
 
 
 def schedule_class_reports(meeting_id: int) -> None:
@@ -103,6 +104,7 @@ def schedule_class_reports(meeting_id: int) -> None:
     # 事件循环只持弱引用；不留强引用的话任务可能在执行中被回收。
     _report_tasks.add(task)
     task.add_done_callback(_report_tasks.discard)
+
 
 @router.get("/api/agora-token")
 async def get_agora_token(
@@ -148,16 +150,21 @@ async def get_agora_token(
         return response
 
     try:
-        from agora_token_builder import RtcTokenBuilder
         import time as _time
+
+        from agora_token_builder import RtcTokenBuilder
 
         expire_seconds = 86400  # 24小时
         current_ts = int(_time.time())
         privilege_expired_ts = current_ts + expire_seconds
         # 使用 buildTokenWithAccount 支持字符串UID
         token = RtcTokenBuilder.buildTokenWithAccount(
-            agora_config["app_id"], agora_config["app_certificate"],
-            channel, uid, 1, privilege_expired_ts
+            agora_config["app_id"],
+            agora_config["app_certificate"],
+            channel,
+            uid,
+            1,
+            privilege_expired_ts,
         )
         response["token"] = token
         response["expireAt"] = privilege_expired_ts
@@ -177,15 +184,16 @@ async def start_class(
     meeting_id: int = Form(...),
     username: str = Form(...),
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """教师开始课堂；重复请求只返回当前结果，不重复启动课堂副作用。"""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         return {"status": "error", "message": "课堂不存在"}
 
-    user = db.query(User).filter(User.student_id == username).first()
-    if not user or user.role != "teacher" or meeting.teacher_id != user.id:
-        return {"status": "error", "message": "只有本课堂教师可以开始课堂"}
+    auth_error = _teacher_only(ctx, meeting, "开始课堂")
+    if auth_error:
+        return auth_error
 
     if meeting.status == RUNNING:
         return {
@@ -227,7 +235,8 @@ async def start_class(
 async def end_class(
     meeting_id: int = Form(...),
     username: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """教师结束课堂"""
     try:
@@ -235,10 +244,10 @@ async def end_class(
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
 
-        # 验证是教师
-        user = db.query(User).filter(User.student_id == username).first()
-        if not user or user.role != "teacher" or meeting.teacher_id != user.id:
-            return {"status": "error", "message": "只有本课堂教师可以结束课堂"}
+        auth_error = _teacher_only(ctx, meeting, "结束课堂")
+        if auth_error:
+            return auth_error
+        user = ctx.user
 
         if meeting.status == ENDED:
             return {
@@ -249,7 +258,10 @@ async def end_class(
                 "ended_at": meeting.ended_at.isoformat() if meeting.ended_at else None,
             }
         if meeting.status == CREATED:
-            return {"status": "error", "message": "课堂尚未开始，不能结束；如需取消请使用取消课堂功能"}
+            return {
+                "status": "error",
+                "message": "课堂尚未开始，不能结束；如需取消请使用取消课堂功能",
+            }
         if meeting.status != RUNNING:
             return {"status": "error", "message": meeting_status_error(meeting.status, {RUNNING})}
 
@@ -278,9 +290,7 @@ async def end_class(
             .all()
         ]
         if active_vote_ids:
-            db.query(ViewpointVote).filter(
-                ViewpointVote.id.in_(active_vote_ids)
-            ).update(
+            db.query(ViewpointVote).filter(ViewpointVote.id.in_(active_vote_ids)).update(
                 {
                     ViewpointVote.status: "closed",
                     ViewpointVote.closed_at: ended_at,
@@ -293,18 +303,17 @@ async def end_class(
         manager.silence_notified.pop(meeting_id, None)
 
         # 广播课堂结束通知到所有在线成员
-        await manager.broadcast_to_meeting(meeting_id, {
-            "type": "class_ended",
-            "message": "教师已结束本次课堂",
-            "teacher": user.username
-        })
+        await manager.broadcast_to_meeting(
+            meeting_id,
+            {"type": "class_ended", "message": "教师已结束本次课堂", "teacher": user.username},
+        )
 
         # 断开所有成员的WebSocket连接
         if meeting_id in manager.meeting_connections:
             for member_ws in list(manager.meeting_connections[meeting_id].values()):
                 try:
                     await member_ws.close()
-                except:
+                except Exception:
                     pass
             manager.meeting_connections.pop(meeting_id, None)
 
@@ -313,9 +322,7 @@ async def end_class(
             asr_manager.meeting_connections.get(meeting_id, {}).items()
         ):
             try:
-                await asr_manager.stop_session(
-                    member_name, meeting_id, client_ws=asr_ws
-                )
+                await asr_manager.stop_session(member_name, meeting_id, client_ws=asr_ws)
             except Exception:
                 pass
             try:
@@ -324,19 +331,20 @@ async def end_class(
                 pass
         asr_manager.meeting_connections.pop(meeting_id, None)
 
-        for signal_ws in list(
-            signal_manager.meeting_connections.get(meeting_id, {}).values()
-        ):
+        for signal_ws in list(signal_manager.meeting_connections.get(meeting_id, {}).values()):
             try:
                 await signal_ws.close()
             except Exception:
                 pass
         signal_manager.meeting_connections.pop(meeting_id, None)
 
+        # 课堂结束后释放所有服务端课堂占用锁
+        release_all_for_meeting(db, meeting_id)
+
         # 课后报告由后端触发一次（CAS 已保证只有结束执行者走到这里）
         schedule_class_reports(meeting_id)
 
-        print(f"[OK] 课堂 {meeting_id} 已被教师 {username} 结束")
+        print(f"[OK] 课堂 {meeting_id} 已被教师 {ctx.user.student_id} 结束")
         return {
             "status": "success",
             "already_ended": False,
@@ -350,7 +358,11 @@ async def end_class(
 
 
 @router.post("/api/suggest-topic")
-async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_db)):
+async def suggest_topic(
+    meeting_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """当学生说'不知道该说什么'时，AI自动总结当前情况并推送话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -361,15 +373,27 @@ async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_d
             return {"status": "error", "message": state_error}
 
         # 获取最近的发言记录
-        recent = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.created_at.desc()).limit(15).all()
+        recent = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.created_at.desc())
+            .limit(15)
+            .all()
+        )
 
-        transcripts_text = "\n".join([f"{t.user.username}: {t.content}" for t in recent if t.content]) if recent else "暂无发言"
+        transcripts_text = (
+            "\n".join([f"{t.user.username}: {t.content}" for t in recent if t.content])
+            if recent
+            else "暂无发言"
+        )
 
         # 获取当前目标
         goals = meeting.knowledge_points or []
-        goals_text = "\n".join([f"- {g.get('desc', '')} ({g.get('status', 'pending')})" for g in goals[:8]]) if goals else "暂无目标"
+        goals_text = (
+            "\n".join([f"- {g.get('desc', '')} ({g.get('status', 'pending')})" for g in goals[:8]])
+            if goals
+            else "暂无目标"
+        )
 
         prompt = f"""你是课堂讨论助手。学生们在讨论中遇到了瓶颈，不知道接下来该讨论什么。
 
@@ -390,7 +414,7 @@ async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_d
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=300
+            max_tokens=300,
         )
         suggestion = result.choices[0].message.content.strip()
         return {"status": "success", "suggestion": suggestion}
@@ -402,65 +426,73 @@ async def suggest_topic(meeting_id: int = Form(...), db: Session = Depends(get_d
 @router.post("/api/quick-decompose")
 async def quick_decompose(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """一键分解：跳过聚类投票，直接分析发言并生成子任务"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        auth_error = _teacher_only(ctx, meeting, "执行任务分解")
+        if auth_error:
+            return auth_error
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
 
-        transcripts = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.id).all()
+        transcripts = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.id)
+            .all()
+        )
 
         if len(transcripts) < 1:
             return {"status": "error", "message": "暂无发言记录"}
 
-        all_transcripts = [{
-            "username": t.user.username,
-            "content": t.content
-        } for t in transcripts]
+        all_transcripts = [{"username": t.user.username, "content": t.content} for t in transcripts]
 
         # 一次 LLM 调用完成分析+分解
-        result = llm.quick_decompose(
-            all_transcripts, meeting.topic, meeting.knowledge_points or []
-        )
+        result = llm.quick_decompose(all_transcripts, meeting.topic, meeting.knowledge_points or [])
 
         # 更新目标列表
         new_goals = list(meeting.knowledge_points or [])
         for sg in result.get("sub_goals", []):
-            new_goals.append({
-                "id": len(new_goals) + 1,
-                "desc": f"[深入探讨] {sg['desc']}",
-                "status": "pending",
-                "parent_viewpoint": result.get("main_viewpoint", "")
-            })
+            new_goals.append(
+                {
+                    "id": len(new_goals) + 1,
+                    "desc": f"[深入探讨] {sg['desc']}",
+                    "status": "pending",
+                    "parent_viewpoint": result.get("main_viewpoint", ""),
+                }
+            )
         meeting.knowledge_points = new_goals
         db.commit()
 
         # 广播更新到所有客户端
-        await manager.broadcast_to_meeting(meeting_id, {
-            "type": "goals_updated",
-            "updated_goals": meeting.knowledge_points,
-            "main_viewpoint": result.get("main_viewpoint", ""),
-            "sub_goals": result.get("sub_goals", []),
-            "guidance": result.get("guidance", "")
-        })
+        await manager.broadcast_to_meeting(
+            meeting_id,
+            {
+                "type": "goals_updated",
+                "updated_goals": meeting.knowledge_points,
+                "main_viewpoint": result.get("main_viewpoint", ""),
+                "sub_goals": result.get("sub_goals", []),
+                "guidance": result.get("guidance", ""),
+            },
+        )
 
         return {
             "status": "success",
             "main_viewpoint": result.get("main_viewpoint", ""),
             "sub_goals": result.get("sub_goals", []),
             "guidance": result.get("guidance", ""),
-            "updated_goals": meeting.knowledge_points
+            "updated_goals": meeting.knowledge_points,
         }
     except Exception as e:
         print(f"[ERROR] quick-decompose: {e}")
         import traceback
+
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
@@ -468,45 +500,52 @@ async def quick_decompose(
 @router.post("/api/cluster-viewpoints")
 async def cluster_viewpoints(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """聚类学生观点"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        auth_error = _teacher_only(ctx, meeting, "执行观点聚类")
+        if auth_error:
+            return auth_error
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
 
         # 获取所有发言
-        transcripts = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.id).all()
+        transcripts = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.id)
+            .all()
+        )
 
         if len(transcripts) < 3:
             return {"status": "error", "message": "发言太少，无法聚类"}
 
         # 构建对话数据
-        all_transcripts = [{
-            "username": t.user.username,
-            "content": t.content
-        } for t in transcripts]
+        all_transcripts = [{"username": t.user.username, "content": t.content} for t in transcripts]
 
         # 调用LLM聚类观点
         result = llm.cluster_viewpoints(all_transcripts, meeting.topic)
         if research_runtime.research_algorithms_active:
-            result = research_runtime.refine_viewpoint_clusters(all_transcripts, meeting.topic, result)
+            result = research_runtime.refine_viewpoint_clusters(
+                all_transcripts, meeting.topic, result
+            )
 
         # 创建投票记录
         import uuid
+
         vote_session_id = str(uuid.uuid4())[:8]
         vote_record = ViewpointVote(
             meeting_id=meeting_id,
             vote_session_id=vote_session_id,
             viewpoints=result.get("viewpoints", []),
             votes={str(vp["id"]): [] for vp in result.get("viewpoints", [])},
-            status="active"
+            status="active",
         )
         db.add(vote_record)
         db.commit()
@@ -521,7 +560,7 @@ async def cluster_viewpoints(
             "summary": result.get("summary", ""),
             "suggested_next": result.get("suggested_next", ""),
             "votes": vote_record.votes,
-            "online_members": manager.get_online_members(meeting_id)
+            "online_members": manager.get_online_members(meeting_id),
         }
         if research_runtime.research_algorithms_active:
             vote_payload["research"] = result.get("research", {})
@@ -532,7 +571,7 @@ async def cluster_viewpoints(
             "vote_id": vote_record.id,
             "viewpoints": result.get("viewpoints", []),
             "summary": result.get("summary", ""),
-            "suggested_next": result.get("suggested_next", "")
+            "suggested_next": result.get("suggested_next", ""),
         }
         if research_runtime.research_algorithms_active:
             response_payload["research"] = result.get("research", {})
@@ -559,7 +598,9 @@ def _get_agora_rtc_config():
     app_id = (os.getenv("AGORA_APP_ID") or DEFAULT_AGORA_APP_ID).strip()
     app_certificate = (os.getenv("AGORA_APP_CERTIFICATE") or "").strip()
     configured_mode = _normalize_agora_auth_mode(os.getenv("AGORA_AUTH_MODE"))
-    auth_mode = configured_mode if configured_mode != "auto" else ("token" if app_certificate else "appid")
+    auth_mode = (
+        configured_mode if configured_mode != "auto" else ("token" if app_certificate else "appid")
+    )
 
     config = {
         "app_id": app_id,

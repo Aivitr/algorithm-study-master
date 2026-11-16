@@ -3,10 +3,11 @@
 from datetime import timedelta
 from uuid import uuid4
 
+from fixtures import BASE_TIME
+
 from app.core import database
 from app.models import Meeting, Transcript
 from app.services.gca_service import analyze_meeting_metrics
-from fixtures import BASE_TIME
 from gca_engine.schemas import SIX_METRICS
 
 

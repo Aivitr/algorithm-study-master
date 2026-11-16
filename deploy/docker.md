@@ -25,26 +25,27 @@
 
 ```bash
 cp .env.example .env              # 填入密钥；LLM_API_KEY 不能为空
-cp .env.dev.example .env.dev      # 开发库指向，照抄即可，不用改
+cp .env.dev.example .env.dev      # 填入远程数据库连接
 docker compose up --build
 ```
 
 打开 <http://localhost:8000>。
 
-`up` 会按顺序拉起**三个**服务：
+`up` 默认只拉起 **`app`**，它直接连 `.env.dev` 里的远程数据库：
 
 ```
-db       mcr.microsoft.com/mssql/server:2022-latest   建库用，数据落命名卷 mssql-data
+app      自仓库 Dockerfile 构建；镜像里**不含**任何数据库，只负责连远程库
+```
+
+需要本地 MSSQL 离线调试时，才加 `--profile local-db`：
+
+```
+db       mcr.microsoft.com/mssql/server:2022-latest   数据落命名卷 mssql-data
 db-init  同一个镜像，一次性跑 db/schema.sql，跑完退出（退出码 0 才算成功）
-app      自仓库 Dockerfile 构建；镜像里**不含**任何数据库，只负责连过去
 ```
 
-`db` 与 `db-init` 用的是 registry 镜像，**不打包进 app 镜像**——所以
-`docker compose pull db db-init` 可以把数据库单独拉下来，不必重开 app。
-
-`app` 的 `depends_on` 写的是 `service_completed_successfully`：**等 `db-init` 成功退出再起**。
-不这么写，app 会连上一个还没建表的空库，"能连上"却是坏的，然后在第一次注册时抛出
-一个和真实原因毫无关系的错。
+此时 `.env.dev` 的 `DB_HOST` 要指回 `db`。`db` 与 `db-init` 用的是 registry 镜像，
+**不打包进 app 镜像**——`docker compose --profile local-db pull` 可以单独拉。
 
 首次构建要装一整套 ML 依赖（torch / insightface / pyannote / funasr），**很慢，且镜像很大**；
 `db` 镜像本身另有 2.31 GB。之后只要 `requirements.txt` 没变，改代码不会触发重装——
@@ -105,8 +106,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec app \
 
 ## 起容器之前：两份 `.env` 都必须备好
 
-**`.env.dev` 必填**——它管数据库指向（见下一节）。compose 里写成 `required: true`，
-少一份就当场报错，不会静默跑到别的库上去。模板在 `.env.dev.example`，照抄即可。
+**`.env.dev` 必填**——它管数据库连接（见下一节）。compose 里写成 `required: true`，
+少一份就当场报错，不会静默跑到别的库上去。模板在 `.env.dev.example`，填入远程库连接。
 
 **`.env` 里的 `LLM_API_KEY` 必填**——这一条是构建时**实测撞出来**的，不是推测：
 
@@ -150,8 +151,11 @@ compose 的 `environment:` 段**硬写** 6 个数据库键，靠
 | 文件 | 放什么 | 入库 |
 |---|---|---|
 | `.env` | 共享密钥（LLM / OSS / Agora / 阿里云） | 否 |
-| `.env.dev` | 开发库指向 → compose 里的 `db` 服务 | 否（模板 `.env.dev.example` 入库） |
+| `.env.dev` | 开发/比赛库指向 → 远程数据库 | 否（模板 `.env.dev.example` 入库） |
 | `.env.prod` | 远程库指向 → 生产 RDS | 否（模板 `.env.prod.example` 入库） |
+
+两份模板都设了 `DB_AUTO_MIGRATE=0`：app 导入期不会执行
+`_ensure_transcripts_columns()`；需要补列时用显式迁移脚本。
 
 `APP_ENV` 选哪一层（`dev` / `prod`），`app/core/config.py::_load_dotenv` 本来就支持；
 compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只是把文件摆到位。
@@ -166,9 +170,9 @@ compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只�
 断言不再问"挡住没有"，而问：
 
 - `db` 是 registry 镜像（无 `build:`）且数据挂**命名卷**——bind mount 在 Windows 上
-  会因不表达 POSIX 权限而起不来
-- `db/schema.sql` 真的幂等——这是"每次 `up` 都会重跑它"的前提
-- `app` 等 `db-init` **成功退出**；app 的库配置只来自 `.env.dev`，且 `required: true`
+  会因不表达 POSIX 权限而起不来；`db` / `db-init` 都在 `local-db` profile 里，默认不启动
+- `db/schema.sql` 真的幂等——这是本地 profile 重跑它的前提
+- `app` 不依赖 `db-init`；app 的库配置只来自 `.env.dev`，且 `required: true`
 - **反向断言**：除 `app` 外，任何 service 都不得在 `environment:` 里定义那 6 个键
   （防的是"断言写在 A 上、改动发生在 B"那类失效）
 - 入库文件里不含生产主机名 / 用户名 / 口令（实测抓到过一次）
@@ -187,12 +191,15 @@ compose 里给 `app` 钉了 `APP_ENV=dev`。**这不是改业务代码**，只�
 ORM 走 `DATABASE_URL`，而 `/api/register`、`/api/login` **不走 ORM**，直接读 `DB_*`。
 只改一个的症状是"注册写 A 库、登录读 B 库"。
 
-> ⚠️ 若指向真实库，容器**会对它发 DDL**（导入期的 `_ensure_transcripts_columns`）。
-> 动手前确认你确实要这个。
+> ⚠️ 默认连接远程库时，`.env.dev` 里保持 `DB_AUTO_MIGRATE=0`，
+> 避免导入期对远程库发 `ALTER TABLE`。确实需要补列时，用显式迁移脚本。
 >
 > ⚠️ `docker-compose.yml` 里的 `${...}` 插值读的是**仓库根的 `.env`**，
 > 而不是 `.env.dev`。所以那里**绝不插值** `DB_*` / `DATABASE_URL` ——
 > 否则远程库的口令会被拉进 compose，`docker compose config` 一跑就摊在屏幕上。
+
+需要本地库时，用 `docker compose --profile local-db up`；此时把 `.env.dev` 的
+`DB_HOST` 指回 `db`、`DB_PORT` 指回 `1433`，并补上 `MSSQL_SA_PASSWORD`。
 
 ### `.env` 不会进镜像
 

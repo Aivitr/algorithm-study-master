@@ -101,8 +101,10 @@ def _auto_header(tree: ast.Module, body_text: str, module: str, doc: str) -> tup
     try:
         needed = _needed_names(body_text)
     except SyntaxError as exc:
-        die(f"抽取区间的代码无法单独解析（第 {exc.lineno} 行）：{exc.msg}。"
-            f"多半是区间起点切在了一个语句中间。")
+        die(
+            f"抽取区间的代码无法单独解析（第 {exc.lineno} 行）：{exc.msg}。"
+            f"多半是区间起点切在了一个语句中间。"
+        )
 
     from_imports: dict[str, list[str]] = {}
     plain_imports: set[str] = set()
@@ -111,7 +113,7 @@ def _auto_header(tree: ast.Module, body_text: str, module: str, doc: str) -> tup
     for name in sorted(needed):
         entry = table.get(name)
         if entry is None:
-            manual.append(name)          # server.py 内部定义（函数/类/变量）
+            manual.append(name)  # server.py 内部定义（函数/类/变量）
             continue
         module_name, original, kind = entry
         if kind == "import":
@@ -144,15 +146,25 @@ def main() -> None:
     ap.add_argument("--start", type=int, required=True, help="起始行（1-indexed，含）")
     ap.add_argument("--end", type=int, required=True, help="结束行（1-indexed，含）")
     ap.add_argument("--header", help="手写的头文件路径（与 --auto-header 二选一）")
-    ap.add_argument("--auto-header", action="store_true",
-                    help="按 server.py 的 import 表自动生成头")
+    ap.add_argument(
+        "--auto-header", action="store_true", help="按 server.py 的 import 表自动生成头"
+    )
     ap.add_argument("--doc", default="（阶段 5 从 server.py 拆出）", help="自动头的文档字符串")
-    ap.add_argument("--expect-defs", nargs="*", default=[],
-                    help="区间内允许带走的顶层定义名（路由函数与私有辅助）")
-    ap.add_argument("--also", action="append", default=[], metavar="起-止:名字,名字",
-                    help="额外一并搬走的**不连续**区间，可重复。格式 `起-止:期望的顶层定义名`"
-                         "（名字用逗号分隔）。用于「某个私有辅助只被本组路由使用」的情形——"
-                         "它常写在 server.py 的别处，只能单独切。")
+    ap.add_argument(
+        "--expect-defs",
+        nargs="*",
+        default=[],
+        help="区间内允许带走的顶层定义名（路由函数与私有辅助）",
+    )
+    ap.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        metavar="起-止:名字,名字",
+        help="额外一并搬走的**不连续**区间，可重复。格式 `起-止:期望的顶层定义名`"
+        "（名字用逗号分隔）。用于「某个私有辅助只被本组路由使用」的情形——"
+        "它常写在 server.py 的别处，只能单独切。",
+    )
     args = ap.parse_args()
     if not args.header and not args.auto_header:
         die("需要 --header 或 --auto-header")
@@ -175,7 +187,7 @@ def main() -> None:
         print(f"（起始行由 {args.start} 前移到 {adjusted}，以带上装饰器）")
     args.start = adjusted
 
-    block_text = "".join(lines[args.start - 1:args.end])
+    block_text = "".join(lines[args.start - 1 : args.end])
 
     def check_region(lo: int, hi: int, text: str, expect: list[str], label: str) -> list:
         """区间必须自洽：只含预期定义、无锚点漂移、无对 server 的导入。"""
@@ -183,11 +195,15 @@ def main() -> None:
         got = {node_name(n) for n in inner}
         unexpected = got - set(expect) - {"import"}
         if unexpected:
-            die(f"{label} 区间内有未预期的顶层定义：{sorted(unexpected)}。"
-                f"请确认这段是否真的该一起走，或把它加进 --expect-defs / --also 的名字里。")
+            die(
+                f"{label} 区间内有未预期的顶层定义：{sorted(unexpected)}。"
+                f"请确认这段是否真的该一起走，或把它加进 --expect-defs / --also 的名字里。"
+            )
         if "Path(__file__)" in text:
-            die(f"{label} 区间内出现 `Path(__file__)`：搬到 app/routers/ 后它会指向 "
-                f"app/routers，路径解析会静默错位。请改用 app.core.paths.PROJECT_ROOT。")
+            die(
+                f"{label} 区间内出现 `Path(__file__)`：搬到 app/routers/ 后它会指向 "
+                f"app/routers，路径解析会静默错位。请改用 app.core.paths.PROJECT_ROOT。"
+            )
         if "from server" in text or "import server" in text:
             die(f"{label} 区间内出现对 server 的导入：在 `python server.py` 下会二次执行整个文件。")
         if "if __name__" in text:
@@ -226,17 +242,19 @@ def main() -> None:
         for r_lo, r_hi in regions:
             if not (hi < r_lo or lo > r_hi):
                 die(f"--also 区间 {lo}-{hi} 与另一个待搬区间重叠。")
-        text_ = "".join(lines[lo - 1:hi])
+        text_ = "".join(lines[lo - 1 : hi])
         check_region(lo, hi, text_, expect, f"--also {lo}-{hi}")
         # 与主区间一样，把紧贴其上的装饰器带上（辅助函数通常没有，但保持一致）
         while lo > 1 and lines[lo - 2].lstrip().startswith("@"):
             lo -= 1
-        extra_blocks.append("".join(lines[lo - 1:hi]))
+        extra_blocks.append("".join(lines[lo - 1 : hi]))
         regions.append((lo, hi))
 
     if extra_blocks:
-        print(f"另搬 {len(extra_blocks)} 个额外区间：" +
-              "、".join(f"{lo}-{hi}" for lo, hi in regions[1:]))
+        print(
+            f"另搬 {len(extra_blocks)} 个额外区间："
+            + "、".join(f"{lo}-{hi}" for lo, hi in regions[1:])
+        )
 
     # ---- 写模块 -----------------------------------------------------------
     # 先做 `@app.` → `@router.` 的改写：自动头需要据此判断依赖（改完之后
@@ -258,7 +276,7 @@ def main() -> None:
     # 多个区间时要**从后往前**删，否则先删前面的会让后面区间的行号整体前移。
     out = list(lines)
     for lo, hi in sorted(regions, reverse=True):
-        del out[lo - 1:hi]
+        del out[lo - 1 : hi]
     rest = "".join(out)
     marker = 'if __name__ == "__main__":'
     if rest.count(marker) != 1:
@@ -287,8 +305,10 @@ def main() -> None:
     n_before = before_text.count("@app.")
     n_after = body.count("@router.")
     if n_before != n_after or n_after == 0:
-        die(f"装饰器数量对不上：切走 {n_before} 个 @app.*，搬来 {n_after} 个 @router.*。"
-            f"多半是装饰器没被一起带走。")
+        die(
+            f"装饰器数量对不上：切走 {n_before} 个 @app.*，搬来 {n_after} 个 @router.*。"
+            f"多半是装饰器没被一起带走。"
+        )
 
     # ---- 头是否把所有需要的名字都提供了 ----------------------------------
     # 少一个 import 的后果是**运行到那条路由时才 NameError**，且会被处理器吞成
@@ -297,19 +317,23 @@ def main() -> None:
     # 都必须为零。
     missing = free_globals(module_text, f"app/routers/{args.module}.py")
     if missing:
-        die(f"新模块里这些名字没有定义也没有导入：{sorted(missing)}。\n"
+        die(
+            f"新模块里这些名字没有定义也没有导入：{sorted(missing)}。\n"
             f"它们多半原本是 server.py 的模块级全局（如 `import re`、"
             f"`from datetime import datetime`）。\n"
             f"补进 --header 的头里，或改用 --auto-header。\n"
             f"（这类缺失不会在测试里暴露：契约测试只检查路由表，不执行处理器；"
-            f"而处理器会把 NameError 吞成 200 的错误响应。）")
+            f"而处理器会把 NameError 吞成 200 的错误响应。）"
+        )
 
     ROUTERS.mkdir(exist_ok=True)
     (ROUTERS / f"{args.module}.py").write_text(module_text, encoding="utf-8")
     SERVER.write_text(rest, encoding="utf-8")
 
-    print(f"已抽出 {args.start}-{args.end}（{args.end - args.start + 1} 行）"
-          f"→ app/routers/{args.module}.py")
+    print(
+        f"已抽出 {args.start}-{args.end}（{args.end - args.start + 1} 行）"
+        f"→ app/routers/{args.module}.py"
+    )
     print(f"server.py: {len(lines)} → {len(rest.splitlines())} 行")
 
 

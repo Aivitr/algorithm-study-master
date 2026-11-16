@@ -70,7 +70,8 @@ def contribution_newness(vectors: np.ndarray, zero_vector_policy: str = "zero") 
 
 
 def participant_newness(
-    newness_array: np.ndarray, speakers: Sequence[str],
+    newness_array: np.ndarray,
+    speakers: Sequence[str],
 ) -> dict[str, float]:
     """N(a) = mean contribution newness over participant a's contributions."""
     arr = np.asarray(newness_array, dtype=float)

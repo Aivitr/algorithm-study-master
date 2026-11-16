@@ -24,7 +24,7 @@
 
 import builtins
 import symtable
-from ast import ImportFrom, Import, walk, parse
+from ast import Import, ImportFrom, parse, walk
 
 # 导入系统隐式提供的模块级名字（不入 symtable 的绑定表，但运行时一定存在）。
 IMPLICIT_MODULE_GLOBALS = frozenset(

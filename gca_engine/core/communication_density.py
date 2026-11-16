@@ -25,7 +25,9 @@ from gca_engine.core.config import validate_zero_vector_policy
 
 
 def contribution_density(
-    vectors: np.ndarray, word_counts: Sequence[float], zero_vector_policy: str = "zero",
+    vectors: np.ndarray,
+    word_counts: Sequence[float],
+    zero_vector_policy: str = "zero",
 ) -> np.ndarray:
     """Contribution-level density D_t = ||d_t|| / word_count_t (length-n)."""
     validate_zero_vector_policy(zero_vector_policy)
@@ -33,8 +35,7 @@ def contribution_density(
     counts = np.asarray(word_counts, dtype=float)
     if d.ndim != 2 or counts.ndim != 1 or d.shape[0] != counts.shape[0]:
         raise ValueError(
-            f"vectors (n, d) and word_counts (n,) must align, got "
-            f"{d.shape} and {counts.shape}"
+            f"vectors (n, d) and word_counts (n,) must align, got {d.shape} and {counts.shape}"
         )
     norms = np.linalg.norm(d, axis=1)
     density = np.zeros(d.shape[0], dtype=float)

@@ -32,6 +32,7 @@ from app.services.research_runtime import research_runtime
 
 router = APIRouter()
 
+
 @router.get("/api/exercises/{report_id}")
 async def get_exercises(report_id: int, db: Session = Depends(get_db)):
     """获取报告对应的习题列表（JSON格式）"""
@@ -47,10 +48,10 @@ async def get_exercises(report_id: int, db: Session = Depends(get_db)):
                 "answer": ex.answer,
                 "knowledge_tag": ex.knowledge_tag,
                 "difficulty": ex.difficulty,
-                "estimated_time": ex.estimated_time
+                "estimated_time": ex.estimated_time,
             }
             for ex in exercises
-        ]
+        ],
     }
 
 
@@ -67,10 +68,12 @@ async def generate_report_stream(
         try:
             yield f"data: {_json.dumps({'type': 'progress', 'message': '正在分析课堂数据...'}, ensure_ascii=False)}\n\n"
 
-            last_report = db.query(LearningReport).filter(
-                LearningReport.meeting_id == meeting_id,
-                LearningReport.user_id == user_id
-            ).order_by(LearningReport.created_at.desc()).first()
+            last_report = (
+                db.query(LearningReport)
+                .filter(LearningReport.meeting_id == meeting_id, LearningReport.user_id == user_id)
+                .order_by(LearningReport.created_at.desc())
+                .first()
+            )
             cutoff_time = last_report.created_at if last_report else None
 
             meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -96,22 +99,30 @@ async def generate_report_stream(
             all_transcripts = transcript_query.order_by(Transcript.id).all()
             all_emotions = emotion_query.all()
 
-            student_transcripts = [t for t in all_transcripts if getattr(t.user, "role", None) != "teacher"]
-            student_emotions = [e for e in all_emotions if getattr(e.user, "role", None) != "teacher"]
+            student_transcripts = [
+                t for t in all_transcripts if getattr(t.user, "role", None) != "teacher"
+            ]
+            student_emotions = [
+                e for e in all_emotions if getattr(e.user, "role", None) != "teacher"
+            ]
 
             user_transcripts = [t for t in student_transcripts if t.user_id == user_id]
             speech_count = len(user_transcripts)
             avg_relevance = (
                 sum([t.relevance_score or 0 for t in user_transcripts]) / speech_count
-                if speech_count > 0 else 0
+                if speech_count > 0
+                else 0
             )
 
             if speech_count == 0:
-                user_transcripts = [t for t in student_transcripts if t.user.username == user.username]
+                user_transcripts = [
+                    t for t in student_transcripts if t.user.username == user.username
+                ]
                 speech_count = len(user_transcripts)
                 avg_relevance = (
                     sum([t.relevance_score or 0 for t in user_transcripts]) / speech_count
-                    if speech_count > 0 else 0
+                    if speech_count > 0
+                    else 0
                 )
 
             if speech_count == 0:
@@ -127,16 +138,22 @@ async def generate_report_stream(
                 emotion_key = normalize_emotion_label(e.emotion_type)
                 emotion_stats[emotion_key] = emotion_stats.get(emotion_key, 0) + 1
 
-            all_transcripts_data = [{
-                "username": t.user.username,
-                "content": t.content,
-                "timestamp": t.created_at.isoformat()
-            } for t in student_transcripts]
+            all_transcripts_data = [
+                {
+                    "username": t.user.username,
+                    "content": t.content,
+                    "timestamp": t.created_at.isoformat(),
+                }
+                for t in student_transcripts
+            ]
 
-            students = db.query(User).join(Transcript).filter(
-                Transcript.meeting_id == meeting_id,
-                User.role != "teacher"
-            ).distinct().all()
+            students = (
+                db.query(User)
+                .join(Transcript)
+                .filter(Transcript.meeting_id == meeting_id, User.role != "teacher")
+                .distinct()
+                .all()
+            )
 
             student_performances = []
             for s in students:
@@ -144,13 +161,16 @@ async def generate_report_stream(
                 s_count = len(s_transcripts)
                 s_relevance = (
                     sum([(t.relevance_score or 0) for t in s_transcripts]) / s_count
-                    if s_count > 0 else 0
+                    if s_count > 0
+                    else 0
                 )
-                student_performances.append({
-                    "username": s.username,
-                    "speech_count": s_count,
-                    "avg_relevance": round(s_relevance, 2)
-                })
+                student_performances.append(
+                    {
+                        "username": s.username,
+                        "speech_count": s_count,
+                        "avg_relevance": round(s_relevance, 2),
+                    }
+                )
 
             all_emotion_stats = {}
             for e in student_emotions:
@@ -162,7 +182,7 @@ async def generate_report_stream(
                 meeting_topic=meeting.topic,
                 all_transcripts=all_transcripts_data,
                 emotion_stats=all_emotion_stats,
-                student_performances=student_performances
+                student_performances=student_performances,
             )
             if research_runtime.research_algorithms_active:
                 course_report = research_runtime.enrich_course_report(
@@ -186,7 +206,7 @@ async def generate_report_stream(
                     "strengths": [],
                     "weaknesses": [],
                     "unmastered_concepts": [],
-                    "suggestions": "继续保持，积极参与"
+                    "suggestions": "继续保持，积极参与",
                 }
 
             members_list = list(set([t.user.username for t in student_transcripts]))
@@ -196,7 +216,7 @@ async def generate_report_stream(
                     **basic_info,
                     "topic": meeting.topic,
                     "members": members_list,
-                    "recorder": basic_info.get("recorder", "课程助手")
+                    "recorder": basic_info.get("recorder", "课程助手"),
                 }
 
             report_data = {
@@ -228,11 +248,7 @@ async def generate_report_stream(
                 report_data["diagnostic_tags"] = student_review.get("diagnostic_tags", [])
                 report_data["research"] = course_report.get("research", {})
 
-            report = LearningReport(
-                meeting_id=meeting_id,
-                user_id=user_id,
-                report_data=report_data
-            )
+            report = LearningReport(meeting_id=meeting_id, user_id=user_id, report_data=report_data)
             db.add(report)
             db.commit()
             db.refresh(report)
@@ -254,7 +270,7 @@ async def generate_report_stream(
                     answer=ex.get("answer"),
                     knowledge_tag=ex.get("knowledge_tag"),
                     difficulty=ex.get("difficulty", 0.5),
-                    estimated_time=ex.get("estimated_time", 5)
+                    estimated_time=ex.get("estimated_time", 5),
                 )
                 db.add(exercise)
             db.commit()
@@ -264,11 +280,14 @@ async def generate_report_stream(
             # 最终结果
             yield f"data: {_json.dumps({'type': 'complete', 'report': report_data, 'exercises': exercises_list, 'report_id': report.id}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-            print(f"[OK] 流式报告生成完毕: speech_count={speech_count}, exercises={len(exercises_list)}")
+            print(
+                f"[OK] 流式报告生成完毕: speech_count={speech_count}, exercises={len(exercises_list)}"
+            )
 
         except Exception as e:
             print(f"[ERROR] 流式报告生成失败: {e}")
             import traceback
+
             traceback.print_exc()
             yield f"data: {_json.dumps({'type': 'error', 'message': f'报告生成失败: {str(e)}'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"

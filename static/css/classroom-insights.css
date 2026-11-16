@@ -1,0 +1,295 @@
+/* 课堂分析扩展：复用课堂右栏的尺寸、色彩和卡片密度。 */
+
+.insight-subtabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid #dde9e8;
+    background: #f3f8f8;
+}
+
+/* 页签等分容器宽度：2 个（学生端）和 3 个（教师端）都自动摊平，不依赖列数配置 */
+.insight-subtab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 5px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: #4b5563;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+    transition: all 180ms ease;
+}
+
+
+.insight-subtab:hover {
+    background: #eaf3f2;
+    color: var(--primary-dark);
+    border-color: #d7e5e2;
+}
+
+.insight-subtab.active {
+    background: #ffffff;
+    color: var(--primary-dark);
+    border-color: #d7e5e2;
+    box-shadow: 0 2px 6px rgba(19, 55, 62, 0.12);
+}
+
+.insight-panel {
+    max-height: calc(100vh - 245px);
+    overflow-y: auto;
+    background: #ffffff;
+}
+
+.insight-card {
+    border: 1px solid #dfe8ec;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(19, 55, 62, 0.08);
+}
+
+.insight-card-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.insight-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.insight-metric-card {
+    min-height: 82px;
+    padding: 10px;
+    border: 1px solid #dfe8ec;
+    border-radius: 10px;
+    background: linear-gradient(145deg, #ffffff 0%, #f7fbfa 100%);
+    box-shadow: 0 2px 6px rgba(19, 55, 62, 0.06);
+}
+
+.insight-metric-value {
+    margin-top: 4px;
+    color: var(--primary-dark);
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.insight-metric-meta {
+    margin-top: 7px;
+    color: #8a98a1;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.insight-chart {
+    width: 100%;
+    height: 190px;
+}
+
+.insight-chart-tall {
+    height: 220px;
+}
+
+.insight-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.insight-empty i {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 28px;
+    opacity: 0.35;
+}
+
+.insight-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e2ebef;
+    border-radius: 9px;
+}
+
+.insight-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 9px;
+}
+
+.insight-table th,
+.insight-table td {
+    padding: 7px 6px;
+    border-bottom: 1px solid #edf2f4;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.insight-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef6f5;
+    color: #52636b;
+    font-weight: 700;
+}
+
+.insight-table tr:last-child td {
+    border-bottom: none;
+}
+
+.insight-agent-textarea {
+    width: 100%;
+    min-height: 88px;
+    resize: vertical;
+    border: 1px solid #d7e5e2;
+    border-radius: 10px;
+    padding: 10px 11px;
+    color: #374151;
+    font-size: 11px;
+    line-height: 1.55;
+    outline: none;
+    background: #fbfdfd;
+}
+
+.insight-agent-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(62, 124, 134, 0.12);
+}
+
+.insight-primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 7px 12px;
+    border-radius: 9px;
+    background: var(--primary-gradient);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(47, 102, 112, 0.2);
+    transition: all 180ms ease;
+}
+
+.insight-primary-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(47, 102, 112, 0.26);
+}
+
+.insight-primary-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.insight-secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    border: 1px solid #d7e5e2;
+    background: #ffffff;
+    color: var(--primary-dark);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.insight-secondary-btn:hover {
+    background: var(--primary-soft);
+}
+
+.insight-evidence-chip,
+.insight-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.insight-finding {
+    padding: 9px 10px;
+    border-left: 3px solid var(--primary);
+    border-radius: 0 9px 9px 0;
+    background: #f8fbfb;
+}
+
+.insight-action-card {
+    padding: 11px;
+    border: 1px solid #dfe8ec;
+    border-radius: 11px;
+    background: #ffffff;
+    box-shadow: 0 2px 7px rgba(19, 55, 62, 0.07);
+}
+
+.insight-action-card.confirmed {
+    border-color: #9fd6bd;
+    background: #f4fbf7;
+}
+
+.insight-code {
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: #f2f7f6;
+    color: #3d5b61;
+    font-size: 10px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.insight-divider {
+    height: 1px;
+    margin: 13px 0;
+    background: #edf2f4;
+}
+
+.insight-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 22px 10px;
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.insight-alert {
+    padding: 9px 10px;
+    border-radius: 9px;
+    border: 1px solid #f4d7a5;
+    background: #fffaf0;
+    color: #8a641e;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.insight-alert.error {
+    border-color: #efcaca;
+    background: #fff5f5;
+    color: #9b3d3d;
+}
+
+@media (max-width: 1024px) {
+    .insight-panel {
+        max-height: 72vh;
+    }
+}

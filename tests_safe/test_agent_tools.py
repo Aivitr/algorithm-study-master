@@ -3,13 +3,13 @@
 from datetime import datetime
 from uuid import uuid4
 
-from app.core import database
 from app.agents.group_analysis_agent import (
     GroupAnalysisOutput,
     MetricReading,
     StructureSummary,
 )
 from app.agents.state import require_tool_state
+from app.core import database
 from app.models import Meeting
 from app.services.classroom_agent_service import classroom_agent_service
 
@@ -45,9 +45,9 @@ def test_tool_gate_rejects_created_and_allows_read_states(seeded_ids):
         assert require_tool_state("get_class_metrics", db, running_id) is None
         assert require_tool_state("get_class_metrics", db, ended_id) is None
     finally:
-        db.query(Meeting).filter(
-            Meeting.id.in_([created_id, running_id, ended_id])
-        ).delete(synchronize_session=False)
+        db.query(Meeting).filter(Meeting.id.in_([created_id, running_id, ended_id])).delete(
+            synchronize_session=False
+        )
         db.commit()
         db.close()
 

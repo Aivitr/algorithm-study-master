@@ -46,9 +46,7 @@ SERVER_PY = PROJECT_ROOT / "server.py"
 def _router_modules() -> list[Path]:
     if not ROUTERS_DIR.is_dir():
         return []
-    return sorted(
-        p for p in ROUTERS_DIR.glob("*.py") if p.name != "__init__.py"
-    )
+    return sorted(p for p in ROUTERS_DIR.glob("*.py") if p.name != "__init__.py")
 
 
 def _parse(path: Path) -> ast.Module:
@@ -69,6 +67,7 @@ def _imported_top_level_packages(tree: ast.Module) -> set[str]:
 
 
 # --------------------------------------------------------------- 一、单向依赖
+
 
 @pytest.mark.parametrize("module", _router_modules(), ids=lambda p: p.name)
 def test_router_module_does_not_import_server(module: Path):
@@ -100,9 +99,7 @@ def test_detector_actually_detects_server_import(tmp_path):
 
     # 函数体内的延迟导入同样要被抓到
     lazy = tmp_path / "lazy.py"
-    lazy.write_text(
-        "def f():\n    import server\n    return server.manager\n", encoding="utf-8"
-    )
+    lazy.write_text("def f():\n    import server\n    return server.manager\n", encoding="utf-8")
     assert "server" in _imported_top_level_packages(_parse(lazy))
 
     ok = tmp_path / "ok.py"
@@ -115,6 +112,7 @@ def test_detector_actually_detects_server_import(tmp_path):
 
 
 # --------------------------------------------------------------- 二、必须被装配
+
 
 def _routers_imported_by_server() -> dict[str, str]:
     """server.py 里从 `app.routers.*` 导入的名字 → 来源模块。"""
@@ -198,6 +196,7 @@ def test_the_wiring_check_actually_bites(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------- 三、__init__ 为空
+
 
 def test_routers_init_stays_empty():
     """`app/routers/__init__.py` 只能有文档字符串，不能有可执行导入。

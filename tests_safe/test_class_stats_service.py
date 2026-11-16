@@ -71,11 +71,6 @@ def test_participant_and_user_speech_counts(seeded_ids):
     try:
         svc = ClassStatsService(db)
         assert svc.participant_count(seeded_ids["meeting_id"]) == 2
-        assert (
-            svc.user_speech_count(
-                seeded_ids["meeting_id"], seeded_ids["student_id"]
-            )
-            == 2
-        )
+        assert svc.user_speech_count(seeded_ids["meeting_id"], seeded_ids["student_id"]) == 2
     finally:
         db.close()

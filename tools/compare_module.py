@@ -67,8 +67,9 @@ def flatten(prefix: str, obj, out: dict) -> None:
     """把 dataclass 递归摊平成 {字段路径: 值}；其余原样作为叶子。"""
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         for field in dataclasses.fields(obj):
-            flatten(f"{prefix}.{field.name}" if prefix else field.name,
-                    getattr(obj, field.name), out)
+            flatten(
+                f"{prefix}.{field.name}" if prefix else field.name, getattr(obj, field.name), out
+            )
     else:
         out[prefix] = obj
 
@@ -154,15 +155,19 @@ def compare(old, new, only: str | None, moved_to=None) -> list[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--old-file", required=True, help="搬迁前的 .py 文件路径")
-    ap.add_argument("--old-name", default="module_before_move",
-                    help="加载旧文件时使用的临时模块名")
+    ap.add_argument("--old-name", default="module_before_move", help="加载旧文件时使用的临时模块名")
     ap.add_argument("--new-module", required=True, help="搬迁后的模块（点号路径）")
     ap.add_argument("--only", default=None, help="只比对字段路径以此开头的项")
-    ap.add_argument("--allow-moved-to", default=None, metavar="MODULE",
-                    help="本模块里少掉的名字，若存在于该模块则视为「搬走了」而非丢失")
+    ap.add_argument(
+        "--allow-moved-to",
+        default=None,
+        metavar="MODULE",
+        help="本模块里少掉的名字，若存在于该模块则视为「搬走了」而非丢失",
+    )
     args = ap.parse_args()
 
     old = load_from_file(args.old_name, args.old_file)

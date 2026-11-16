@@ -21,7 +21,10 @@ class SignalConnectionManager:
         self.meeting_connections[meeting_id][username] = websocket
 
     def unregister(self, meeting_id: int, username: str):
-        if meeting_id in self.meeting_connections and username in self.meeting_connections[meeting_id]:
+        if (
+            meeting_id in self.meeting_connections
+            and username in self.meeting_connections[meeting_id]
+        ):
             del self.meeting_connections[meeting_id][username]
 
     async def forward_to(self, meeting_id: int, target_username: str, msg: dict) -> bool:

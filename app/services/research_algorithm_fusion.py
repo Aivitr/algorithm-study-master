@@ -31,7 +31,9 @@ def _normalize_vector(vector: Optional[List[float]]) -> Optional[List[float]]:
     return [x / norm for x in raw]
 
 
-def _cosine_similarity(left: Optional[List[float]], right: Optional[List[float]]) -> Optional[float]:
+def _cosine_similarity(
+    left: Optional[List[float]], right: Optional[List[float]]
+) -> Optional[float]:
     a = _normalize_vector(left)
     b = _normalize_vector(right)
     if not a or not b or len(a) != len(b):
@@ -53,7 +55,9 @@ def _mean_vectors(vectors: List[List[float]]) -> Optional[List[float]]:
     return _normalize_vector(merged)
 
 
-def _blend_vectors(current: Optional[List[float]], new: Optional[List[float]], alpha: float) -> Optional[List[float]]:
+def _blend_vectors(
+    current: Optional[List[float]], new: Optional[List[float]], alpha: float
+) -> Optional[List[float]]:
     current_norm = _normalize_vector(current)
     new_norm = _normalize_vector(new)
     if not current_norm:
@@ -223,7 +227,18 @@ class ResearchBackboneManager:
 
 
 class PDLScorer:
-    REASONING_CUES = ("因为", "所以", "例如", "比如", "首先", "其次", "说明", "推导", "由此", "证明")
+    REASONING_CUES = (
+        "因为",
+        "所以",
+        "例如",
+        "比如",
+        "首先",
+        "其次",
+        "说明",
+        "推导",
+        "由此",
+        "证明",
+    )
     CREATIVE_CUES = ("也许", "如果", "换个角度", "可以尝试", "设想", "创新", "不如", "扩展")
     EXPRESSION_CUES = ("我认为", "我的观点", "总结", "结论", "一方面", "另一方面")
 
@@ -246,7 +261,9 @@ class PDLScorer:
         topic_value = _safe_text(topic)
         text_embedding = self.backbones.encode_text(text_value, preferred="bge_m3")
         topic_embedding = self.backbones.encode_text(topic_value or "课堂主题", preferred="bge_m3")
-        topic_similarity = _cosine_similarity(text_embedding["vector"], topic_embedding["vector"]) or 0.0
+        topic_similarity = (
+            _cosine_similarity(text_embedding["vector"], topic_embedding["vector"]) or 0.0
+        )
         overlap = _token_overlap(text_value, topic_value)
         reasoning_ratio = _cue_ratio(text_value, self.REASONING_CUES)
         creative_ratio = _cue_ratio(text_value, self.CREATIVE_CUES)
@@ -254,12 +271,24 @@ class PDLScorer:
         length_bonus = _clamp(len(text_value) / 90.0, 0.0, 1.0)
 
         emotion_bonus = 0.0
-        if _safe_text(audio_tone).lower() == "loud" and _safe_text(emotion_tag).lower() in {"happy", "excited", "surprised"}:
+        if _safe_text(audio_tone).lower() == "loud" and _safe_text(emotion_tag).lower() in {
+            "happy",
+            "excited",
+            "surprised",
+        }:
             emotion_bonus = 0.05
-        elif _safe_text(audio_tone).lower() == "quiet" and _safe_text(emotion_tag).lower() in {"calm", "thinking", "confused"}:
+        elif _safe_text(audio_tone).lower() == "quiet" and _safe_text(emotion_tag).lower() in {
+            "calm",
+            "thinking",
+            "confused",
+        }:
             emotion_bonus = 0.03
 
-        action_bonus = 0.04 if _safe_text(body_action).lower() in {"focused", "writing", "listening", "active"} else 0.0
+        action_bonus = (
+            0.04
+            if _safe_text(body_action).lower() in {"focused", "writing", "listening", "active"}
+            else 0.0
+        )
 
         base_relevance = float(dimensions.get("relevance", relevance or base_score))
         base_depth = float(dimensions.get("depth", base_score))
@@ -272,25 +301,41 @@ class PDLScorer:
             98.0,
         )
         raw_depth = _clamp(
-            0.72 * base_depth + 16.0 * reasoning_ratio + 10.0 * length_bonus + 5.0 * topic_similarity,
+            0.72 * base_depth
+            + 16.0 * reasoning_ratio
+            + 10.0 * length_bonus
+            + 5.0 * topic_similarity,
             25.0,
             98.0,
         )
         raw_creativity = _clamp(
-            0.70 * base_creativity + 14.0 * creative_ratio + 8.0 * max(0.0, 1.0 - overlap) + 6.0 * reasoning_ratio,
+            0.70 * base_creativity
+            + 14.0 * creative_ratio
+            + 8.0 * max(0.0, 1.0 - overlap)
+            + 6.0 * reasoning_ratio,
             20.0,
             97.0,
         )
         raw_expression = _clamp(
-            0.74 * base_expression + 12.0 * expression_ratio + 10.0 * length_bonus + 8.0 * emotion_bonus + 6.0 * action_bonus,
+            0.74 * base_expression
+            + 12.0 * expression_ratio
+            + 10.0 * length_bonus
+            + 8.0 * emotion_bonus
+            + 6.0 * action_bonus,
             25.0,
             98.0,
         )
 
-        relevance_score = round(_clamp((0.68 * base_relevance) + (0.32 * raw_relevance), 25.0, 98.0))
+        relevance_score = round(
+            _clamp((0.68 * base_relevance) + (0.32 * raw_relevance), 25.0, 98.0)
+        )
         depth_score = round(_clamp((0.68 * base_depth) + (0.32 * raw_depth), 25.0, 98.0))
-        creativity_score = round(_clamp((0.68 * base_creativity) + (0.32 * raw_creativity), 20.0, 97.0))
-        expression_score = round(_clamp((0.68 * base_expression) + (0.32 * raw_expression), 25.0, 98.0))
+        creativity_score = round(
+            _clamp((0.68 * base_creativity) + (0.32 * raw_creativity), 20.0, 97.0)
+        )
+        expression_score = round(
+            _clamp((0.68 * base_expression) + (0.32 * raw_expression), 25.0, 98.0)
+        )
 
         updated_dimensions = {
             "relevance": relevance_score,
@@ -300,7 +345,10 @@ class PDLScorer:
         }
         weighted_score = round(
             _clamp(
-                0.4 * relevance_score + 0.3 * depth_score + 0.1 * creativity_score + 0.2 * expression_score,
+                0.4 * relevance_score
+                + 0.3 * depth_score
+                + 0.1 * creativity_score
+                + 0.2 * expression_score,
                 25.0,
                 99.0,
             )
@@ -319,7 +367,9 @@ class PDLScorer:
         }
         weakest_dimension = min(updated_dimensions, key=updated_dimensions.get)
         strongest_dimension = max(updated_dimensions, key=updated_dimensions.get)
-        feedback_suffix = f"PDL判定当前优势维度为{strongest_dimension}，建议继续补强{weakest_dimension}。"
+        feedback_suffix = (
+            f"PDL判定当前优势维度为{strongest_dimension}，建议继续补强{weakest_dimension}。"
+        )
 
         return {
             "score": weighted_score,
@@ -389,7 +439,9 @@ class OneShotMVGEngine:
         if not weights:
             continuity_score = 0.58
         else:
-            continuity_score = sum(weight * score for weight, score in zip(weights, scores)) / max(1e-6, sum(weights))
+            continuity_score = sum(weight * score for weight, score in zip(weights, scores)) / max(
+                1e-6, sum(weights)
+            )
 
         continuity_score = _clamp(continuity_score, 0.35, 0.98)
 
@@ -399,7 +451,9 @@ class OneShotMVGEngine:
             notes.append("One-Shot MVG已建立首个视觉锚点。")
         elif face_embedding and continuity_score >= 0.60:
             alpha = 0.18 if continuity_score >= 0.75 else 0.10
-            track["face_prototype"] = _blend_vectors(track.get("face_prototype"), face_embedding, alpha)
+            track["face_prototype"] = _blend_vectors(
+                track.get("face_prototype"), face_embedding, alpha
+            )
             track["face_updates"] = int(track.get("face_updates", 0)) + 1
 
         if track.get("voice_prototype") is None and voice_embedding:
@@ -408,7 +462,9 @@ class OneShotMVGEngine:
             notes.append("One-Shot MVG已建立首个语音锚点。")
         elif voice_embedding and continuity_score >= 0.60:
             alpha = 0.15 if continuity_score >= 0.75 else 0.08
-            track["voice_prototype"] = _blend_vectors(track.get("voice_prototype"), voice_embedding, alpha)
+            track["voice_prototype"] = _blend_vectors(
+                track.get("voice_prototype"), voice_embedding, alpha
+            )
             track["voice_updates"] = int(track.get("voice_updates", 0)) + 1
 
         relink_status = "initialized"
@@ -455,7 +511,9 @@ class CCMEngine:
         notes: List[str] = []
         conflicts: List[str] = []
 
-        def _cluster_vote(cluster: Optional[Dict], label: str, positive: float, negative: float) -> None:
+        def _cluster_vote(
+            cluster: Optional[Dict], label: str, positive: float, negative: float
+        ) -> None:
             nonlocal score
             cluster = cluster or {}
             majority_identity = _safe_text(cluster.get("majority_identity"))
@@ -531,7 +589,18 @@ class CCMEngine:
 
 
 class CDLEngine:
-    REASONING_CUES = ("因为", "所以", "例如", "比如", "说明", "推理", "比较", "结论", "首先", "其次")
+    REASONING_CUES = (
+        "因为",
+        "所以",
+        "例如",
+        "比如",
+        "说明",
+        "推理",
+        "比较",
+        "结论",
+        "首先",
+        "其次",
+    )
 
     def correct(
         self,
@@ -551,7 +620,13 @@ class CDLEngine:
         action = _safe_text(body_action).lower()
         tone = _safe_text(audio_tone).lower()
 
-        semantic_strength = _clamp(0.35 + 0.45 * _cue_ratio(sentence, self.REASONING_CUES) + 0.20 * _clamp(len(sentence) / 120.0, 0.0, 1.0), 0.20, 0.98)
+        semantic_strength = _clamp(
+            0.35
+            + 0.45 * _cue_ratio(sentence, self.REASONING_CUES)
+            + 0.20 * _clamp(len(sentence) / 120.0, 0.0, 1.0),
+            0.20,
+            0.98,
+        )
         emotion_alignment = 0.55
         if tone == "loud" and emotion in {"happy", "excited", "surprised"}:
             emotion_alignment = 0.88
@@ -572,7 +647,9 @@ class CDLEngine:
         elif voice_identity or face_identity:
             identity_alignment = 0.70
 
-        continuity_score = float((mvg_result or {}).get("continuity_score", baseline_consistency) or baseline_consistency)
+        continuity_score = float(
+            (mvg_result or {}).get("continuity_score", baseline_consistency) or baseline_consistency
+        )
         diarization_ratio = float((pyannote_result or {}).get("dominant_ratio", 0.65) or 0.65)
 
         corrected_consistency = _clamp(
@@ -627,10 +704,14 @@ class CLPCRefiner:
     def _embedding(self, text: str) -> List[float]:
         return self.backbones.encode_text(text, preferred="bge_m3")["vector"]
 
-    def _build_seed_centers(self, viewpoints: List[Dict], items: List[Dict], topic: str) -> List[Optional[List[float]]]:
+    def _build_seed_centers(
+        self, viewpoints: List[Dict], items: List[Dict], topic: str
+    ) -> List[Optional[List[float]]]:
         centers: List[Optional[List[float]]] = []
         for viewpoint in viewpoints:
-            supporters = {_safe_text(name) for name in viewpoint.get("supporters") or [] if _safe_text(name)}
+            supporters = {
+                _safe_text(name) for name in viewpoint.get("supporters") or [] if _safe_text(name)
+            }
             related_texts = [
                 item["content"]
                 for item in items
@@ -664,7 +745,9 @@ class CLPCRefiner:
                 consensus[username] = label
         return consensus
 
-    def _recompute_centers(self, viewpoints: List[Dict], items: List[Dict], labels: List[int], topic: str) -> List[Optional[List[float]]]:
+    def _recompute_centers(
+        self, viewpoints: List[Dict], items: List[Dict], labels: List[int], topic: str
+    ) -> List[Optional[List[float]]]:
         centers = []
         for index, viewpoint in enumerate(viewpoints):
             texts = [
@@ -716,7 +799,15 @@ class CLPCRefiner:
         if not items:
             for index, viewpoint in enumerate(viewpoints, start=1):
                 viewpoint["id"] = viewpoint.get("id") or index
-                viewpoint["supporters"] = list(dict.fromkeys([_safe_text(name) for name in viewpoint.get("supporters") or [] if _safe_text(name)]))
+                viewpoint["supporters"] = list(
+                    dict.fromkeys(
+                        [
+                            _safe_text(name)
+                            for name in viewpoint.get("supporters") or []
+                            if _safe_text(name)
+                        ]
+                    )
+                )
                 viewpoint["support_count"] = len(viewpoint["supporters"])
                 viewpoint["evidence_count"] = 0
                 viewpoint["refinement_stage"] = "llm_seed_only"
@@ -736,7 +827,11 @@ class CLPCRefiner:
         for item_index, item in enumerate(items):
             supporter_hit = None
             for view_index, viewpoint in enumerate(viewpoints):
-                supporters = {_safe_text(name) for name in viewpoint.get("supporters") or [] if _safe_text(name)}
+                supporters = {
+                    _safe_text(name)
+                    for name in viewpoint.get("supporters") or []
+                    if _safe_text(name)
+                }
                 if item["username"] in supporters:
                     supporter_hit = view_index
                     break
@@ -756,7 +851,11 @@ class CLPCRefiner:
                     best_label = view_index
                 elif similarity > second_best:
                     second_best = similarity
-            if best_label >= 0 and best_similarity >= 0.52 and (best_similarity - second_best) >= 0.02:
+            if (
+                best_label >= 0
+                and best_similarity >= 0.52
+                and (best_similarity - second_best) >= 0.02
+            ):
                 labels[item_index] = best_label
                 assignment_notes[item_index] = "semantic_seed"
 
@@ -767,7 +866,9 @@ class CLPCRefiner:
             consensus_label = speaker_consensus.get(item["username"])
             if consensus_label is None:
                 continue
-            similarity = _cosine_similarity(item_embeddings[item_index], centers[consensus_label]) or 0.0
+            similarity = (
+                _cosine_similarity(item_embeddings[item_index], centers[consensus_label]) or 0.0
+            )
             if similarity >= 0.42:
                 labels[item_index] = consensus_label
                 assignment_notes[item_index] = "speaker_consensus"
@@ -787,7 +888,11 @@ class CLPCRefiner:
                     best_label = view_index
                 elif similarity > second_best:
                     second_best = similarity
-            if best_label >= 0 and best_similarity >= 0.48 and (best_similarity - second_best) >= 0.015:
+            if (
+                best_label >= 0
+                and best_similarity >= 0.48
+                and (best_similarity - second_best) >= 0.015
+            ):
                 labels[item_index] = best_label
                 assignment_notes[item_index] = "pseudo_label_mining"
 
@@ -796,22 +901,44 @@ class CLPCRefiner:
         pdl_scores: List[int] = []
         for view_index, viewpoint in enumerate(viewpoints):
             cluster_items = [
-                items[item_index]
-                for item_index, label in enumerate(labels)
-                if label == view_index
+                items[item_index] for item_index, label in enumerate(labels) if label == view_index
             ]
-            cluster_texts = [item["content"] for item in cluster_items if _safe_text(item["content"])]
-            cluster_supporters = list(dict.fromkeys([item["username"] for item in cluster_items] + [_safe_text(name) for name in viewpoint.get("supporters") or [] if _safe_text(name)]))
+            cluster_texts = [
+                item["content"] for item in cluster_items if _safe_text(item["content"])
+            ]
+            cluster_supporters = list(
+                dict.fromkeys(
+                    [item["username"] for item in cluster_items]
+                    + [
+                        _safe_text(name)
+                        for name in viewpoint.get("supporters") or []
+                        if _safe_text(name)
+                    ]
+                )
+            )
             avg_dimensions = {"relevance": 50, "depth": 50, "creativity": 50, "expression": 50}
-            soft_distribution = {"relevance": 0.25, "depth": 0.25, "creativity": 0.25, "expression": 0.25}
+            soft_distribution = {
+                "relevance": 0.25,
+                "depth": 0.25,
+                "creativity": 0.25,
+                "expression": 0.25,
+            }
             pdl_cluster_score = 50
             if cluster_texts:
                 pdl_results = [self.pdl.score(text, topic) for text in cluster_texts[:12]]
-                pdl_cluster_score = round(sum(item["score"] for item in pdl_results) / len(pdl_results))
+                pdl_cluster_score = round(
+                    sum(item["score"] for item in pdl_results) / len(pdl_results)
+                )
                 pdl_scores.append(pdl_cluster_score)
                 for key in avg_dimensions:
-                    avg_dimensions[key] = round(sum(item["dimensions"][key] for item in pdl_results) / len(pdl_results))
-                    soft_distribution[key] = round(sum(item["soft_distribution"][key] for item in pdl_results) / len(pdl_results), 4)
+                    avg_dimensions[key] = round(
+                        sum(item["dimensions"][key] for item in pdl_results) / len(pdl_results)
+                    )
+                    soft_distribution[key] = round(
+                        sum(item["soft_distribution"][key] for item in pdl_results)
+                        / len(pdl_results),
+                        4,
+                    )
 
             cluster_confidence = 0.0
             if cluster_items and centers[view_index]:
@@ -828,17 +955,35 @@ class CLPCRefiner:
             merged["supporters"] = cluster_supporters
             merged["support_count"] = len(cluster_supporters)
             merged["evidence_count"] = len(cluster_items)
-            merged["keywords"] = _extract_keywords(cluster_texts + [_safe_text(merged.get("title")), _safe_text(merged.get("description"))])
+            merged["keywords"] = _extract_keywords(
+                cluster_texts
+                + [_safe_text(merged.get("title")), _safe_text(merged.get("description"))]
+            )
             merged["cluster_confidence"] = cluster_confidence
-            merged["pseudo_label_support"] = sum(1 for label, note in zip(labels, assignment_notes) if label == view_index and note == "pseudo_label_mining")
-            merged["speaker_consensus_support"] = sum(1 for label, note in zip(labels, assignment_notes) if label == view_index and note == "speaker_consensus")
+            merged["pseudo_label_support"] = sum(
+                1
+                for label, note in zip(labels, assignment_notes)
+                if label == view_index and note == "pseudo_label_mining"
+            )
+            merged["speaker_consensus_support"] = sum(
+                1
+                for label, note in zip(labels, assignment_notes)
+                if label == view_index and note == "speaker_consensus"
+            )
             merged["pdl_cluster_score"] = pdl_cluster_score
             merged["pdl_dimensions"] = avg_dimensions
             merged["pdl_distribution"] = soft_distribution
             merged["refinement_stage"] = "llm_seed_bge_clpc_refined"
             refined_viewpoints.append(merged)
 
-        refined_viewpoints.sort(key=lambda item: (item.get("support_count", 0), item.get("evidence_count", 0), item.get("cluster_confidence", 0.0)), reverse=True)
+        refined_viewpoints.sort(
+            key=lambda item: (
+                item.get("support_count", 0),
+                item.get("evidence_count", 0),
+                item.get("cluster_confidence", 0.0),
+            ),
+            reverse=True,
+        )
         result["viewpoints"] = refined_viewpoints
         result["research"] = {
             **(result.get("research") or {}),
@@ -855,7 +1000,9 @@ class CLPCRefiner:
                 "unassigned_items": len(items) - labeled_count,
             },
             "soft_label_distribution": {
-                "average_cluster_score": round(sum(pdl_scores) / len(pdl_scores), 2) if pdl_scores else 50.0,
+                "average_cluster_score": round(sum(pdl_scores) / len(pdl_scores), 2)
+                if pdl_scores
+                else 50.0,
                 "cluster_count": len(refined_viewpoints),
             },
             "pipeline": [
@@ -917,13 +1064,26 @@ class IPAEngine:
                 else 0.0
             )
             question_ratio = (
-                sum(1 for text in texts if any(token in text for token in ("?", "？", "为什么", "如何", "是否"))) / len(texts)
+                sum(
+                    1
+                    for text in texts
+                    if any(token in text for token in ("?", "？", "为什么", "如何", "是否"))
+                )
+                / len(texts)
                 if texts
                 else 0.0
             )
             viewpoint_hits = viewpoint_support.get(username, 0)
 
-            participation_score = _clamp(0.55 + 0.15 * (speech_count / max(1.0, avg_speech_count)) + 0.15 * reasoning + 0.10 * (avg_relevance / 100.0) + 0.05 * min(1.0, viewpoint_hits / 2.0), 0.20, 0.99)
+            participation_score = _clamp(
+                0.55
+                + 0.15 * (speech_count / max(1.0, avg_speech_count))
+                + 0.15 * reasoning
+                + 0.10 * (avg_relevance / 100.0)
+                + 0.05 * min(1.0, viewpoint_hits / 2.0),
+                0.20,
+                0.99,
+            )
             ipa_score = round(participation_score * 100)
 
             diagnostic_tags: List[str] = []
@@ -980,7 +1140,11 @@ class IPAEngine:
             "profiles": profiles,
             "class_summary": {
                 "meeting_topic": _safe_text(meeting_topic),
-                "average_ipa_score": round(sum(item["ipa_score"] for item in profiles) / len(profiles), 2) if profiles else 0.0,
+                "average_ipa_score": round(
+                    sum(item["ipa_score"] for item in profiles) / len(profiles), 2
+                )
+                if profiles
+                else 0.0,
                 "emotion_summary": emotion_summary,
             },
         }
@@ -1105,7 +1269,9 @@ class ResearchAlgorithmFusion:
             "binding_source": ccm_result.get("binding_source", "ccm_pending_manual_review"),
             "status": ccm_result.get("status", "enhanced_review_warning"),
             "consistency_override": cdl_result.get("corrected_consistency", baseline_consistency),
-            "notes": list(mvg_result.get("notes", [])) + list(ccm_result.get("notes", [])) + list(cdl_result.get("notes", [])),
+            "notes": list(mvg_result.get("notes", []))
+            + list(ccm_result.get("notes", []))
+            + list(cdl_result.get("notes", [])),
             "algorithm_outputs": {
                 "one_shot_mvg": mvg_result,
                 "ccm": ccm_result,
@@ -1156,7 +1322,9 @@ class ResearchAlgorithmFusion:
             if profile:
                 merged["ipa_profile"] = profile
                 merged["diagnostic_tags"] = profile.get("diagnostic_tags", [])
-                merged["suggestions"] = _safe_text(merged.get("suggestions")) or profile.get("suggestion", "")
+                merged["suggestions"] = _safe_text(merged.get("suggestions")) or profile.get(
+                    "suggestion", ""
+                )
             enriched_reviews.append(merged)
         report["student_reviews"] = enriched_reviews
         research_block = dict(report.get("research") or {})

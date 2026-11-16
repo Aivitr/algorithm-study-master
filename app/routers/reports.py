@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Form
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal, get_db
+from app.core.database import get_db
 from app.core.emotions import normalize_emotion_label
 from app.core.meeting_state import ENDED, meeting_status_error
 from app.models import (
@@ -36,19 +36,20 @@ from app.services.research_runtime import research_runtime
 
 router = APIRouter()
 
+
 @router.post("/api/generate-report")
 async def generate_learning_report(
-    meeting_id: int = Form(...),
-    user_id: int = Form(...),
-    db: Session = Depends(get_db)
+    meeting_id: int = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)
 ):
     """生成学习报告（按上次报告后的新发言生成，保留历史版本）"""
     try:
         # 最近一次报告（用于截断“本轮课堂发言窗口”）
-        last_report = db.query(LearningReport).filter(
-            LearningReport.meeting_id == meeting_id,
-            LearningReport.user_id == user_id
-        ).order_by(LearningReport.created_at.desc()).first()
+        last_report = (
+            db.query(LearningReport)
+            .filter(LearningReport.meeting_id == meeting_id, LearningReport.user_id == user_id)
+            .order_by(LearningReport.created_at.desc())
+            .first()
+        )
         cutoff_time = last_report.created_at if last_report else None
 
         # 查询数据
@@ -72,7 +73,9 @@ async def generate_learning_report(
         all_emotions = emotion_query.all()
 
         # 报告生成只面向学生：过滤掉教师账号相关数据，避免教师被纳入学习报告
-        student_transcripts = [t for t in all_transcripts if getattr(t.user, "role", None) != "teacher"]
+        student_transcripts = [
+            t for t in all_transcripts if getattr(t.user, "role", None) != "teacher"
+        ]
         student_emotions = [e for e in all_emotions if getattr(e.user, "role", None) != "teacher"]
 
         # 统计个人数据
@@ -80,10 +83,13 @@ async def generate_learning_report(
         speech_count = len(user_transcripts)
         avg_relevance = (
             sum([t.relevance_score or 0 for t in user_transcripts]) / speech_count
-            if speech_count > 0 else 0
+            if speech_count > 0
+            else 0
         )
 
-        print(f"[STATS] 报告生成 - 用户名:{user.username}, user_id:{user_id}, 发言数:{speech_count}, 总发言:{len(all_transcripts)}")
+        print(
+            f"[STATS] 报告生成 - 用户名:{user.username}, user_id:{user_id}, 发言数:{speech_count}, 总发言:{len(all_transcripts)}"
+        )
 
         # 如果没找到，按用户名查找
         if speech_count == 0:
@@ -91,16 +97,14 @@ async def generate_learning_report(
             speech_count = len(user_transcripts)
             avg_relevance = (
                 sum([t.relevance_score or 0 for t in user_transcripts]) / speech_count
-                if speech_count > 0 else 0
+                if speech_count > 0
+                else 0
             )
             print(f"[STATS] 按用户名查找 - 发言数:{speech_count}")
 
         # 本轮无学生发言，不生成新报告（避免空报告覆盖体验）
         if speech_count == 0:
-            return {
-                "status": "no_new_data",
-                "message": "本次课堂无你的新发言，未生成新报告"
-            }
+            return {"status": "no_new_data", "message": "本次课堂无你的新发言，未生成新报告"}
 
         user_emotions = [e for e in student_emotions if e.user_id == user_id]
         emotion_stats = {}
@@ -109,17 +113,23 @@ async def generate_learning_report(
             emotion_stats[emotion_key] = emotion_stats.get(emotion_key, 0) + 1
 
         # 构建全课堂数据（供LLM分析）
-        all_transcripts_data = [{
-            "username": t.user.username,
-            "content": t.content,
-            "timestamp": t.created_at.isoformat()
-        } for t in student_transcripts]
+        all_transcripts_data = [
+            {
+                "username": t.user.username,
+                "content": t.content,
+                "timestamp": t.created_at.isoformat(),
+            }
+            for t in student_transcripts
+        ]
 
         # 统计所有学生表现（供LLM对比）
-        students = db.query(User).join(Transcript).filter(
-            Transcript.meeting_id == meeting_id,
-            User.role != "teacher"
-        ).distinct().all()
+        students = (
+            db.query(User)
+            .join(Transcript)
+            .filter(Transcript.meeting_id == meeting_id, User.role != "teacher")
+            .distinct()
+            .all()
+        )
 
         student_performances = []
         for s in students:
@@ -127,13 +137,16 @@ async def generate_learning_report(
             s_count = len(s_transcripts)
             s_relevance = (
                 sum([(t.relevance_score or 0) for t in s_transcripts]) / s_count
-                if s_count > 0 else 0
+                if s_count > 0
+                else 0
             )
-            student_performances.append({
-                "username": s.username,
-                "speech_count": s_count,
-                "avg_relevance": round(s_relevance, 2)
-            })
+            student_performances.append(
+                {
+                    "username": s.username,
+                    "speech_count": s_count,
+                    "avg_relevance": round(s_relevance, 2),
+                }
+            )
 
         all_emotion_stats = {}
         for e in student_emotions:
@@ -146,7 +159,7 @@ async def generate_learning_report(
             meeting_topic=meeting.topic,
             all_transcripts=all_transcripts_data,
             emotion_stats=all_emotion_stats,
-            student_performances=student_performances
+            student_performances=student_performances,
         )
         if research_runtime.research_algorithms_active:
             course_report = research_runtime.enrich_course_report(
@@ -169,7 +182,7 @@ async def generate_learning_report(
                 "strengths": [],
                 "weaknesses": [],
                 "unmastered_concepts": [],
-                "suggestions": "继续保持，积极参与"
+                "suggestions": "继续保持，积极参与",
             }
 
         # 确保 basic_info.members 存在
@@ -180,7 +193,7 @@ async def generate_learning_report(
                 **basic_info,
                 "topic": meeting.topic,
                 "members": members_list,
-                "recorder": basic_info.get("recorder", "课程助手")
+                "recorder": basic_info.get("recorder", "课程助手"),
             }
 
         # 构建报告数据
@@ -213,14 +226,12 @@ async def generate_learning_report(
             report_data["diagnostic_tags"] = student_review.get("diagnostic_tags", [])
             report_data["research"] = course_report.get("research", {})
 
-        print(f"[DEBUG] 报告数据: speech_count={report_data['speech_count']}, avg_relevance={report_data['avg_relevance']}")
+        print(
+            f"[DEBUG] 报告数据: speech_count={report_data['speech_count']}, avg_relevance={report_data['avg_relevance']}"
+        )
 
         # 保存新报告（保留历史版本，不覆盖）
-        report = LearningReport(
-            meeting_id=meeting_id,
-            user_id=user_id,
-            report_data=report_data
-        )
+        report = LearningReport(meeting_id=meeting_id, user_id=user_id, report_data=report_data)
         db.add(report)
         db.commit()
         db.refresh(report)
@@ -243,7 +254,7 @@ async def generate_learning_report(
                 answer=ex.get("answer"),
                 knowledge_tag=ex.get("knowledge_tag"),
                 difficulty=ex.get("difficulty", 0.5),
-                estimated_time=ex.get("estimated_time", 5)
+                estimated_time=ex.get("estimated_time", 5),
             )
             db.add(exercise)
 
@@ -254,12 +265,13 @@ async def generate_learning_report(
             "report": report_data,
             "exercises": exercises_list,
             "cached": False,
-            "regenerated": True if last_report else False
+            "regenerated": True if last_report else False,
         }
 
     except Exception as e:
         print(f"报告生成失败: {e}")
         import traceback
+
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
@@ -267,23 +279,27 @@ async def generate_learning_report(
 @router.get("/api/reports/{user_id}")
 async def get_user_reports(user_id: int, db: Session = Depends(get_db)):
     """获取用户的所有报告"""
-    reports = db.query(LearningReport).filter(LearningReport.user_id == user_id).order_by(LearningReport.created_at.desc()).all()
+    reports = (
+        db.query(LearningReport)
+        .filter(LearningReport.user_id == user_id)
+        .order_by(LearningReport.created_at.desc())
+        .all()
+    )
     result = []
     for r in reports:
         meeting = db.query(Meeting).filter(Meeting.id == r.meeting_id).first()
         exercise_count = db.query(Exercise).filter(Exercise.report_id == r.id).count()
-        result.append({
-            "report_id": r.id,
-            "meeting_id": r.meeting_id,
-            "class_code": meeting.class_code if meeting else "",
-            "data": r.report_data,
-            "exercise_count": exercise_count,
-            "created_at": r.created_at.isoformat()
-        })
-    return {
-        "status": "success",
-        "reports": result
-    }
+        result.append(
+            {
+                "report_id": r.id,
+                "meeting_id": r.meeting_id,
+                "class_code": meeting.class_code if meeting else "",
+                "data": r.report_data,
+                "exercise_count": exercise_count,
+                "created_at": r.created_at.isoformat(),
+            }
+        )
+    return {"status": "success", "reports": result}
 
 
 # 获取某次课堂的所有学生报告
@@ -292,9 +308,12 @@ async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
     """获取课堂的所有学生报告"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        reports = db.query(LearningReport).filter(
-            LearningReport.meeting_id == meeting_id
-        ).order_by(LearningReport.created_at.desc()).all()
+        reports = (
+            db.query(LearningReport)
+            .filter(LearningReport.meeting_id == meeting_id)
+            .order_by(LearningReport.created_at.desc())
+            .all()
+        )
         latest_reports = _select_latest_reports(reports)
 
         user_ids = sorted({int(r.user_id) for r in latest_reports})
@@ -312,28 +331,36 @@ async def get_meeting_reports(meeting_id: int, db: Session = Depends(get_db)):
                 continue
 
             data = report.report_data or {}
-            metrics = by_user_id.get((int(report.meeting_id), int(report.user_id))) or by_username.get((int(report.meeting_id), user.username)) or {}
-            result.append({
-                "report_id": report.id,
-                "meeting_id": report.meeting_id,
-                "user_id": report.user_id,
-                "class_code": meeting.class_code if meeting else "",
-                "student_id": user.student_id,
-                "student_name": user.username,
-                "speech_count": int(metrics.get("speech_count", 0) or data.get("speech_count", 0)),
-                "avg_relevance": metrics.get("avg_relevance", data.get("avg_relevance", 0)),
-                "improvement_suggestions": data.get("improvement_suggestions", ""),
-                "summary": data.get("course_summary", "")[:100] + "..." if data.get("course_summary") else "",
-                "created_at": report.created_at.isoformat()
-            })
-        
-        return {
-            "status": "success",
-            "reports": result
-        }
+            metrics = (
+                by_user_id.get((int(report.meeting_id), int(report.user_id)))
+                or by_username.get((int(report.meeting_id), user.username))
+                or {}
+            )
+            result.append(
+                {
+                    "report_id": report.id,
+                    "meeting_id": report.meeting_id,
+                    "user_id": report.user_id,
+                    "class_code": meeting.class_code if meeting else "",
+                    "student_id": user.student_id,
+                    "student_name": user.username,
+                    "speech_count": int(
+                        metrics.get("speech_count", 0) or data.get("speech_count", 0)
+                    ),
+                    "avg_relevance": metrics.get("avg_relevance", data.get("avg_relevance", 0)),
+                    "improvement_suggestions": data.get("improvement_suggestions", ""),
+                    "summary": data.get("course_summary", "")[:100] + "..."
+                    if data.get("course_summary")
+                    else "",
+                    "created_at": report.created_at.isoformat(),
+                }
+            )
+
+        return {"status": "success", "reports": result}
     except Exception as e:
         print(f"[ERROR] ??: {e}")
         import traceback
+
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
@@ -358,23 +385,27 @@ def _build_report_metric_maps(
     if not meeting_ids or not user_ids:
         return {"by_user_id": {}, "by_username": {}, "exercise_count": {}}
 
-    rows = db.query(
-        Transcript.meeting_id.label("meeting_id"),
-        Transcript.user_id.label("user_id"),
-        User.username.label("username"),
-        sa_func.count(Transcript.id).label("speech_count"),
-        sa_func.avg(Transcript.relevance_score).label("avg_relevance"),
-    ).join(
-        User, User.id == Transcript.user_id
-    ).filter(
-        Transcript.meeting_id.in_(meeting_ids),
-        Transcript.user_id.in_(user_ids),
-        User.role != "teacher",
-    ).group_by(
-        Transcript.meeting_id,
-        Transcript.user_id,
-        User.username,
-    ).all()
+    rows = (
+        db.query(
+            Transcript.meeting_id.label("meeting_id"),
+            Transcript.user_id.label("user_id"),
+            User.username.label("username"),
+            sa_func.count(Transcript.id).label("speech_count"),
+            sa_func.avg(Transcript.relevance_score).label("avg_relevance"),
+        )
+        .join(User, User.id == Transcript.user_id)
+        .filter(
+            Transcript.meeting_id.in_(meeting_ids),
+            Transcript.user_id.in_(user_ids),
+            User.role != "teacher",
+        )
+        .group_by(
+            Transcript.meeting_id,
+            Transcript.user_id,
+            User.username,
+        )
+        .all()
+    )
 
     by_user_id: Dict[Any, Dict[str, Any]] = {}
     by_username: Dict[Any, Dict[str, Any]] = {}

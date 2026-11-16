@@ -22,7 +22,7 @@ from gca_engine.core.communication_density import (
     contribution_density,
     participant_density,
 )
-from gca_engine.core.config import GCAConfig, ZERO_EPS
+from gca_engine.core.config import ZERO_EPS, GCAConfig
 from gca_engine.core.newness import contribution_newness, participant_newness
 from gca_engine.core.participation import participation, participation_series
 from gca_engine.core.responsivity import (
@@ -50,13 +50,13 @@ class GCAResult:
     participation: dict[str, float]
     participation_series: dict[str, list[bool]]
     responsivity_lags: list[list[list[float]]]  # R_1..R_w (k×k)
-    responsivity_matrix: list[list[float]]      # R_bar_w (k×k)
+    responsivity_matrix: list[list[float]]  # R_bar_w (k×k)
     internal_cohesion: dict[str, float]
     overall_responsivity: dict[str, float]
     social_impact: dict[str, float]
-    newness: list[float]                        # contribution-level
+    newness: list[float]  # contribution-level
     newness_by_speaker: dict[str, float]
-    density: list[float]                        # contribution-level
+    density: list[float]  # contribution-level
     density_by_speaker: dict[str, float]
     zero_vector: dict
 
@@ -91,9 +91,7 @@ def compute_gca_metrics(
     if vectors.ndim != 2 or vectors.shape[0] != n:
         raise ValueError(f"vectors must be (n={n}, d), got shape {vectors.shape}")
     if word_counts.shape != (n,):
-        raise ValueError(
-            f"word_counts must have length n={n}, got shape {word_counts.shape}"
-        )
+        raise ValueError(f"word_counts must have length n={n}, got shape {word_counts.shape}")
 
     order = sorted(set(speakers))
     _, part_series = participation_series(speakers)
@@ -110,9 +108,7 @@ def compute_gca_metrics(
     n_by_speaker = participant_newness(newness_arr, speakers)
 
     density_arr = contribution_density(vectors, word_counts, config.zero_vector_policy)
-    d_by_speaker = participant_density(
-        vectors, word_counts, speakers, config.zero_vector_policy
-    )
+    d_by_speaker = participant_density(vectors, word_counts, speakers, config.zero_vector_policy)
 
     norms = np.linalg.norm(vectors, axis=1)
     zero_vector_stats = {

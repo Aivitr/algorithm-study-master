@@ -13,6 +13,7 @@
     <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
     <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/app.css" rel="stylesheet">
+    <link href="/static/css/classroom-insights.css?v=20261118b" rel="stylesheet">
 </head>
 <body class="text-gray-800 h-screen flex flex-col font-sans">
 
@@ -44,13 +45,13 @@
                 <div class="space-y-5">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.student_id"
+                        <input v-model="loginForm.student_id" autocomplete="username"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.password" type="password"
+                        <input v-model="loginForm.password" type="password" autocomplete="current-password"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入密码">
                     </div>
@@ -77,7 +78,7 @@
                 <div class="absolute inset-0 opacity-70" style="background: linear-gradient(to top, var(--primary-dark), transparent, transparent);"></div>
                 <div class="absolute bottom-10 left-10 right-10 text-white">
                     <h3 class="text-3xl font-bold mb-3">赋能协作学习</h3>
-                    <p class="text-white text-opacity-90">加入成千上万的学生和教师，一起体验未来教育</p>
+                    <p class="text-white text-opacity-90">连接学生与教师，一起体验未来教育</p>
                 </div>
             </div>
         </div>
@@ -104,26 +105,28 @@
                 <div class="space-y-4">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.student_id"
+                        <input v-model="registerForm.student_id" autocomplete="username"
+                               inputmode="numeric" pattern="[0-9]*"
+                               @input="registerForm.student_id = registerForm.student_id.replace(/\D/g, '')"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
-                               placeholder="请输入学号/工号">
+                               placeholder="请输入纯数字学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-user absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.username"
+                        <input v-model="registerForm.username" autocomplete="name"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入姓名">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.password" type="password"
+                        <input v-model="registerForm.password" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="至少10位，含大小写字母和数字">
                     </div>
                     <p class="text-xs text-gray-400 -mt-1 ml-1">密码需包含大写字母、小写字母和数字，不少于10位</p>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.confirmPassword" type="password"
+                        <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请再次输入密码">
                     </div>
@@ -258,19 +261,12 @@
                             <i class="fas fa-chart-line text-xl" :style="activeTab === 'report' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">学习报告</span>
                         </button>
-                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()" 
+                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()"
                                 :class="activeTab === 'profile' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
                                 :style="activeTab === 'profile' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
                                 class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
                             <i class="fas fa-user-circle text-xl" :style="activeTab === 'profile' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">个人中心</span>
-                        </button>
-                        <button @click="activeTab = 'settings'" 
-                                :class="activeTab === 'settings' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
-                                :style="activeTab === 'settings' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
-                                class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
-                            <i class="fas fa-cog text-xl" :style="activeTab === 'settings' ? 'color: var(--primary);' : ''"></i>
-                            <span class="text-base">设置</span>
                         </button>
                     </div>
                 </div>
@@ -323,7 +319,7 @@
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-gray-500 text-sm font-medium mb-1">平均评分</p>
-                                        <p class="text-4xl font-bold" :class="teacherStats.avgScore >= 70 ? 'text-green-600' : teacherStats.avgScore >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ teacherStats.avgScore || 0 }}</p>
+                                        <p class="text-4xl font-bold" :class="teacherStats.avgScore === null ? 'text-gray-400' : teacherStats.avgScore >= 70 ? 'text-green-600' : teacherStats.avgScore >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ teacherStats.avgScore === null ? '—' : teacherStats.avgScore }}</p>
                                     </div>
                                     <div class="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center">
                                         <i class="fas fa-star text-2xl text-yellow-600"></i>
@@ -415,14 +411,14 @@
                                 <div v-for="group in activeGroups" :key="group.meeting_id" 
                                      @click="enterGroupView(group)"
                                      class="p-5 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105"
-                                     :class="group.score < 60 ? 'bg-red-50 border-red-300 hover:shadow-red-200 hover:shadow-lg' : group.score < 80 ? 'bg-yellow-50 border-yellow-300 hover:shadow-yellow-200 hover:shadow-lg' : 'bg-green-50 border-green-300 hover:shadow-green-200 hover:shadow-lg'">
+                                     :class="group.score === null ? 'bg-gray-50 border-gray-300' : group.score < 60 ? 'bg-red-50 border-red-300 hover:shadow-red-200 hover:shadow-lg' : group.score < 80 ? 'bg-yellow-50 border-yellow-300 hover:shadow-yellow-200 hover:shadow-lg' : 'bg-green-50 border-green-300 hover:shadow-green-200 hover:shadow-lg'">
                                     <div class="flex justify-between items-start mb-3">
                                         <div>
                                             <span class="font-bold text-lg text-gray-800">{{ displayTopicText(group.topic, group.class_code) }}</span>
                                             <span class="ml-2 px-2 py-0.5 rounded text-xs font-bold" style="background: var(--primary-soft); color: var(--primary);">#{{ group.class_code }}</span>
                                         </div>
-                                        <div class="text-3xl font-black" :class="group.score < 60 ? 'text-red-500' : group.score < 80 ? 'text-yellow-500' : 'text-green-500'">
-                                            {{ group.score }}<span class="text-sm">分</span>
+                                        <div class="text-3xl font-black" :class="group.score === null ? 'text-gray-400' : group.score < 60 ? 'text-red-500' : group.score < 80 ? 'text-yellow-500' : 'text-green-500'">
+                                            {{ group.score === null ? '—' : group.score }}<span v-if="group.score !== null" class="text-sm">分</span>
                                         </div>
                                     </div>
                                     <div class="flex items-center justify-between text-sm">
@@ -441,7 +437,7 @@
                                             <i class="fas fa-chart-line mr-1"></i>数据看板
                                         </button>
                                     </div>
-                                    <div v-if="group.score < 60" class="mt-3 bg-red-100 p-2 rounded text-xs text-red-700">
+                                    <div v-if="group.score !== null && group.score < 60" class="mt-3 bg-red-100 p-2 rounded text-xs text-red-700">
                                         <i class="fas fa-exclamation-triangle mr-1"></i>该小组讨论不积极，建议查看
                                     </div>
                                 </div>
@@ -468,7 +464,7 @@
                             <i class="fas fa-spinner fa-spin text-4xl mb-4" style="color: var(--primary);"></i>
                             <p class="text-gray-500">加载中...</p>
                         </div>
-                        <div v-else-if="classHistory.length === 0" class="text-center py-12 text-gray-500">
+                        <div v-else-if="endedClassHistory.length === 0" class="text-center py-12 text-gray-500">
                             <i class="fas fa-inbox text-6xl mb-4 opacity-30"></i>
                             <p class="text-lg">暂无历史记录</p>
                             <button @click="loadClassHistory({force: true})" class="mt-4 text-white px-6 py-2 rounded-lg text-sm font-bold transition" style="background: var(--primary);">
@@ -476,7 +472,7 @@
                             </button>
                         </div>
                         <div v-else class="space-y-4" style="max-height: calc(100vh - 320px); overflow-y: auto;">
-                            <div v-for="h in classHistory" :key="h.meeting_id" class="p-5 rounded-xl border hover:shadow-lg transition" style="background: linear-gradient(to right, var(--primary-soft), #f0f9ff); border-color: var(--primary);">
+                            <div v-for="h in endedClassHistory" :key="h.meeting_id" class="p-5 rounded-xl border hover:shadow-lg transition" style="background: linear-gradient(to right, var(--primary-soft), #f0f9ff); border-color: var(--primary);">
                                 <div class="flex justify-between items-start mb-3">
                                     <div>
                                         <span class="font-bold text-base" style="color: var(--primary-dark);">{{ displayTopicText(h.topic, h.class_code) }}</span>
@@ -510,24 +506,10 @@
                                         <div class="text-xs text-gray-500">发言</div>
                                     </div>
                                 </div>
-                                <div class="mt-4 flex justify-end space-x-2">
-                                    <button v-if="h.status === 'running'" @click="currentUser.role === 'teacher' ? enterClassAsTeacher(h) : enterClassFromHistory(h)" class="px-4 py-2 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2" style="background: var(--primary-gradient);">
-                                        <i class="fas fa-sign-in-alt"></i>
-                                        <span>进入课堂</span>
-                                    </button>
-                                    <button v-if="currentUser.role === 'teacher' && h.status === 'created'" @click="startClassFromManage(h)" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2">
-                                        <i class="fas fa-play-circle"></i>
-                                        <span>开始课堂</span>
-                                    </button>
-                                    <button v-if="currentUser.role === 'teacher' && h.status === 'running'" @click="endClassFromManage(h)" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2">
-                                        <i class="fas fa-stop-circle"></i>
-                                        <span>结束课堂</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- 学习报告 -->
                     <div v-if="activeTab === 'report'" class="bg-white p-8 rounded-2xl shadow-lg">
                         <div class="flex justify-between items-center mb-6">
@@ -795,7 +777,7 @@
                                 <div v-for="cls in teacherClasses" :key="cls.meeting_id" 
                                      @click="viewClassDetail(cls)"
                                      class="p-5 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg"
-                                     :class="cls.status === 'created' ? 'bg-blue-50 border-blue-200' : cls.score < 60 ? 'bg-red-50 border-red-300' : cls.score < 80 ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'">
+                                     :class="cls.status === 'created' ? 'bg-blue-50 border-blue-200' : cls.score === null ? 'bg-blue-50 border-blue-200' : cls.score < 60 ? 'bg-red-50 border-red-300' : cls.score < 80 ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'">
                                     <div class="flex justify-between items-start mb-3">
                                         <div>
                                             <span class="font-bold text-xl text-gray-800">{{ displayTopicText(cls.topic, cls.class_code) }}</span>
@@ -1633,7 +1615,7 @@
                                     </div>
                                     <div>
                                         <p class="text-gray-500 text-sm">加入时间</p>
-                                        <p class="font-bold text-gray-800 text-lg">2024-01</p>
+                                        <p class="font-bold text-gray-800 text-lg">{{ currentUser.created_at ? formatDate(currentUser.created_at).split(' ')[0] : '—' }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1721,8 +1703,8 @@
                                     <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.duration_minutes || 0), 0) }} 分钟</p>
                                 </div>
                                 <div class="p-4 rounded-lg border" style="background: var(--primary-soft); border-color: #c1d8d4;">
-                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">总学生人数</h4>
-                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.member_count || 0), 0) }} 人</p>
+                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">参与学生数</h4>
+                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherStats.totalStudents || 0 }} 人</p>
                                 </div>
                                 <div v-if="teacherClasses.length === 0" class="text-center text-gray-400 mt-4">
                                     <i class="fas fa-chart-line text-4xl mb-3 opacity-30"></i>
@@ -1998,33 +1980,39 @@
         </div>
 
         <!-- 进入课堂弹窗 -->
-        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="showClassModal = false">
+        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="closeClassModal">
             <div class="max-w-2xl w-full login-container">
                 <div class="login-content p-10">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-white">{{ currentUser.role === 'teacher' ? '创建课堂' : '加入课堂' }}</h2>
-                        <button @click="showClassModal = false" class="text-white text-opacity-80 hover:text-opacity-100">
+                        <button @click="closeClassModal" class="text-white text-opacity-80 hover:text-opacity-100">
                             <i class="fas fa-times text-2xl"></i>
                         </button>
                     </div>
-                    
+
                     <div class="space-y-5">
                         <div class="relative group">
                             <i class="fas fa-hashtag absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                            <input v-model="classForm.class_code"
+                            <input v-model="classForm.class_code" @input="classFormErrors.class_code = ''"
+                                   :aria-invalid="classFormErrors.class_code ? 'true' : 'false'"
+                                   aria-describedby="class-code-error"
                                    class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 text-center font-mono font-bold text-lg tracking-wider transition-all shadow-lg"
                                    style="border-color: var(--primary);"
                                    placeholder="请输入课堂号">
                         </div>
-                        
+                        <p v-if="classFormErrors.class_code" id="class-code-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.class_code }}</p>
+
                         <div v-if="currentUser.role === 'teacher'" class="relative group">
                             <i class="fas fa-book absolute left-4 top-4" style="color: var(--primary);"></i>
-                            <textarea v-model="classForm.topic" rows="3"
+                            <textarea v-model="classForm.topic" @input="classFormErrors.topic = ''" rows="3"
+                                      :aria-invalid="classFormErrors.topic ? 'true' : 'false'"
+                                      aria-describedby="class-topic-error"
                                       class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 transition-all resize-none shadow-lg"
                                       style="border-color: var(--primary);"
                                       placeholder="请输入课程主题(教师必填)">
                             </textarea>
                         </div>
+                        <p v-if="currentUser.role === 'teacher' && classFormErrors.topic" id="class-topic-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.topic }}</p>
                         
                         <!-- 教师上传资料 -->
                         <div v-if="currentUser.role === 'teacher'" class="space-y-4">
@@ -2086,12 +2074,18 @@
                             </div>
                         </div>
                         
-                        <button @click="enterClass" :disabled="loading"
-                                class="w-full btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
-                            <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
-                            <i v-else class="fas fa-door-open mr-2"></i>
-                            {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
-                        </button>
+                        <div class="flex space-x-3">
+                            <button @click="closeClassModal"
+                                    class="w-1/3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-4 rounded-xl font-bold text-lg transition-all">
+                                取消
+                            </button>
+                            <button @click="enterClass" :disabled="loading"
+                                    class="flex-1 btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
+                                <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
+                                <i v-else class="fas fa-door-open mr-2"></i>
+                                {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2232,25 +2226,26 @@
                         <i class="fas fa-chart-line mr-2"></i>
                         专注度
                     </span>
-                    <span class="text-lg font-extrabold" 
-                          :class="currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
-                        {{ currentRelevance }}%
+                    <span class="text-lg font-extrabold"
+                          :class="currentRelevance === null ? 'text-gray-400' : currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
+                        {{ currentRelevance === null ? '—' : currentRelevance + '%' }}
                     </span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill"
-                         :style="{width: currentRelevance + '%', background: currentRelevance >= 80 ? 'linear-gradient(to right, var(--primary), var(--secondary))' : currentRelevance >= 60 ? 'linear-gradient(to right, #F59E0B, #FBBF24)' : 'linear-gradient(to right, #EF4444, #F87171)'}">
+                         :style="{width: (currentRelevance || 0) + '%', background: currentRelevance >= 80 ? 'linear-gradient(to right, var(--primary), var(--secondary))' : currentRelevance >= 60 ? 'linear-gradient(to right, #F59E0B, #FBBF24)' : 'linear-gradient(to right, #EF4444, #F87171)'}">
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-400 text-center">
-                    <span v-if="currentRelevance >= 80">😎 状态绝佳!</span>
+                    <span v-if="currentRelevance === null">暂无专注度数据</span>
+                    <span v-else-if="currentRelevance >= 80">😎 状态绝佳!</span>
                     <span v-else-if="currentRelevance >= 60">🙂 保持专注</span>
                     <span v-else>😔 需要加油</span>
                 </div>
             </div>
             
-            <!-- 观点聚类按钮 -->
-            <div class="mt-4 space-y-2">
+            <!-- 观点聚类按钮（教师） -->
+            <div v-if="currentUser.role === 'teacher'" class="mt-4 space-y-2">
                 <button @click="quickDecompose" :disabled="viewpointLoading"
                         class="classroom-btn-solid w-full disabled:opacity-50 text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i :class="viewpointLoading ? 'fas fa-spinner fa-spin' : 'fas fa-bolt'" class="text-lg"></i>
@@ -2267,7 +2262,7 @@
             <div class="mt-2 space-y-3">
                 <button @click="endClass" class="classroom-btn-solid w-full text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i class="fas fa-door-open text-lg"></i>
-                    <span>下课</span>
+                    <span>{{ currentUser.role === 'teacher' ? '结束课堂' : '退出课堂' }}</span>
                 </button>
                 <button @click="backToLobby" class="w-full text-gray-700 py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-sm flex items-center justify-center space-x-2"
                         style="background: #e7ecef; border: 1px solid #d2dbe0;"
@@ -2282,7 +2277,7 @@
         <!-- 视频区域 -->
         <div class="flex-1 relative classroom-stage flex flex-col p-4">
             <!-- 顶部状态栏（浮于视频网格上方） -->
-            <div class="absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
+            <div class="classroom-statusbar absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
                 <div v-if="!isPaused" class="status-badge text-white flex items-center space-x-2 shadow-2xl" style="pointer-events:auto;">
                     <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
                     <span>{{ statusText }}</span>
@@ -2299,6 +2294,23 @@
                     <i class="fas fa-users mr-2"></i>
                     <span>{{ onlineMembers.length }} 人在线</span>
                 </div>
+                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: rgba(217,119,6,0.9);">
+                    <i class="fas fa-eye mr-2"></i>
+                    <span>小组查看模式 · 不发布本地音视频</span>
+                </div>
+                <button @click="toggleClassroomPanel"
+                        class="classroom-mobile-only status-badge text-white shadow-2xl"
+                        style="pointer-events:auto;">
+                    <i class="fas fa-columns mr-2"></i>
+                    <span>{{ classroomPanelCollapsed ? '展开面板' : '收起面板' }}</span>
+                </button>
+                <button v-if="currentUser && currentUser.role !== 'teacher'"
+                        @click="endClass"
+                        class="classroom-mobile-only status-badge text-white shadow-2xl"
+                        style="pointer-events:auto; background: rgba(220,38,38,0.85);">
+                    <i class="fas fa-door-open mr-2"></i>
+                    <span>退出课堂</span>
+                </button>
             </div>
 
             <!-- 暂停/播放按钮 -->
@@ -2309,7 +2321,7 @@
             <!-- 教师：结束课堂按钮 -->
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
-                    class="absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
+                    class="classroom-end-btn absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
                     style="background: rgba(220,38,38,0.85);">
                 <i class="fas fa-stop-circle mr-2"></i>结束课堂
             </button>
@@ -2322,10 +2334,10 @@
                          class="video-grid-cell"
                          :class="{'is-speaking': speakingMembers[member], 'is-pinned': pinnedMember === member}"
                          @dblclick="pinnedMember = (pinnedMember === member ? null : member)"
-                         :title="member === currentUser.student_id ? '我（双击放大）' : member + '（双击放大）'">
+                         :title="member === effectiveLocalAgoraUid ? '我（双击放大）' : agoraMemberLabel(member) + '（双击放大）'">
 
                         <!-- 本人视频 -->
-                        <template v-if="member === currentUser.student_id">
+                        <template v-if="member === effectiveLocalAgoraUid">
                             <video id="localVideo" ref="video" autoplay muted playsinline
                                    class="w-full h-full object-cover transform scale-x-[-1]"></video>
                         </template>
@@ -2334,17 +2346,17 @@
                             <div :id="'agora-remote-' + member" class="w-full h-full"
                                  style="background:#1a1a2e;"></div>
                             <div v-if="!remoteStreams[member]" class="cell-avatar">
-                                <div class="avatar-circle">{{ member.charAt(0).toUpperCase() }}</div>
+                                <div class="avatar-circle">{{ agoraMemberLabel(member).charAt(0).toUpperCase() }}</div>
                             </div>
                         </template>
 
                         <!-- 名称条 -->
                         <div class="cell-name">
                             <i class="fas fa-microphone mic-icon" :class="{'active': speakingMembers[member]}"></i>
-                            <span>{{ member }}</span>
+                            <span>{{ agoraMemberLabel(member) }}</span>
                         </div>
                         <!-- 本人标记 -->
-                        <span v-if="member === currentUser.student_id" class="cell-me-badge">我</span>
+                        <span v-if="member === effectiveLocalAgoraUid" class="cell-me-badge">我</span>
                     </div>
                 </div>
             </div>
@@ -2379,13 +2391,44 @@
                                 <p class="text-xs text-gray-500">智能构建的知识关系网络</p>
                             </div>
                         </div>
-                        <button @click="showKnowledgeGraph = false" 
-                                class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button v-if="currentUser.role === 'teacher'" @click="generateKnowledgeGraph"
+                                    :disabled="knowledgeGraphGenerating"
+                                    class="px-4 py-2 rounded-xl text-sm font-bold transition disabled:opacity-50"
+                                    style="background: var(--primary-soft); color: var(--primary-dark);">
+                                <i :class="knowledgeGraphGenerating ? 'fas fa-spinner fa-spin mr-1' : 'fas fa-sync-alt mr-1'"></i>
+                                {{ knowledgeGraphGenerating ? '生成中...' : '重新生成' }}
+                            </button>
+                            <button @click="showKnowledgeGraph = false"
+                                    class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="flex-1 p-6" style="background: #f7fbfb;">
-                        <div id="knowledgeGraphChart" class="w-full h-full rounded-2xl shadow-inner bg-white"></div>
+                        <div v-if="knowledgeGraphLoading" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-4xl mb-4" style="color: var(--primary);"></i>
+                            <p>加载知识图谱...</p>
+                        </div>
+                        <div v-else-if="knowledgeGraphError" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-exclamation-triangle text-5xl mb-4 text-yellow-500"></i>
+                            <p class="text-lg">{{ knowledgeGraphError }}</p>
+                            <button @click="loadKnowledgeGraph" class="mt-4 text-white px-6 py-2 rounded-lg text-sm font-bold transition" style="background: var(--primary);">
+                                <i class="fas fa-sync-alt mr-2"></i>重试
+                            </button>
+                        </div>
+                        <div v-else-if="!hasKnowledgeGraphData" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-project-diagram text-6xl mb-4 opacity-30"></i>
+                            <p class="text-lg">暂无知识图谱</p>
+                            <p class="text-sm mt-2">课堂产生发言后可生成知识关系图</p>
+                            <button v-if="currentUser.role === 'teacher'" @click="generateKnowledgeGraph" :disabled="knowledgeGraphGenerating"
+                                    class="mt-5 text-white px-6 py-2 rounded-lg text-sm font-bold transition disabled:opacity-50" style="background: var(--primary);">
+                                <i :class="knowledgeGraphGenerating ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-magic mr-2'"></i>
+                                {{ knowledgeGraphGenerating ? '生成中...' : '生成图谱' }}
+                            </button>
+                            <p v-else class="text-sm mt-4 text-gray-400">等待教师生成知识图谱</p>
+                        </div>
+                        <div v-else id="knowledgeGraphChart" class="w-full h-full rounded-2xl shadow-inner bg-white"></div>
                     </div>
                 </div>
             </div>
@@ -2526,7 +2569,8 @@
         </transition>
 
         <!-- 右侧功能面板 -->
-        <div class="w-96 classroom-rightpanel flex flex-col z-10">
+        <div class="w-96 classroom-rightpanel flex flex-col z-10"
+             :class="{ 'is-collapsed': classroomPanelCollapsed }">
             <!-- 标签页导航 -->
             <div class="p-3 classroom-tabbar">
                 <div class="flex space-x-1">
@@ -2550,6 +2594,11 @@
                             class="flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all"
                             :class="classroomTab === 'ai' ? 'classroom-tab-active' : 'classroom-tab-inactive'">
                         <i class="fas fa-robot mr-1"></i>AI
+                    </button>
+<button @click="openInsightPanel('agent')"
+                            class="flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all"
+                            :class="classroomTab === 'insight' ? 'classroom-tab-active' : 'classroom-tab-inactive'">
+                        <i class="fas fa-chart-pie mr-1"></i>分析
                     </button>
                 </div>
             </div>
@@ -2786,7 +2835,257 @@
                 </div>  <!-- 关闭 v-else 的 space-y-4 -->
             </div>  <!-- 关闭统计模块 -->
             
-            <!-- 实时对话模块 -->
+            <!-- 课堂分析扩展：Agent、证据与动作（GCA 看板已下线，教师/学生同构） -->
+            <div v-if="classroomTab === 'insight'" class="insight-panel p-4">
+                <div class="insight-subtabs mb-4">
+                    <button type="button" class="insight-subtab"
+                            :class="{ active: insightSection === 'agent' }"
+                            @click="switchInsightSection('agent')">
+                        <i class="fas fa-wand-magic-sparkles mr-1"></i>Agent
+                    </button>
+                    <button type="button" class="insight-subtab"
+                            :class="{ active: insightSection === 'evidence' }"
+                            @click="switchInsightSection('evidence')">
+                        <i class="fas fa-link mr-1"></i>证据与动作
+                    </button>
+                </div>
+
+                <!-- Agent 分析 -->
+                <div v-show="insightSection === 'agent'" class="space-y-4">
+                    <div class="insight-card p-4">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="insight-card-title">
+                                    <i class="fas fa-wand-magic-sparkles" style="color: var(--primary);"></i>
+                                    Agent 分析
+                                </h3>
+                                <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '课堂事实层 · 干预建议' : '课堂事实层 · 小组协作观察' }}</p>
+                            </div>
+                            <span class="insight-status-chip">
+                                <i class="fas fa-shield-halved"></i>状态门禁
+                            </span>
+                        </div>
+                        <textarea v-model="agentQuestion" class="insight-agent-textarea"
+                                  :disabled="agentLoading"
+                                  placeholder="输入希望分析的问题"></textarea>
+                        <div class="flex items-center justify-between mt-3">
+                            <span class="text-[9px] text-gray-400">
+                                <i class="far fa-clock mr-1"></i>{{ agentLastRunAt || '尚未运行' }}
+                            </span>
+                            <button type="button" class="insight-primary-btn"
+                                    :disabled="agentLoading"
+                                    @click="runClassroomAgent">
+                                <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-play'"></i>
+                                {{ agentLoading ? '分析中' : '开始分析' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 只读工具清单是教师侧的 Agent 审计信息，学生端不展示 -->
+                    <div v-if="isTeacherRole" class="insight-card p-4 space-y-2">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-toolbox" style="color: var(--primary);"></i>
+                                    可用工具
+                                </h4>
+                                <p class="text-[9px] text-gray-400 mt-1">Agent 只能调用下列只读工具</p>
+                            </div>
+                            <button type="button" class="insight-secondary-btn" @click="loadAgentTools(true)" :disabled="agentToolsLoading">
+                                <i class="fas" :class="agentToolsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                                刷新
+                            </button>
+                        </div>
+                        <div v-if="agentToolsError" class="insight-alert error">
+                            <i class="fas fa-circle-exclamation mr-1"></i>{{ agentToolsError }}
+                        </div>
+                        <div v-else-if="agentTools.length" class="space-y-2">
+                            <div v-for="tool in agentTools" :key="'tool-' + tool.name" class="insight-finding">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ tool.name }}</p>
+                                    <div class="flex flex-wrap gap-1 justify-end">
+                                        <span v-for="state in tool.allowed_states" :key="'state-' + tool.name + '-' + state"
+                                              class="insight-evidence-chip">{{ state }}</span>
+                                    </div>
+                                </div>
+                                <p class="text-[9px] text-gray-500 mt-1 leading-relaxed">{{ tool.description }}</p>
+                            </div>
+                        </div>
+                        <div v-else class="insight-empty">
+                            <i class="fas fa-toolbox"></i>
+                            <p>尚未加载工具清单</p>
+                        </div>
+                    </div>
+
+                    <div v-if="agentLoading" class="insight-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Agent 正在读取证据并计算指标</span>
+                    </div>
+                    <div v-else-if="agentError" class="insight-alert error">
+                        <i class="fas fa-circle-exclamation mr-1"></i>{{ agentError }}
+                    </div>
+                    <template v-else-if="agentAnalysis">
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-align-left" style="color: var(--primary);"></i>
+                                    分析摘要
+                                </h4>
+                                <button type="button" class="insight-secondary-btn" @click="switchInsightSection('evidence')">
+                                    查看证据
+                                </button>
+                            </div>
+                            <p class="text-[11px] leading-relaxed text-gray-600 whitespace-pre-wrap">{{ agentAnalysis.summary }}</p>
+                        </div>
+
+                        <div v-if="agentFindings.length" class="insight-card p-4 space-y-2">
+                            <h4 class="insight-card-title">
+                                <i class="fas fa-magnifying-glass-chart" style="color: var(--primary);"></i>
+                                关键发现
+                            </h4>
+                            <div v-for="(finding, index) in agentFindings" :key="'finding-' + index" class="insight-finding">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-[11px] text-gray-700 leading-relaxed">{{ finding.finding }}</p>
+                                    <span class="insight-status-chip">{{ finding.confidence || 'medium' }}</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1 mt-2">
+                                    <span v-for="ref in (finding.evidence || [])" :key="ref" class="insight-evidence-chip">{{ ref }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="agentAnalysis.metrics_reading && agentAnalysis.metrics_reading.length" class="insight-card p-4 space-y-2">
+                            <h4 class="insight-card-title">
+                                <i class="fas fa-gauge-high" style="color: var(--primary);"></i>
+                                指标解读
+                            </h4>
+                            <div v-for="(item, index) in agentAnalysis.metrics_reading" :key="'reading-' + index"
+                                 class="flex items-start justify-between gap-2 p-2 rounded-lg" style="background: #f7fbfa;">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ metricLabel(item.metric) }}</p>
+                                    <p class="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{{ item.reading }}</p>
+                                </div>
+                                <span class="text-[10px] font-black" style="color: var(--primary);">
+                                    {{ agentMetricValue(item) }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div v-if="agentAnalysis.data_gaps && agentAnalysis.data_gaps.length" class="insight-alert">
+                            <i class="fas fa-circle-info mr-1"></i>{{ agentAnalysis.data_gaps.join('；') }}
+                        </div>
+                    </template>
+                    <div v-else class="insight-empty">
+                        <i class="fas fa-wand-magic-sparkles"></i>
+                        <p>输入问题后运行 Agent</p>
+                    </div>
+                </div>
+
+                <!-- 证据与动作确认 -->
+                <div v-show="insightSection === 'evidence'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="insight-card-title">
+                                <i class="fas fa-link" style="color: var(--primary);"></i>
+                                证据与动作
+                            </h3>
+                            <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '引用原文 · 教师确认后记录' : '引用原文 · 干预动作由教师确认' }}</p>
+                        </div>
+                        <button type="button" class="insight-secondary-btn" @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
+                            <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                            刷新证据
+                        </button>
+                    </div>
+
+                    <div v-if="!agentAnalysis" class="insight-empty">
+                        <i class="fas fa-link-slash"></i>
+                        <p>运行 Agent 后显示证据链</p>
+                    </div>
+                    <template v-else>
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-fingerprint" style="color: var(--primary);"></i>
+                                    证据索引
+                                </h4>
+                                <div class="flex items-center gap-2">
+                                    <span class="insight-status-chip">已确认 {{ agentConfirmedCount }}</span>
+                                    <span class="insight-status-chip">待确认 {{ agentPendingCount }}</span>
+                                    <span class="insight-status-chip">{{ agentEvidenceRefs.length }} 条</span>
+                                </div>
+                            </div>
+                            <div v-if="agentEvidenceRefs.length" class="space-y-2">
+                                <div v-for="item in agentEvidenceRefs" :key="item.ref"
+                                     class="p-3 rounded-lg border border-gray-100 bg-gray-50">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="insight-evidence-chip">{{ item.ref }}</span>
+                                        <span class="text-[9px] text-gray-400">{{ item.kind }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-gray-700 leading-relaxed">{{ item.title }}</p>
+                                    <p v-if="item.meta" class="text-[9px] text-gray-400 mt-1">{{ item.meta }}</p>
+                                    <div v-if="item.transcript" v-show="evidenceOpen[item.ref]"
+                                         class="insight-code mt-1">{{ item.transcript }}</div>
+                                    <button v-if="item.transcript" type="button"
+                                            class="text-[9px] font-bold mt-1"
+                                            style="color: var(--primary);"
+                                            @click="toggleEvidence(item.ref)">
+                                        {{ evidenceOpen[item.ref] ? '收起原文' : '查看原文' }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="insight-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p>本次结论没有返回证据编号</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div v-for="(action, index) in agentInterventions" :key="'action-' + index"
+                                 class="insight-action-card" :class="{ confirmed: action.confirmed }">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ action.action }}</p>
+                                        <p class="text-[9px] text-gray-400 mt-0.5">
+                                            <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
+                                        </p>
+                                    </div>
+                                    <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
+                                        {{ action.confirmed ? '已确认' : '待确认' }}
+                                    </span>
+                                </div>
+                                <div class="insight-code mt-3">{{ action.script }}</div>
+                                <div class="grid grid-cols-1 gap-2 mt-3 text-[9px] leading-relaxed">
+                                    <p><span class="font-bold text-gray-500">预期：</span><span class="text-gray-600">{{ action.expected }}</span></p>
+                                    <p><span class="font-bold text-gray-500">风险：</span><span style="color:#9b5a3d;">{{ action.risk }}</span></p>
+                                </div>
+                                <div v-if="action.evidence && action.evidence.length" class="flex flex-wrap gap-1 mt-2">
+                                    <span v-for="ref in action.evidence" :key="ref" class="insight-evidence-chip">{{ ref }}</span>
+                                </div>
+                                <button v-if="isTeacherRole" type="button" class="insight-primary-btn w-full mt-3"
+                                        :disabled="action.confirmed || agentConfirming[index]"
+                                        @click="confirmAgentAction(action, index)">
+                                    <i class="fas" :class="action.confirmed ? 'fa-circle-check' : agentConfirming[index] ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                                    {{ action.confirmed ? '已确认并记录' : '确认并记录动作' }}
+                                </button>
+                                <p v-else class="text-[9px] text-gray-400 mt-3 text-center">
+                                    <i class="fas fa-lock mr-1"></i>确认与记录由教师完成
+                                </p>
+                            </div>
+                            <div v-if="!agentInterventions.length" class="insight-empty insight-card">
+                                <i class="fas fa-clipboard-check"></i>
+                                <p>本次分析没有生成干预动作</p>
+                            </div>
+                        </div>
+
+                        <div v-if="agentAnalysis.unsupported_claims && agentAnalysis.unsupported_claims.length" class="insight-alert">
+                            <i class="fas fa-circle-question mr-1"></i>
+                            无证据表述：{{ agentAnalysis.unsupported_claims.join('；') }}
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+<!-- 实时对话模块 -->
             <div v-if="classroomTab === 'chat'" style="position: relative;">
             <div class="overflow-y-auto p-5 space-y-4 bg-white" ref="chat" style="max-height: calc(100vh - 250px);">
                 <div v-for="(m, i) in displayMsgs" :key="messageRenderKey(m, i)" class="transition-all duration-500 chat-message">
@@ -3039,7 +3338,6 @@
                     <a href="#home" class="lp-nav-link">首页</a>
                     <a href="#features" class="lp-nav-link">核心优势</a>
                     <a href="#benefits" class="lp-nav-link">平台优势</a>
-                    <a href="#testimonials" class="lp-nav-link">用户评价</a>
                 </div>
                 <div class="flex items-center gap-4">
                     <button @click="$emit('go', 'login')" class="lp-login-btn">登录</button>
@@ -3067,10 +3365,10 @@
                 <p class="lp-hero-sub">AI驱动，实时追踪情绪，深度分析互动，让每一次协作产生价值</p>
                 <div class="lp-btn-row">
                     <button @click="$emit('go', 'register')" class="lp-btn-primary flex items-center gap-2">
-                        <span>开始体验</span>
+                        <span>注册账号</span>
                         <i class="fas fa-arrow-right"></i>
                     </button>
-                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">免费试用</button>
+                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">登录</button>
                 </div>
             </div>
         </section>
@@ -3150,50 +3448,6 @@
             </div>
         </section>
 
-        <section id="testimonials" class="lp-section pb-14">
-            <div class="lp-shell">
-                <div class="lp-title lp-reveal">
-                    <h2>深受教育工作者喜爱</h2>
-                    <p>教师、学生一致好评</p>
-                </div>
-                <div class="lp-testimonial-grid lp-reveal" data-delay="1">
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>这个平台真的很好用！能够帮助我更好地管理课程，学生的学习进度也一目了然。强烈推荐给所有教育工作者！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">张</div>
-                            <div>
-                                <div class="font-bold text-gray-700">张老师</div>
-                                <div class="text-sm text-gray-500">高中数学教师</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>AI推荐功能太棒了，能够推送我需要的学习资料。界面简洁清晰，学习体验非常好。</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">李</div>
-                            <div>
-                                <div class="font-bold text-gray-700">李同学</div>
-                                <div class="text-sm text-gray-500">大学在读</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>数据分析功能非常强大，帮助我深入了解学生学习情况，及时调整教学策略。是现代教育的好帮手！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">王</div>
-                            <div>
-                                <div class="font-bold text-gray-700">王教授</div>
-                                <div class="text-sm text-gray-500">大学教授</div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </div>
-        </section>
-
         <section class="lp-cta-wrap">
             <div class="lp-shell">
                 <div class="lp-cta-card lp-reveal" data-delay="2">
@@ -3221,12 +3475,6 @@
                         <a href="#benefits">题库系统</a>
                         <a href="#home">AI辅导</a>
                     </div>
-                    <div class="lp-footer-col">
-                        <h4>支持</h4>
-                        <a href="#">帮助中心</a>
-                        <a href="#">联系我们</a>
-                        <a href="#">用户反馈</a>
-                    </div>
                 </div>
                 <div class="lp-footer-bottom">© 2026 智慧教学平台 版权所有 · 隐私政策 · 服务条款</div>
             </div>
@@ -3249,14 +3497,15 @@
                 <div class="global-modal-title">{{ modal.title || '' }}</div>
                 <div class="global-modal-msg">{{ modal.message }}</div>
                 <div>
-                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">取消</button>
-                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">确定</button>
+                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">{{ modal.cancelText || '取消' }}</button>
+                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">{{ modal.confirmText || '确定' }}</button>
                 </div>
             </div>
         </div>
     </transition>
 </script>
 
+<script src="/static/js/classroom-insights.js?v=20261118b"></script>
 <script src="/static/js/app.js"></script>
 </body>
 </html>

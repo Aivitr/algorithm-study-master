@@ -108,9 +108,7 @@ def _only_select(cursor, sql: str):
     """发送前强制校验：本脚本只许读。"""
     head = sql.lstrip().split(None, 1)[0].upper() if sql.strip() else ""
     if head not in {"SELECT", "WITH"}:
-        raise RuntimeError(
-            f"本脚本只允许只读查询，拒绝发送以 {head!r} 开头的语句：\n{sql[:300]}"
-        )
+        raise RuntimeError(f"本脚本只允许只读查询，拒绝发送以 {head!r} 开头的语句：\n{sql[:300]}")
     cursor.execute(sql)
     return cursor
 
@@ -285,9 +283,7 @@ def build_table(cursor, table: str) -> tuple:
     ddl = (
         f"IF OBJECT_ID(N'dbo.[{table}]', N'U') IS NULL\n"
         f"BEGIN\n"
-        f"CREATE TABLE [dbo].[{table}] (\n"
-        + ",\n".join(lines)
-        + "\n);\nEND;\n"
+        f"CREATE TABLE [dbo].[{table}] (\n" + ",\n".join(lines) + "\n);\nEND;\n"
     )
 
     # 唯一约束（非主键）与普通索引，单独出语句
@@ -300,7 +296,6 @@ def build_table(cursor, table: str) -> tuple:
             f"[{r['COLUMN_NAME']}]" + (" DESC" if r["IS_DESC"] else "") for r in rows
         )
         unique = "UNIQUE " if (head["IS_UNIQUE"] or head["IS_UNIQUE_CONSTRAINT"]) else ""
-        kind = "UNIQUE INDEX" if unique else "INDEX"
         extra.append(
             f"IF NOT EXISTS (SELECT 1 FROM sys.indexes "
             f"WHERE name = N'{idx_name}' AND object_id = OBJECT_ID(N'dbo.[{table}]'))\n"
@@ -373,8 +368,14 @@ def main() -> int:
     import pymssql  # 延迟导入：确认之后才碰驱动，也避免无谓的依赖错误盖过提示
 
     conn = pymssql.connect(
-        server=host, port=port, user=user, password=password,
-        database=db_name, charset="utf8", timeout=30, login_timeout=15,
+        server=host,
+        port=port,
+        user=user,
+        password=password,
+        database=db_name,
+        charset="utf8",
+        timeout=30,
+        login_timeout=15,
     )
     try:
         cursor = conn.cursor(as_dict=True)

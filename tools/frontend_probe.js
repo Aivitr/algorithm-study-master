@@ -125,6 +125,8 @@ const hash = text => crypto.createHash('sha256').update(text).digest('hex').slic
 const TOUCHED = [
   'currentUser', 'pageState', 'showAITutor', 'showClassModal',
   'viewingGroupReports', 'activeTab', 'globalModal',
+  'loginForm', 'registerForm', 'classForm', 'classFormErrors', 'uploadedFile',
+  'classroomPanelCollapsed',
 ];
 const INITIAL = Object.fromEntries(TOUCHED.map(key => [key, vm[key]]));
 
@@ -245,8 +247,45 @@ const CLICKS = [
     return vm.pageState === 'landing' ? null : [`pageState 应为 landing，实为 ${vm.pageState}`];
   }],
 
+  // 登录/注册切换必须把两边的凭据一起清掉：否则切换账号时旧学号/密码
+  // 会留在隐藏的表单里，再切回来就带出来了。
+  ['登录页点“立即注册” → 注册页并清空表单', '登录页', async () => {
+    vm.loginForm = { student_id: 'old-id', password: 'old-pass' };
+    vm.registerForm = { student_id: 'old-id', username: 'old', password: 'old-pass', confirmPassword: 'old-pass', role: 'teacher' };
+    const btn = buttonWith(/立即注册/);
+    if (!btn) return ['登录页上找不到“立即注册”'];
+    btn.click(); await tick();
+    if (vm.pageState !== 'register') return [`pageState 应为 register，实为 ${vm.pageState}`];
+    const dirty = vm.loginForm.student_id || vm.loginForm.password
+      || vm.registerForm.student_id || vm.registerForm.username
+      || vm.registerForm.password || vm.registerForm.confirmPassword;
+    return dirty ? ['切换后仍残留上一份登录/注册凭据'] : null;
+  }],
+  ['注册页点“立即登录” → 登录页并清空表单', '注册页', async () => {
+    vm.loginForm = { student_id: 'old-id', password: 'old-pass' };
+    vm.registerForm = { student_id: 'old-id', username: 'old', password: 'old-pass', confirmPassword: 'old-pass', role: 'teacher' };
+    const btn = buttonWith(/立即登录/);
+    if (!btn) return ['注册页上找不到“立即登录”'];
+    btn.click(); await tick();
+    if (vm.pageState !== 'login') return [`pageState 应为 login，实为 ${vm.pageState}`];
+    const dirty = vm.loginForm.student_id || vm.loginForm.password
+      || vm.registerForm.student_id || vm.registerForm.username
+      || vm.registerForm.password || vm.registerForm.confirmPassword;
+    return dirty ? ['切换后仍残留上一份登录/注册凭据'] : null;
+  }],
+
   // 通用弹窗：全应用约 40 处调用 showAlert/showConfirm，靠的是"弹窗把 Promise
   // 兑现掉"这个契约。契约断了，那些调用点不会报错——它们只是永远 await 下去。
+  ['自定义确认按钮文案并返回 false', '课堂（学生）', async () => {
+    let settled;
+    vm.showConfirm('M', 'T', '共享屏幕', '使用摄像头').then(value => { settled = value; });
+    await tick();
+    const labels = [...doc.querySelectorAll('.global-modal-btn')].map(b => b.textContent.trim());
+    const cancel = buttonWith(/^使用摄像头$/);
+    if (!labels.includes('共享屏幕') || !cancel) return [`按钮文案不对: ${labels.join('/')}`];
+    cancel.click(); await tick();
+    return settled === false ? null : [`Promise 应兑现为 false，实为 ${JSON.stringify(settled)}`];
+  }],
   ['通用弹窗点“确定” → 关闭', '通用弹窗', async () => {
     const btn = buttonWith(/确定/);
     if (!btn) return ['提示型弹窗上找不到“确定”按钮'];
@@ -324,6 +363,29 @@ const CLICKS = [
     el.click(); await tick();   // 目标是遮罩自身，@click.self 才会触发（showClassModal 那个 .fixed.inset-0）
     return vm.showClassModal === false ? null : ['点了遮罩但进入课堂弹窗没关'];
   }],
+  ['进入课堂弹窗点“取消” → 关并清空表单', '进入课堂弹窗', async () => {
+    vm.classForm = { class_code: 'old-code', topic: 'old-topic', materialUrl: 'old-url', templateId: 'old-tpl' };
+    vm.classFormErrors = { class_code: 'old-err', topic: 'old-err' };
+    vm.uploadedFile = { name: 'old.pdf' };
+    const btn = buttonWith(/^取消$/);
+    if (!btn) return ['进入课堂弹窗上找不到“取消”'];
+    btn.click(); await tick();
+    if (vm.showClassModal !== false) return ['点了“取消”但弹窗没关'];
+    const dirty = vm.classForm.class_code || vm.classForm.topic || vm.classForm.materialUrl
+      || vm.classForm.templateId || vm.classFormErrors.class_code || vm.classFormErrors.topic
+      || vm.uploadedFile;
+    return dirty ? ['关闭后仍残留上一轮课堂表单'] : null;
+  }],
+  ['进入课堂弹窗空课堂号 → 字段旁报错', '进入课堂弹窗', async () => {
+    vm.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
+    const btn = buttonWith(/创建并进入/);
+    if (!btn) return ['进入课堂弹窗上找不到“创建并进入”'];
+    btn.click(); await tick();
+    if (vm.classFormErrors.class_code !== '请输入课堂号') return ['空课堂号没有写入字段错误'];
+    const shown = [...doc.querySelectorAll('.text-red-200')]
+      .some(el => el.textContent.includes('请输入课堂号'));
+    return shown ? null : ['课堂号错误没有渲染在输入框旁'];
+  }],
   ['个人中心点“开始对话” → 开 AI 辅导弹窗', '个人中心（学生）', async () => {
     const btn = buttonWith(/开始对话/);
     if (!btn) return ['个人中心上找不到“开始对话”按钮（个人中心那一页里那颗）'];
@@ -344,13 +406,59 @@ const CLICKS = [
     el.click(); await tick();   // 同上（showAITutor 那个 .fixed.inset-0）
     return vm.showAITutor === false ? null : ['点了遮罩但 AI 辅导弹窗没关'];
   }],
-  // 侧栏里 8 个切页按钮只有 4 个是纯赋值，另外 4 个顺带调了触网方法
-  // （studentReports / history / report / profile 那四个）——只取纯的那类。
-  ['大厅（教师）点“设置” → 切到设置页', '大厅（教师）', async () => {
-    const btn = buttonWith(/^设置$/);
-    if (!btn) return ['侧栏上找不到文字恰为“设置”的按钮（切页那一列里那颗）'];
+  // 窄屏才能看到的两个动作：面板折叠与学生退出。桌面 CSS 隐藏它们，
+  // 但接线必须在 DOM 里真实存在，否则手机上按钮会出现却没反应。
+  ['课堂（教师）点“收起面板” → 折叠右栏', '课堂（教师）', async () => {
+    const btn = [...doc.querySelectorAll('.classroom-mobile-only')]
+      .find(el => el.textContent.trim() === '收起面板');
+    if (!btn) return ['课堂顶部找不到“收起面板”'];
     btn.click(); await tick();
-    return vm.activeTab === 'settings' ? null : [`activeTab 应为 settings，实为 ${vm.activeTab}`];
+    return vm.classroomPanelCollapsed === true ? null : ['点了“收起面板”但右栏状态没变'];
+  }],
+  ['课堂（学生）点“退出课堂” → 打开确认', '课堂（学生）', async () => {
+    const btn = [...doc.querySelectorAll('.classroom-mobile-only')]
+      .find(el => el.textContent.trim() === '退出课堂');
+    if (!btn) return ['课堂顶部找不到“退出课堂”'];
+    btn.click(); await tick();
+    return vm.globalModal.show === true ? null : ['点了“退出课堂”但没出现确认弹窗'];
+  }],
+  ['Agora UID 非 ASCII → 合法 ASCII UID', '课堂（学生）', async () => {
+    const hashed = vm.agoraSafeUid('张三');
+    if (!/^[A-Za-z0-9_.-]{1,255}$/.test(hashed)) return [`非法 UID: ${hashed}`];
+    if (vm.agoraSafeUid('张三') !== hashed) return ['同一输入生成了不同 UID'];
+    if (vm.agoraSafeUid('S2026001') !== 'S2026001') return ['合法 UID 被意外改写'];
+    return null;
+  }],
+  ['登录态写入 sessionStorage 并可清除', '课堂（学生）', async () => {
+    const oldToken = vm.sessionToken;
+    vm.sessionToken = 'probe-token';
+    vm.currentUser = { id: 2, student_id: 'probe001', username: '探针', role: 'student' };
+    vm.persistSession();
+    const stored = vm.readStoredSession();
+    const ok = stored && stored.token === 'probe-token' && stored.user.student_id === 'probe001';
+    vm.clearPersistedSession();
+    const cleared = vm.readStoredSession() === null;
+    vm.sessionToken = oldToken;
+    return ok && cleared ? null : ['sessionStorage 持久化/清理失败'];
+  }],
+  ['刷新页面不撤销登录会话', '课堂（学生）', async () => {
+    let revoked = false;
+    const originalRevoke = vm.revokeServerSession;
+    const originalMeeting = vm.meetingId;
+    vm.revokeServerSession = () => { revoked = true; };
+    vm.meetingId = null;
+    vm.handlePageHide();
+    vm.revokeServerSession = originalRevoke;
+    vm.meetingId = originalMeeting;
+    return revoked ? ['pagehide 仍在撤销登录会话'] : null;
+  }],
+  // 侧栏里 7 个切页按钮只有 3 个是纯赋值，另外 4 个顺带调了触网方法
+  // （studentReports / history / report / profile 那四个）——只取纯的那类。
+  ['大厅（教师）点“课堂管理” → 切到课堂管理页', '大厅（教师）', async () => {
+    const btn = buttonWith(/^课堂管理$/);
+    if (!btn) return ['侧栏上找不到文字恰为“课堂管理”的按钮（切页那一列里那颗）'];
+    btn.click(); await tick();
+    return vm.activeTab === 'classManage' ? null : [`activeTab 应为 classManage，实为 ${vm.activeTab}`];
   }],
 ];
 

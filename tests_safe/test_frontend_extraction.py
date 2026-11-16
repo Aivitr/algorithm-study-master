@@ -117,8 +117,11 @@ def _app_root_span(html: str) -> tuple[int, int]:
     closer = re.compile(r"""</div\s*>""", re.IGNORECASE)
     while cursor < len(html) and depth:
         nxt = min(
-            (m.start() for m in (opener.search(html, cursor), closer.search(html, cursor))
-             if m is not None),
+            (
+                m.start()
+                for m in (opener.search(html, cursor), closer.search(html, cursor))
+                if m is not None
+            ),
             default=-1,
         )
         assert nxt >= 0, "`#app` 的 <div> 没有配平的收尾"
@@ -146,6 +149,7 @@ def _template_blocks(html: str) -> dict[str, int]:
     """
     return {match.group(1): match.start() for match in _X_TEMPLATE_RE.finditer(html)}
 
+
 _KEY_RE = re.compile(r"([A-Za-z_$][\w$]*)\s*(?=[:(])")
 
 # 正则字面量只可能出现在这些记号之后；否则 `/` 是除号。
@@ -159,6 +163,7 @@ _REGEX_CAN_FOLLOW = set("(,=:[!&|?{};+-*%~^<>")
 _EXPECTED_ROOT_KEYS = (
     "el",
     "data",
+    "created",
     "computed",
     "watch",
     "methods",
@@ -298,7 +303,7 @@ class TestNoInlineSource:
         assert not found, (
             f"`index.html` 里还有会被浏览器执行的内联 `<script>`：{found[:3]}。\n"
             f"阶段 7 已把整块源码外移为 `{URL_PREFIX}/{APP_JS_REL}`。\n"
-            f"（若它其实是 `type=\"text/x-template\"` 这类惰性模板块，"
+            f'（若它其实是 `type="text/x-template"` 这类惰性模板块，'
             f"不会落到这条断言上——本断言只挑会执行的类型。）"
         )
 
@@ -338,8 +343,7 @@ class TestComponentTemplates:
 
     def test_there_is_at_least_one_template_block(self):
         assert _template_blocks(_index_html()), (
-            "index.html 里一个 `text/x-template` 模板块都没有。"
-            "②b 拆出来的组件都靠它承载模板。"
+            "index.html 里一个 `text/x-template` 模板块都没有。②b 拆出来的组件都靠它承载模板。"
         )
 
     def test_every_template_block_sits_outside_app_root(self):
@@ -349,9 +353,7 @@ class TestComponentTemplates:
         """
         html = _index_html()
         _, app_end = _app_root_span(html)
-        inside = [
-            name for name, offset in _template_blocks(html).items() if offset < app_end
-        ]
+        inside = [name for name, offset in _template_blocks(html).items() if offset < app_end]
         assert not inside, (
             f"这些模板块位于 `#app` 子树之内：{inside}"
             f"（`#app` 结束于偏移 {app_end}）。\n"
@@ -403,9 +405,7 @@ class TestExtractedFiles:
 
     def test_app_js_keeps_both_ends(self):
         js = _app_js()
-        assert js.startswith("// 配置axios"), (
-            f"`{APP_JS_REL}` 的开头不是预期内容：{js[:80]!r}"
-        )
+        assert js.startswith("// 配置axios"), f"`{APP_JS_REL}` 的开头不是预期内容：{js[:80]!r}"
         assert js.rstrip().endswith("})"), (
             f"`{APP_JS_REL}` 的结尾不是 `new Vue({...})` 的收尾，"
             f"外移可能漏掉了尾部。实际结尾：{js.rstrip()[-80:]!r}"

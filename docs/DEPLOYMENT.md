@@ -91,7 +91,9 @@ cd algorithm-study-master
 
 检查 `database.py` 中的数据库连接:
 ```python
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:3308/<DB_NAME>?charset=utf8mb4"
+SQLALCHEMY_DATABASE_URL = (
+    "mysql+pymysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:3308/<DB_NAME>?charset=utf8mb4"
+)
 ```
 
 检查 `llm_service.py` 中的API密钥:
@@ -337,10 +339,10 @@ gzip_types text/plain text/css application/json application/javascript;
 # 数据库连接池
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_size=20,        # 增加连接池
+    pool_size=20,  # 增加连接池
     max_overflow=10,
     pool_recycle=3600,
-    pool_pre_ping=True
+    pool_pre_ping=True,
 )
 ```
 
@@ -767,7 +769,9 @@ cd algorithm-study-master
 
 检查 `database.py` 中的数据库连接:
 ```python
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:3308/<DB_NAME>?charset=utf8mb4"
+SQLALCHEMY_DATABASE_URL = (
+    "mysql+pymysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:3308/<DB_NAME>?charset=utf8mb4"
+)
 ```
 
 检查 `llm_service.py` 中的API密钥:
@@ -1013,10 +1017,10 @@ gzip_types text/plain text/css application/json application/javascript;
 # 数据库连接池
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_size=20,        # 增加连接池
+    pool_size=20,  # 增加连接池
     max_overflow=10,
     pool_recycle=3600,
-    pool_pre_ping=True
+    pool_pre_ping=True,
 )
 ```
 

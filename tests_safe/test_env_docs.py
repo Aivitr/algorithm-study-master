@@ -25,7 +25,6 @@
 """
 
 import ast
-from pathlib import Path
 
 import pytest
 
@@ -77,9 +76,11 @@ def _keys_read_by_code() -> dict[str, set[str]]:
                         record(arg.value, rel)
 
             # os.environ["X"]
-            if (isinstance(node, ast.Subscript)
-                    and isinstance(node.value, ast.Attribute)
-                    and node.value.attr == "environ"):
+            if (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "environ"
+            ):
                 slice_ = node.slice
                 if isinstance(slice_, ast.Constant) and isinstance(slice_.value, str):
                     record(slice_.value, rel)
@@ -174,7 +175,6 @@ def test_example_has_no_filled_in_secrets():
         if value and value not in _SECRET_ALLOWLIST.get(key, set()):
             offenders.append(f"{key}={value}")
 
-    assert not offenders, (
-        "模板里出现了填好的机密值——这个文件会进仓库：\n  "
-        + "\n  ".join(offenders)
+    assert not offenders, "模板里出现了填好的机密值——这个文件会进仓库：\n  " + "\n  ".join(
+        offenders
     )

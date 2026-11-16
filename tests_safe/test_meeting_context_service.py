@@ -63,9 +63,13 @@ def test_to_dict_reads_started_at_when_present():
 def test_to_dict_tolerates_model_without_started_at():
     svc = MeetingContextService(None)
     meeting = SimpleNamespace(
-        id=8, topic="旧模型", status="active",
+        id=8,
+        topic="旧模型",
+        status="active",
         created_at=datetime(2026, 1, 1, 9, 0, 0),
-        ended_at=None, knowledge_points=None, teaching_design=None,
+        ended_at=None,
+        knowledge_points=None,
+        teaching_design=None,
     )
 
     body = svc.to_dict(meeting)
