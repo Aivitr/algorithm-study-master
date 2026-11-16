@@ -1,3 +1,4 @@
+# DEPRECATED: 依赖源已迁移到 pyproject.toml + uv.lock；本文件仅保留为兼容 shim。
 # FunASR 本地语音识别依赖
 # 替代阿里云语音识别API，实现完全本地化部署
 
