@@ -45,6 +45,10 @@ class _Conn:
         pass
 
 
+def _request(host="127.0.0.1"):
+    return SimpleNamespace(headers={}, client=SimpleNamespace(host=host))
+
+
 def test_hash_roundtrip_and_salt():
     first = hash_password("password123")
     second = hash_password("password123")
@@ -75,7 +79,9 @@ def test_register_hashes_password(monkeypatch):
     conn = _Conn(cursor)
     monkeypatch.setattr("pymssql.connect", lambda **kwargs: conn)
 
-    result = asyncio.run(auth.register("2026001", "测试学生", "Password123", "student"))
+    result = asyncio.run(
+        auth.register(_request("127.0.0.10"), "2026001", "测试学生", "Password123", "student")
+    )
 
     assert result["status"] == "success"
     _, params = cursor.calls[0]
@@ -89,7 +95,9 @@ def test_register_rejects_short_password_before_connecting(monkeypatch):
         raise AssertionError("short password should not reach the database")
 
     monkeypatch.setattr("pymssql.connect", fail)
-    result = asyncio.run(auth.register("2026001", "测试学生", "short", "student"))
+    result = asyncio.run(
+        auth.register(_request("127.0.0.11"), "2026001", "测试学生", "short", "student")
+    )
     assert result == {"status": "error", "message": "密码长度不能少于10位"}
 
 
@@ -117,7 +125,7 @@ def test_api_login_upgrades_legacy_password(monkeypatch):
         ),
     )
 
-    request = SimpleNamespace(headers={})
+    request = _request("198.51.100.20")
     result = asyncio.run(auth.api_login(request, "2026001", "password123", "device"))
 
     assert result["status"] == "success"
@@ -157,9 +165,49 @@ def test_api_login_hashed_password_does_not_upgrade(monkeypatch):
         ),
     )
 
-    request = SimpleNamespace(headers={})
+    request = _request("198.51.100.20")
     result = asyncio.run(auth.api_login(request, "2026001", "password123", "device"))
 
     assert result["status"] == "success"
     assert len(connect_calls) == 1
     assert all("UPDATE users SET password" not in sql for sql, _ in login_cursor.calls)
+
+
+def test_sliding_window_limiter(monkeypatch):
+    from app.services import rate_limit
+
+    clock = [0.0]
+    monkeypatch.setattr(rate_limit.time, "monotonic", lambda: clock[0])
+    limiter = rate_limit.SlidingWindowLimiter(limit=2, window_seconds=10)
+
+    assert limiter.allow("k")
+    assert limiter.allow("k")
+    assert not limiter.allow("k")
+    clock[0] = 11
+    assert limiter.allow("k")
+
+
+def test_login_rate_limit(monkeypatch):
+    monkeypatch.setattr(auth, "_connect_db", lambda: _Conn(_Cursor(None)))
+    request = _request("198.51.100.31")
+
+    for _ in range(10):
+        result = asyncio.run(auth.api_login(request, "2026888", "wrongpass", "device"))
+        assert result["message"] == "学号或密码错误"
+
+    blocked = asyncio.run(auth.api_login(request, "2026888", "wrongpass", "device"))
+    assert blocked == {"status": "error", "message": "尝试过于频繁，请稍后再试"}
+
+
+def test_register_rate_limit(monkeypatch):
+    monkeypatch.setattr("pymssql.connect", lambda **kwargs: _Conn(_Cursor()))
+    request = _request("198.51.100.32")
+
+    for index in range(5):
+        result = asyncio.run(
+            auth.register(request, f"20269{index:02d}", "测试学生", "Password123", "student")
+        )
+        assert result["status"] == "success"
+
+    blocked = asyncio.run(auth.register(request, "2026999", "测试学生", "Password123", "student"))
+    assert blocked == {"status": "error", "message": "注册尝试过于频繁，请稍后再试"}
