@@ -610,6 +610,32 @@ const CLICKS = [
     await tick();
     return text.includes('ASR 不可用') ? null : ['状态栏没有显示“ASR 不可用”'];
   }],
+  ['401 响应统一退回登录页', '大厅（学生）', async () => {
+    const oldToken = vm.sessionToken;
+    const oldInvalidated = vm.sessionInvalidated;
+    const oldPage = vm.pageState;
+    const oldUser = vm.currentUser;
+    const handlers = (window.axios.interceptors.response.handlers || [])
+      .map(h => h.rejected).filter(Boolean);
+    if (!handlers.length) return ['找不到 axios 响应拦截器'];
+
+    vm.sessionToken = 'probe-token';
+    vm.sessionInvalidated = false;
+    await handlers[handlers.length - 1]({
+      message: 'Request failed with status code 401',
+      response: { status: 401, data: { detail: '登录已失效' } },
+    }).catch(() => {});
+    await tick();
+
+    const ok = vm.pageState === 'login' && !vm.sessionToken;
+    vm.sessionToken = oldToken;
+    vm.sessionInvalidated = oldInvalidated;
+    vm.currentUser = oldUser;
+    vm.pageState = oldPage;
+    vm.applySessionToken();
+    await tick();
+    return ok ? null : ['401 后没有退回登录页'];
+  }],
 ];
 
 // ---------------------------------------------------------------------------
