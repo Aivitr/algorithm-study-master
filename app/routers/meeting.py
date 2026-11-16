@@ -71,8 +71,13 @@ async def generate_knowledge_graph(
 
         service = KnowledgeTraceService(db)
         graph = service.build_from_transcripts(meeting_id)
-        if not graph or not graph.get("nodes"):
+        if graph is None:
             return {"status": "error", "message": "暂无可用发言，无法生成知识图谱"}
+        if not graph.get("nodes"):
+            return {
+                "status": "error",
+                "message": "当前发言内容不足，未提取到概念，请多讨论几轮后重试",
+            }
 
         row = db.query(KnowledgeGraph).filter(
             KnowledgeGraph.meeting_id == meeting_id

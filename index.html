@@ -2390,10 +2390,19 @@
                                 <p class="text-xs text-gray-500">智能构建的知识关系网络</p>
                             </div>
                         </div>
-                        <button @click="showKnowledgeGraph = false" 
-                                class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button v-if="currentUser.role === 'teacher'" @click="generateKnowledgeGraph"
+                                    :disabled="knowledgeGraphGenerating"
+                                    class="px-4 py-2 rounded-xl text-sm font-bold transition disabled:opacity-50"
+                                    style="background: var(--primary-soft); color: var(--primary-dark);">
+                                <i :class="knowledgeGraphGenerating ? 'fas fa-spinner fa-spin mr-1' : 'fas fa-sync-alt mr-1'"></i>
+                                {{ knowledgeGraphGenerating ? '生成中...' : '重新生成' }}
+                            </button>
+                            <button @click="showKnowledgeGraph = false"
+                                    class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="flex-1 p-6" style="background: #f7fbfb;">
                         <div v-if="knowledgeGraphLoading" class="h-full flex flex-col items-center justify-center text-gray-500">

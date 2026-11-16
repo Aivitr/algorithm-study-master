@@ -3564,9 +3564,10 @@ new Vue({
                     }],
                     series: [{
                         type: 'graph',
-                        layout: 'force',
+                        // 单节点/无边时 force 布局可能不出图，改用环形布局
+                        layout: (this.knowledgeGraphData.links || []).length ? 'force' : 'circular',
                         data: this.knowledgeGraphData.nodes,
-                        links: this.knowledgeGraphData.links,
+                        links: this.knowledgeGraphData.links || [],
                         categories: this.knowledgeGraphData.categories,
                         roam: true,
                         label: {
