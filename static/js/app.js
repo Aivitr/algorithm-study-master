@@ -702,9 +702,12 @@ new Vue({
             }, 10000);
             return true;
         },
-        showConfirm(message, title = '确认操作') {
+        showConfirm(message, title = '确认操作', confirmText = '确定', cancelText = '取消') {
             return new Promise(resolve => {
-                this.globalModal = { show: true, type: 'confirm', icon: 'warning', title, message, _resolve: resolve };
+                this.globalModal = {
+                    show: true, type: 'confirm', icon: 'warning', title, message,
+                    confirmText, cancelText, _resolve: resolve
+                };
             });
         },
         resolveModal(value) {
@@ -1614,7 +1617,7 @@ new Vue({
             let stream;
             let screenSharing = false;
             if (this.currentUser.role === 'teacher') {
-                const choice = await this.showConfirm('点击”确定”共享屏幕，”取消”使用摄像头', '选择媒体方式');
+                const choice = await this.showConfirm('请选择进入课堂的媒体方式', '选择媒体方式', '共享屏幕', '使用摄像头');
                 if (choice) {
                     // 屏幕共享
                     try {

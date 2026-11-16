@@ -276,6 +276,16 @@ const CLICKS = [
 
   // 通用弹窗：全应用约 40 处调用 showAlert/showConfirm，靠的是"弹窗把 Promise
   // 兑现掉"这个契约。契约断了，那些调用点不会报错——它们只是永远 await 下去。
+  ['自定义确认按钮文案并返回 false', '课堂（学生）', async () => {
+    let settled;
+    vm.showConfirm('M', 'T', '共享屏幕', '使用摄像头').then(value => { settled = value; });
+    await tick();
+    const labels = [...doc.querySelectorAll('.global-modal-btn')].map(b => b.textContent.trim());
+    const cancel = buttonWith(/^使用摄像头$/);
+    if (!labels.includes('共享屏幕') || !cancel) return [`按钮文案不对: ${labels.join('/')}`];
+    cancel.click(); await tick();
+    return settled === false ? null : [`Promise 应兑现为 false，实为 ${JSON.stringify(settled)}`];
+  }],
   ['通用弹窗点“确定” → 关闭', '通用弹窗', async () => {
     const btn = buttonWith(/确定/);
     if (!btn) return ['提示型弹窗上找不到“确定”按钮'];
