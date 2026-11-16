@@ -13,7 +13,7 @@
 """
 
 from fastapi import APIRouter, Depends, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
@@ -29,6 +29,7 @@ from app.models import (
 )
 from app.services.llm_service import llm
 from app.services.research_runtime import research_runtime
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -59,9 +60,19 @@ async def get_exercises(report_id: int, db: Session = Depends(get_db)):
 async def generate_report_stream(
     meeting_id: int = Form(...),
     user_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """流式生成学习报告 - SSE进度推送"""
     import json as _json
+
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    target = db.query(User).filter(User.id == user_id).first()
+    if not meeting or not target:
+        return JSONResponse({"status": "error", "message": "课堂或用户不存在"}, status_code=404)
+    is_owner_teacher = ctx.user.role == "teacher" and int(meeting.teacher_id) == int(ctx.user.id)
+    if not is_owner_teacher and int(ctx.user.id) != int(user_id):
+        return JSONResponse({"status": "error", "message": "无权生成该学生的报告"}, status_code=403)
 
     def generate():
         db = SessionLocal()
