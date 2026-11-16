@@ -103,3 +103,47 @@ select = ["E4", "E7", "E9", "F", "I"]
 "gca_engine/adapters/classroom.py" = ["E402"]
 "gca_engine/preprocessing/chinese.py" = ["E402"]
 
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "gca_engine", "server.py"]
+exclude = ["^archive/", "^tests_safe/", "^venv/", "^\\.venv/"]
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = false
+
+# mypy 首轮基线：以下模块的既有错误先冻结，后续逐步清理；
+# 新代码不要在其它模块新增错误。
+[[tool.mypy.overrides]]
+module = [
+    "server",
+    "app.core.meeting_state",
+    "app.core.oss",
+    "app.realtime.knowledge_graph",
+    "app.realtime.speech",
+    "app.realtime.state",
+    "app.routers.classroom_ops",
+    "app.routers.emotion_stats",
+    "app.routers.quiz",
+    "app.routers.realtime",
+    "app.routers.reports",
+    "app.routers.voiceprint",
+    "app.routers.votes",
+    "app.services.class_stats_service",
+    "app.services.gemma_emotion_client",
+    "app.services.knowledge_graph_service",
+    "app.services.knowledge_trace_service",
+    "app.services.llm_service",
+    "app.services.meeting_context_service",
+    "app.services.research_algorithm_fusion",
+    "app.services.research_enhanced_adapters",
+    "app.services.research_registry",
+    "app.services.research_runtime",
+    "gca_engine.core.metrics",
+    "gca_engine.core.responsivity",
+    "gca_engine.engine",
+    "gca_engine.windows",
+]
+ignore_errors = true
+
+
+
