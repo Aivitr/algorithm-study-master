@@ -143,9 +143,16 @@
     },
     "ASR 不可用时状态栏明确提示": {
       "ok": true
+    },
+    "401 响应统一退回登录页": {
+      "ok": true
     }
   },
-  "notes": [],
+  "notes": [
+    "error: ❌ 响应错误:",
+    "error: 响应状态:",
+    "error: 响应数据:"
+  ],
   "collisions": [],
   "watch_keys": [
     "showKnowledgeGraph"

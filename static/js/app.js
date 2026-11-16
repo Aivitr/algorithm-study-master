@@ -39,6 +39,13 @@ axios.interceptors.response.use(
         } else if (error.response) {
             console.error('响应状态:', error.response.status);
             console.error('响应数据:', error.response.data);
+            if (error.response.status === 401) {
+                const app = document.getElementById('app');
+                const vm = app && app.__vue__;
+                if (vm && vm.sessionToken) {
+                    vm.invalidateSession('登录已失效，请重新登录');
+                }
+            }
         } else {
             console.error('网络连接失败，请检查服务器是否启动');
         }
@@ -1321,19 +1328,22 @@ new Vue({
         invalidateSession(message) {
             if (this.sessionInvalidated) return;
             this.sessionInvalidated = true;
+            // 先切页再清 currentUser；大厅模板会直接读 currentUser.role，
+            // 反过来会在某些渲染时机里读到 null。
+            const wasClassroom = this.pageState === 'classroom';
+            this.pageState = 'login';
             this.stopSessionHeartbeat();
             this.sessionToken = null;
             this.applySessionToken();
             this.clearPersistedSession();
             this.releaseClassroomLock();
-            if (this.pageState === 'classroom') {
+            if (wasClassroom) {
                 this._cleanupClassroom();
             }
             this.currentUser = null;
             this.loginForm = { student_id: '', password: '' };
             this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
             this.closeClassModal();
-            this.pageState = 'login';
             this.showAlert(message, 'warning', '登录状态已失效');
         },
         releaseSession() {
