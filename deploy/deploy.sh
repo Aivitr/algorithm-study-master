@@ -25,6 +25,8 @@ exec >>"$LOG_FILE" 2>&1
 echo "=== $(date -Is) deploy target=$TARGET_REF ==="
 
 cd "$APP_DIR"
+# 生产用独立编排；--project-directory 让 .env/.env.prod/build context 相对仓库根解析
+COMPOSE=(docker compose --project-directory . -f deploy/docker-compose.prod.yml)
 
 avail_kb="$(df -Pk "$APP_DIR" | awk 'NR==2 {print $4}')"
 if [ "${avail_kb:-0}" -lt 5000000 ]; then
@@ -58,15 +60,15 @@ echo "previous=$PREV new=$NEW"
 docker tag algorithm-study-master:dev "algorithm-study-master:pre-$PREV" 2>/dev/null || true
 
 echo "--- migrations ---"
-docker compose run --rm --no-deps app python tools/apply_migrations.py --dry-run
-docker compose run --rm --no-deps app python tools/apply_migrations.py
+"${COMPOSE[@]}" run --rm --no-deps app python tools/apply_migrations.py --dry-run
+"${COMPOSE[@]}" run --rm --no-deps app python tools/apply_migrations.py
 
 echo "--- build ---"
-docker compose build app
+"${COMPOSE[@]}" build app
 docker tag algorithm-study-master:dev "algorithm-study-master:$NEW"
 
 echo "--- restart ---"
-docker compose up -d app
+"${COMPOSE[@]}" up -d app
 
 healthy=0
 for _ in $(seq 1 30); do
@@ -81,7 +83,7 @@ if [ "$healthy" -ne 1 ]; then
     echo "health check failed, rolling back to $PREV"
     git checkout -f "$PREV"
     docker tag "algorithm-study-master:pre-$PREV" algorithm-study-master:dev 2>/dev/null || true
-    docker compose up -d app
+    "${COMPOSE[@]}" up -d app
     echo "rollback triggered; previous container restored (migrations are not rolled back)"
     exit 1
 fi
