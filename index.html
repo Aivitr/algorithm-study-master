@@ -3232,8 +3232,8 @@
                 <div class="global-modal-title">{{ modal.title || '' }}</div>
                 <div class="global-modal-msg">{{ modal.message }}</div>
                 <div>
-                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">取消</button>
-                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">确定</button>
+                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">{{ modal.cancelText || '取消' }}</button>
+                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">{{ modal.confirmText || '确定' }}</button>
                 </div>
             </div>
         </div>
