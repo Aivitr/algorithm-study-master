@@ -24,7 +24,8 @@ Settings → Branches → `main`：
 
 ## 发布
 
-Actions → `deploy` → Run workflow，`ref` 填 `main`（或要发布的 SHA）。
+Actions → `deploy` → Run workflow，`ref` 填 `main`（或要发布的 SHA）；
+必须先创建 RDS 快照并勾选 `confirm_db_backup`，否则脚本会在迁移前中止。
 部署脚本会：
 
 1. `git fetch/checkout` 目标 ref

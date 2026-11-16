@@ -7,6 +7,11 @@ on:
         description: "Git ref or SHA to deploy"
         required: true
         default: "main"
+      confirm_db_backup:
+        description: "I have taken an RDS snapshot / confirmed the database backup"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -30,5 +35,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
+              echo "RDS backup not confirmed"
+              exit 1
+            fi
             cd ${{ secrets.DEPLOY_PATH }}
-            ./deploy/deploy.sh ${{ github.event.inputs.ref }}
+            CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh ${{ github.event.inputs.ref }}

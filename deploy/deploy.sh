@@ -32,6 +32,11 @@ if [ "${avail_kb:-0}" -lt 5000000 ]; then
     exit 1
 fi
 
+if [ "${CONFIRM_DB_BACKUP:-}" != "1" ]; then
+    echo "database backup not confirmed; take an RDS snapshot, then set CONFIRM_DB_BACKUP=1"
+    exit 1
+fi
+
 git fetch --depth 1 origin "$BRANCH"
 PREV="$(git rev-parse HEAD)"
 
