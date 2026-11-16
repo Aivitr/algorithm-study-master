@@ -31,7 +31,7 @@ def test_group_analysis_tools_endpoint(client):
     assert all(tool["allowed_states"] == ["ended", "running"] for tool in tools)
 
 
-def test_group_analysis_question_endpoint(client, monkeypatch):
+def test_group_analysis_question_endpoint(client, teacher_headers, monkeypatch):
     async def fake_run(db, meeting_id, question, max_turns):
         assert meeting_id == 1
         assert question == "分析参与是否均衡"
@@ -42,6 +42,7 @@ def test_group_analysis_question_endpoint(client, monkeypatch):
     response = client.post(
         "/api/agents/group-analysis",
         json={"meeting_id": 1, "question": "分析参与是否均衡", "max_turns": 6},
+        headers=teacher_headers,
     )
 
     assert response.status_code == 200

@@ -22,6 +22,8 @@ from app.core.database import get_db
 from app.core.meeting_state import ENDED, meeting_status_error
 from app.core.paths import PROJECT_ROOT
 from app.models import LearningReport, Meeting, User
+from app.services.report_access import can_view_report
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -30,7 +32,10 @@ BASE_DIR = str(PROJECT_ROOT)  # 与 server.py 的同名常量同源同值
 
 @router.post("/api/generate-pdf-report")
 async def generate_pdf_report(
-    meeting_id: int = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)
+    meeting_id: int = Form(...),
+    user_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """生成学习报告PDF文件"""
     try:
@@ -74,6 +79,8 @@ async def generate_pdf_report(
 
         if not report:
             return {"status": "error", "message": "报告不存在"}
+        if not can_view_report(db, ctx, report):
+            return {"status": "error", "message": "无权导出该报告"}
 
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         user = db.query(User).filter(User.id == user_id).first()

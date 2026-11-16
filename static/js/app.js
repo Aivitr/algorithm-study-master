@@ -193,6 +193,7 @@ new Vue({
         realtimeSubtitle: null, realtimeSubtitleTimer: null, realtimeSubtitleLastAt: 0,
         asrWs: null, audioProcessor: null, audioSource: null,
         asrWsSeq: 0,
+        asrUnavailable: false,
         asrReconnectTimer: null,
         asrDroppedFrames: 0,
         asrHealthTimer: null,
@@ -1678,7 +1679,7 @@ new Vue({
                 this.audioProcessor.connect(this.audioCtx.destination);
 
                 this.audioProcessor.port.onmessage = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
                         const MAX_BUFFERED_BYTES = 256 * 1024;
                         if ((this.asrWs.bufferedAmount || 0) > MAX_BUFFERED_BYTES) {
@@ -1700,7 +1701,7 @@ new Vue({
                 this.audioSource.connect(this.audioProcessor);
                 this.audioProcessor.connect(this.audioCtx.destination);
                 this.audioProcessor.onaudioprocess = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     const inputData = e.inputBuffer.getChannelData(0);
                     const sampleRate = this.audioCtx.sampleRate;
                     const targetRate = 16000;
@@ -2009,6 +2010,7 @@ new Vue({
             }
             this.mediaMode = 'none';
             this.mediaSwitching = false;
+            this.asrUnavailable = false;
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
                 this.agoraLocalVideoTrack.stop();
@@ -2208,6 +2210,7 @@ new Vue({
                 if (this.asrWs !== ws || this.asrWsSeq !== seq) return;
                 console.log('✅ 实时ASR WebSocket已连接');
                 this._asrErrorShown = false;
+                this.asrUnavailable = false;
                 this.asrLastMessageAt = 0;
                 if (this.asrHealthTimer) clearTimeout(this.asrHealthTimer);
                 this.asrHealthTimer = setTimeout(() => {
@@ -2224,12 +2227,14 @@ new Vue({
                 let d = JSON.parse(e.data);
                 if (d.type === 'asr_partial') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, false);
                     this.upsertAsrPartialToChat(d.username, d.text, d.asr_sentence_id);
                     return;
                 } else if (d.type === 'asr_final') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, true);
                     this.appendAsrFinalToChat(d.username, d.text, d.asr_sentence_id);
@@ -2241,11 +2246,13 @@ new Vue({
                 } else if (d.type === 'asr_error') {
                     console.error('❌ 实时ASR不可用:', d.message || d);
                     this.asrLastMessageAt = 0;
+                    this.asrUnavailable = true;
                     if (!this._asrErrorShown) {
                         this._asrErrorShown = true;
                         this.showAlert(d.message || '实时语音转文字暂时不可用', 'warning', 'ASR连接异常');
                     }
                 } else if (d.type === 'asr_status') {
+                    this.asrUnavailable = false;
                     console.log('ℹ️ 实时ASR状态:', d.message || d);
                 } else if (d.type === 'asr_gate_status') {
                     if (d.status === 'passed') {
@@ -4256,6 +4263,7 @@ new Vue({
             this.localMediaStream = null;
             this.mediaMode = 'none';
             this.mediaSwitching = false;
+            this.asrUnavailable = false;
 
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
@@ -6541,8 +6549,20 @@ new Vue({
             }
         },
         // 下载习题
-        downloadExercises(reportId) {
-            window.open(`/api/download-exercises/${reportId}`, '_blank');
+        async downloadExercises(reportId) {
+            try {
+                const res = await axios.get(`/api/download-exercises/${reportId}`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `exercises_${reportId}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                this.showAlert('下载习题失败: ' + (e.message || e), 'error', '下载失败');
+            }
         },
         // 格式化日期
         formatDate(isoStr) {

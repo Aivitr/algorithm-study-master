@@ -2279,7 +2279,7 @@
             <div class="classroom-statusbar absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
                 <div v-if="!isPaused" class="status-badge text-white flex items-center space-x-2 shadow-2xl" style="pointer-events:auto;">
                     <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
-                    <span>{{ statusText }}</span>
+                    <span>{{ asrUnavailable ? 'ASR 不可用' : statusText }}</span>
                 </div>
                 <div v-else class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
                     <i class="fas fa-pause mr-2"></i>
