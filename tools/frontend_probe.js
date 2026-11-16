@@ -602,6 +602,14 @@ const CLICKS = [
     }
     return null;
   }],
+  ['ASR 不可用时状态栏明确提示', '课堂（学生）', async () => {
+    vm.asrUnavailable = true;
+    await tick();
+    const text = doc.getElementById('app').textContent;
+    vm.asrUnavailable = false;
+    await tick();
+    return text.includes('ASR 不可用') ? null : ['状态栏没有显示“ASR 不可用”'];
+  }],
 ];
 
 // ---------------------------------------------------------------------------
