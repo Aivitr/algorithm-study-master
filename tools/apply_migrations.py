@@ -24,6 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# 先加载 .env.<APP_ENV>，再建 engine；否则 database 会先读到默认 sqlite
+import app.core.config  # noqa: E402,F401
 from app.core.database import engine  # noqa: E402
 from app.services.migration_service import (  # noqa: E402
     MIGRATIONS_DIR,
