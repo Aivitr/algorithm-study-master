@@ -27,8 +27,13 @@ from app.core.meeting_state import RUNNING, meeting_status_error
 from app.models import Meeting, ViewpointVote
 from app.realtime.registry import manager
 from app.services.llm_service import llm
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
+
+
+def _owns_username(ctx: SessionContext, username: str) -> bool:
+    return username in {ctx.user.student_id, ctx.user.username}
 
 
 def _claim_vote_close(
@@ -65,8 +70,11 @@ async def cast_vote(
     username: str = Form(...),
     meeting_id: int = Form(...),
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """学生投票"""
+    if not _owns_username(ctx, username):
+        return {"status": "error", "message": "只能以自己的身份投票"}
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
@@ -127,7 +135,10 @@ async def cast_vote(
 
 @router.post("/api/close-vote")
 async def close_vote(
-    vote_id: int = Form(...), meeting_id: int = Form(...), db: Session = Depends(get_db)
+    vote_id: int = Form(...),
+    meeting_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """老师关闭投票"""
     try:
@@ -142,6 +153,12 @@ async def close_vote(
         if not vote_record:
             return {"status": "error", "message": "投票不存在或不属于当前课堂"}
 
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以关闭投票"}
+
         if vote_record.status != "active":
             return {
                 "status": "success",
@@ -149,9 +166,6 @@ async def close_vote(
                 "message": "投票已经关闭，本次未重复执行",
             }
 
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
-            return {"status": "error", "message": "课堂不存在"}
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
@@ -269,8 +283,11 @@ async def confirm_vote(
     username: str = Form(...),
     meeting_id: int = Form(...),
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """成员确认观点选择完毕，当所有在线成员都确认后自动结束投票并重新生成任务分解"""
+    if not _owns_username(ctx, username):
+        return {"status": "error", "message": "只能以自己的身份确认投票"}
     try:
         vote_record = (
             db.query(ViewpointVote)

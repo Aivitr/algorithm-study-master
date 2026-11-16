@@ -86,18 +86,21 @@ def isolated_vote_effects(monkeypatch):
     return {"llm_calls": llm_calls, "broadcasts": broadcasts}
 
 
-def _post_close(client, ids):
+def _post_close(client, ids, headers):
     return client.post(
         "/api/close-vote",
         data={"vote_id": ids["vote_id"], "meeting_id": ids["meeting_id"]},
+        headers=headers,
     )
 
 
-def test_repeated_close_only_appends_goals_once(client, active_vote, isolated_vote_effects):
+def test_repeated_close_only_appends_goals_once(
+    client, active_vote, isolated_vote_effects, teacher_headers
+):
     from app.core.database import SessionLocal
     from app.models import Meeting, ViewpointVote
 
-    first = _post_close(client, active_vote)
+    first = _post_close(client, active_vote, teacher_headers)
     assert first.status_code == 200
     assert first.json()["status"] == "success"
 
@@ -112,7 +115,7 @@ def test_repeated_close_only_appends_goals_once(client, active_vote, isolated_vo
     finally:
         db.close()
 
-    second = _post_close(client, active_vote)
+    second = _post_close(client, active_vote, teacher_headers)
     assert second.status_code == 200
     assert second.json()["status"] == "success"
     assert second.json()["already_closed"] is True
@@ -169,12 +172,12 @@ def test_atomic_close_claim_can_only_succeed_once(active_vote):
 
 
 def test_confirm_after_manual_close_does_not_repeat_side_effects(
-    client, active_vote, isolated_vote_effects
+    client, active_vote, isolated_vote_effects, teacher_headers, student_headers
 ):
     from app.core.database import SessionLocal
     from app.models import Meeting
 
-    closed = _post_close(client, active_vote)
+    closed = _post_close(client, active_vote, teacher_headers)
     assert closed.json()["status"] == "success"
 
     confirmed = client.post(
@@ -182,8 +185,9 @@ def test_confirm_after_manual_close_does_not_repeat_side_effects(
         data={
             "vote_id": active_vote["vote_id"],
             "meeting_id": active_vote["meeting_id"],
-            "username": "学生甲",
+            "username": "李同学",
         },
+        headers=student_headers,
     )
     assert confirmed.status_code == 200
     assert confirmed.json()["status"] == "success"
