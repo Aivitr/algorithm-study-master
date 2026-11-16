@@ -40,4 +40,8 @@ jobs:
               exit 1
             fi
             cd ${{ vars.DEPLOY_PATH }}
+            # 先更新到最新 main 再执行 deploy.sh：否则 Bash 会继续运行服务器上
+            # 旧版脚本，脚本内部的 checkout 无法影响已经在执行的进程。
+            git fetch --depth 1 origin main
+            git checkout -f -B main origin/main
             CONFIRM_DB_BACKUP=1 ./deploy/deploy.sh ${{ github.event.inputs.ref }}
