@@ -236,6 +236,7 @@ from app.realtime.stream import process_user_stream_generator
 # ==================== 路由装配 ====================
 # 路由按业务域放在 app/routers/，此处只做装配。
 # 新增一组路由时：先在 app/routers/ 建模块，再在这里 include。
+from app.routers.health import router as health_router
 from app.routers.voiceprint import router as voiceprint_router
 
 # 定义在 app/services/meeting_metrics.py，此处再导出。
@@ -246,6 +247,7 @@ from app.services.meeting_metrics import (
 )
 from app.services.user_lookup import resolve_user_by_identifier
 
+app.include_router(health_router)
 app.include_router(voiceprint_router)
 
 
