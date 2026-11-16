@@ -1,0 +1,88 @@
+[project]
+name = "algorithm-study-master"
+version = "0.1.0"
+description = "Smart collaborative learning platform"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy",
+    "numpy",
+    "opencv-python",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "openai",
+    "openai-agents==0.24.0",
+    "requests",
+    "websocket-client",
+    "websockets<17",
+    "aiohttp",
+    "python-multipart",
+    "scipy",
+    "librosa",
+    "soundfile",
+    "mediapipe",
+    "speechbrain",
+    "resemblyzer",
+    "sentence-transformers",
+    "insightface",
+    "onnxruntime",
+    "pyannote.audio",
+    "python_speech_features",
+    "scenedetect",
+    "tqdm",
+    "gdown",
+    "scikit-learn",
+    "jieba>=0.42",
+    "pandas",
+    "huggingface-hub",
+    "transformers",
+    "reportlab",
+    "oss2",
+    "pymssql",
+    "alibabacloud-tea-openapi",
+    "alibabacloud-facebody20191230",
+    "agora-token-builder==1.0.0",
+    # webrtcvad 在模块顶层 import pkg_resources；setuptools 81 起移除了它
+    "setuptools<81",
+]
+
+[project.optional-dependencies]
+# 本地 FunASR 语音识别（可选；默认走阿里云 NLS）
+funasr = [
+    "funasr",
+    "modelscope",
+]
+# 增强研究运行时（可选）：wespeaker 无 PyPI 发行包，仍由 setup_enhanced_runtime.ps1 从 GitHub 安装
+enhanced = [
+    "onnxruntime-gpu",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+]
+lint = [
+    "ruff",
+    "mypy",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
