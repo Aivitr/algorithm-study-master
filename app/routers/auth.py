@@ -25,9 +25,44 @@ from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import CREATED, ENDED
 from app.models import Meeting, User
 from app.services.llm_service import llm
+from app.services.password_service import (
+    hash_password,
+    is_legacy_password,
+    validate_password_strength,
+    verify_password,
+)
 from app.services.session_service import create_session
 
 router = APIRouter()
+
+
+def _connect_db():
+    import pymssql
+
+    return pymssql.connect(
+        server=os.getenv("DB_HOST", ""),
+        port=int(os.getenv("DB_PORT", "3433")),
+        user=os.getenv("DB_USER", ""),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", ""),
+        charset="utf8",
+        timeout=10,
+        login_timeout=10,
+    )
+
+
+def _upgrade_password_hash(user_id: int, password: str) -> None:
+    conn = _connect_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET password = %s WHERE id = %s",
+            (hash_password(password), user_id),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @router.post("/api/register")
@@ -41,6 +76,9 @@ async def register(
     student_id = student_id.strip()
     if not re.fullmatch(r"[0-9]+", student_id):
         return {"status": "error", "message": "学号/工号只能包含数字"}
+    password_error = validate_password_strength(password)
+    if password_error:
+        return {"status": "error", "message": password_error}
 
     try:
         print(f"[NOTE] Register request - ID: {student_id}, Role: {role}")
@@ -50,23 +88,14 @@ async def register(
     import pymssql
 
     try:
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset="utf8",
-            timeout=10,
-            login_timeout=10,
-        )
+        conn = _connect_db()
         cursor = conn.cursor()
 
         # Insert user
         print("[SAVE] Executing INSERT...")
         cursor.execute(
             "INSERT INTO users (student_id, username, password, role, created_at) VALUES (%s, %s, %s, %s, GETDATE())",
-            (student_id, username, password, role),
+            (student_id, username, hash_password(password), role),
         )
         conn.commit()
         cursor.close()
@@ -98,22 +127,11 @@ async def api_login(
 
     import time
 
-    import pymssql
-
     try:
         start_time = time.time()
         print("[DB] Connecting...")
 
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset="utf8",
-            timeout=10,
-            login_timeout=10,
-        )
+        conn = _connect_db()
         print(f"[OK] Connected: {time.time() - start_time:.2f}s")
 
         cursor = conn.cursor(as_dict=True)
@@ -134,9 +152,16 @@ async def api_login(
             print(f"[ERROR] User not found: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
 
-        if user["password"] != password:
+        if not verify_password(password, user["password"]):
             print(f"[ERROR] Wrong password: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
+
+        if is_legacy_password(user["password"]):
+            try:
+                _upgrade_password_hash(int(user["id"]), password)
+                print(f"[OK] 旧密码已升级为哈希: {student_id}")
+            except Exception as exc:
+                print(f"[WARN] 旧密码哈希升级失败: {exc}")
 
         total_time = time.time() - start_time
         print(f"[OK] Login success: {user['username']} ({user['role']}) - Time: {total_time:.2f}s")
