@@ -93,3 +93,79 @@ def test_build_from_transcripts_reuses_kg_service_without_writing(seeded_ids, mo
         "产物是葡萄糖和氧气",
     ]
     assert calls["existing_graph"]["nodes"][0]["label"] == "光合作用"
+
+
+def test_extract_prompt_has_no_placeholder_and_normalizes_output(monkeypatch):
+    import json
+    import types
+
+    captured = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        content = json.dumps(
+            {
+                "nodes": [
+                    {"id": "c1", "label": "光合作用", "type": "概念"},
+                    {"id": "c2", "label": "叶绿体"},
+                ],
+                "edges": [
+                    {
+                        "source": "c1",
+                        "target": "c2",
+                        "relation": "发生在",
+                        "weight": 0.9,
+                    },
+                    {"source": "c1", "target": "missing", "relation": "悬空"},
+                ],
+            },
+            ensure_ascii=False,
+        )
+        return types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=content)
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        knowledge_graph_service.kg_service.llm.client.chat.completions,
+        "create",
+        fake_create,
+    )
+
+    result = knowledge_graph_service.kg_service.extract_concepts_from_conversation(
+        "测试主题", [{"username": "A", "content": "只有一句对话"}]
+    )
+
+    prompt = captured["messages"][1]["content"]
+    assert "[EMOJI]" not in prompt
+    assert "概念" in prompt and "1-15" in prompt
+    assert [n["label"] for n in result["nodes"]] == ["光合作用", "叶绿体"]
+    assert result["nodes"][1]["type"] == "概念"
+    assert result["edges"] == [
+        {
+            "source": "c1",
+            "target": "c2",
+            "relation": "发生在",
+            "weight": 0.9,
+            "evidence": "",
+        }
+    ]
+
+
+def test_visualization_uses_chinese_categories_and_drops_dirty_nodes():
+    data = knowledge_graph_service.kg_service.generate_graph_visualization_data(
+        {
+            "nodes": [
+                {"id": "c1", "label": "光合作用", "type": "概念"},
+                {"id": "c2", "label": "[EMOJI]", "type": "[EMOJI]"},
+            ],
+            "edges": [{"source": "c1", "target": "c2", "relation": "包含"}],
+        }
+    )
+
+    assert [c["name"] for c in data["categories"]] == ["概念", "人物", "方法", "关系"]
+    assert [n["name"] for n in data["nodes"]] == ["光合作用"]
+    assert data["links"] == []
