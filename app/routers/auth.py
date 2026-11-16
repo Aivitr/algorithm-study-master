@@ -31,9 +31,17 @@ from app.services.password_service import (
     validate_password_strength,
     verify_password,
 )
+from app.services.rate_limit import SlidingWindowLimiter
 from app.services.session_service import SessionContext, create_session, require_session
 
 router = APIRouter()
+
+_login_limiter = SlidingWindowLimiter(limit=10, window_seconds=60)
+_register_limiter = SlidingWindowLimiter(limit=5, window_seconds=600)
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
 def _connect_db():
@@ -67,12 +75,15 @@ def _upgrade_password_hash(user_id: int, password: str) -> None:
 
 @router.post("/api/register")
 async def register(
+    request: Request,
     student_id: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form("student"),
 ):
     """User registration"""
+    if not _register_limiter.allow(_client_ip(request)):
+        return {"status": "error", "message": "注册尝试过于频繁，请稍后再试"}
     student_id = student_id.strip()
     if not re.fullmatch(r"[0-9]+", student_id):
         return {"status": "error", "message": "学号/工号只能包含数字"}
@@ -124,6 +135,8 @@ async def api_login(
 ):
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
+    if not _login_limiter.allow(f"{_client_ip(request)}|{student_id}"):
+        return {"status": "error", "message": "尝试过于频繁，请稍后再试"}
 
     import time
 
