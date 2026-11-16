@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import CREATED, ENDED
-from app.models import Meeting, User
+from app.models import Meeting
 from app.services.llm_service import llm
 from app.services.password_service import (
     hash_password,
@@ -31,7 +31,7 @@ from app.services.password_service import (
     validate_password_strength,
     verify_password,
 )
-from app.services.session_service import create_session
+from app.services.session_service import SessionContext, create_session, require_session
 
 router = APIRouter()
 
@@ -220,20 +220,16 @@ async def login(
     template_path: str = Form(None),  # 模板路径
     student_id: str = Form(None),  # 用 student_id 查找用户，避免中文编码问题
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """
     统一登录接口（兼容前端）
     - 学生端:加入课堂
     - 教师端:创建课堂
+
+    身份只认服务端会话；表单里的 username/student_id/role 仅为兼容旧前端保留。
     """
-    # 验证用户 — 优先用 student_id（纯ASCII，无编码问题）
-    user = None
-    if student_id:
-        user = db.query(User).filter(User.student_id == student_id).first()
-    if not user:
-        user = db.query(User).filter(User.username == username).first()
-    if not user:
-        return {"status": "error", "message": "用户不存在，请先注册"}
+    user = ctx.user
 
     # 课堂码唯一：先查真实课堂，再按生命周期决定能否加入/复用。
     meeting = db.query(Meeting).filter(Meeting.class_code == class_code).first()
