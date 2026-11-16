@@ -19,6 +19,11 @@ from pathlib import Path
 # 迁移 runner 自己管理 schema，禁止 import 期再去补列
 os.environ["DB_AUTO_MIGRATE"] = "0"
 
+# 直接运行 tools/foo.py 时 sys.path[0] 是 tools/，需要补仓库根才能 import app
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from app.core.database import engine  # noqa: E402
 from app.services.migration_service import (  # noqa: E402
     MIGRATIONS_DIR,

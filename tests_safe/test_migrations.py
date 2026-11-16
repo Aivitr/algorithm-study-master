@@ -59,3 +59,20 @@ def test_dry_run_does_not_execute(tmp_path):
     assert result["applied"] == []
     assert result["pending"] == ["001_create.sql"]
     assert not inspect(engine).has_table("demo")
+
+
+def test_migration_cli_can_import_app_from_repo_root():
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "tools/apply_migrations.py", "--help"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--dry-run" in result.stdout
