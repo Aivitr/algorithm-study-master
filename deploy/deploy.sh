@@ -52,8 +52,12 @@ if [ "${CONFIRM_DB_BACKUP:-}" != "1" ]; then
     exit 1
 fi
 
-git_fetch "$BRANCH"
-PREV="$(git rev-parse HEAD)"
+if [ "${SKIP_GIT_FETCH:-}" != "1" ]; then
+    git_fetch "$BRANCH"
+fi
+# workflow 会在调用脚本前先 checkout 新 commit；那时 HEAD 已经不是上一版，
+# 所以由调用方传 PREV_SHA，回滚标签才不会指错。
+PREV="${PREV_SHA:-$(git rev-parse HEAD)}"
 
 if [ "$TARGET_REF" = "$BRANCH" ] || [ "$TARGET_REF" = "origin/$BRANCH" ]; then
     # 本地 main 可能落后或分叉；强制重置到刚 fetch 的远程分支
