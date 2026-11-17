@@ -34,6 +34,7 @@ jobs:
           host: ${{ vars.DEPLOY_HOST }}
           username: ${{ vars.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 30m
           script: |
             set -euo pipefail
             if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
