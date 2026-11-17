@@ -223,7 +223,6 @@ algorithm-study-master/
 ├── tests_safe/                    # 唯一被收集的测试套件
 ├── tools/                         # 一次性 / 运维脚本
 ├── enhanced_bridge_templates/     # 可选：说话人 / 音视频增强的桥接模板
-├── _tmp_agora_token_builder/      # server.py 追加进 sys.path 的小工具
 ├── archive/                       # 已归档的代码与文档（不参与运行，未删除）
 ├── storage/ / uploads/            # 运行时数据（不进版本库）
 └── venv/                          # 本地虚拟环境（不进版本库）

@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "c65f449cb26d4cf1",
-    "length": 257141,
+    "digest": "0e35dd0ad1274264",
+    "length": 292033,
     "status": 200
   },
   "GET /api/active-groups/1": {
@@ -104,8 +104,8 @@
   },
   "GET /api/download-exercises/1": {
     "content_type": "text/plain",
-    "digest": "f3dc6fa34164be05",
-    "length": 519,
+    "digest": "3f820f8f0ecb7e96",
+    "length": 497,
     "status": 200
   },
   "GET /api/emotion-details/1": {
@@ -365,8 +365,8 @@
   },
   "GET /api/research-runtime": {
     "content_type": "application/json",
-    "digest": "2cccae6918f0c0f9",
-    "length": 14392,
+    "digest": "32ee9752c707ab8c",
+    "length": 13931,
     "shape": {
       "config": {
         "cache_root": "str",
@@ -854,22 +854,22 @@
   },
   "GET /api/voiceprint/users": {
     "content_type": "application/json",
-    "digest": "6194367342eed75c",
-    "length": 66,
+    "digest": "e472f683f0bd2156",
+    "length": 41,
     "shape": {
       "count": "int",
       "status": "str",
       "users": [
-        "list[2]",
-        "str"
+        "list[0]",
+        null
       ]
     },
     "status": 200
   },
   "GET /pcm-processor.js": {
     "content_type": "application/javascript",
-    "digest": "8bcd40780c6091a8",
-    "length": 1623,
+    "digest": "88fefc808b2e1e73",
+    "length": 1580,
     "status": 200
   }
 }
