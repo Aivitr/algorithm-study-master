@@ -6402,6 +6402,10 @@ new Vue({
                 this.showAlert('课堂尚未开始，暂时没有完整 GCA 分析', 'info', '课堂待开始');
                 return;
             }
+            if (status === 'ended') {
+                this.showAlert('课堂已经结束，可直接查看当前页面中的整节课 GCA 协作总结', 'info', '课堂已结束');
+                return;
+            }
 
             this.closeTeacherDashboard();
             this.selectedClass = null;
@@ -6411,19 +6415,6 @@ new Vue({
                 if (String(this.meetingId) !== String(targetMeetingId) || this.pageState !== 'classroom') {
                     return;
                 }
-            } else if (status === 'ended') {
-                // 已结束课堂只进入回顾界面：不占用课堂锁，也不连接音视频或 WebSocket。
-                this.viewingGroupId = targetMeetingId;
-                this.meetingId = targetMeetingId;
-                this.meetingStatus = 'ended';
-                this.meetingStartedAt = classroom.started_at || classroom.start_time || null;
-                this.meetingEndedAt = classroom.ended_at || null;
-                this.currentTopic = this.displayTopicText(classroom.topic || classroom.group_name, classroom.class_code);
-                this.classForm.class_code = classroom.class_code || '';
-                this.joined = true;
-                this.pageState = 'classroom';
-                this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
-                await this.loadClassroomData(targetMeetingId);
             } else {
                 this.showAlert('当前课堂状态无法进入', 'info', '进入失败');
                 return;

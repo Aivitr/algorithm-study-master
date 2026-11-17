@@ -23,7 +23,8 @@ def test_teacher_dashboard_markup_and_endpoint_are_wired():
     assert "整节课 GCA 协作总结" in html
     assert "进入课堂查看具体 GCA 分析" in html
     assert "enterClassroomForGcaAnalysis" in html
-    assert "已结束课堂只进入回顾界面" in javascript
+    assert "课堂已经结束，可直接查看当前页面中的整节课 GCA 协作总结" in javascript
+    assert "已结束课堂只进入回顾界面" not in javascript
     assert "/api/agents/group-analysis" not in javascript
 
 
