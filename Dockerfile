@@ -7,6 +7,10 @@
 #   server.py  →  FastAPI app  →  uvicorn（默认 8000）
 # ============================================================================
 
+ARG UV_VERSION=0.13.8
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
 FROM python:3.12-slim AS dev
 
 # 与开发机 venv 同一大版本（Python 3.12）；版本号写死，不要改。
@@ -15,21 +19,26 @@ FROM python:3.12-slim AS dev
 # 0. 可调参数
 # ---------------------------------------------------------------------------
 
-# pip 索引，默认清华镜像。换个网络环境时覆盖：
-#   docker build --build-arg PIP_INDEX_URL=https://pypi.org/simple .
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+# uv 索引，默认清华镜像。换个网络环境时覆盖：
+#   docker build --build-arg UV_INDEX_URL=https://pypi.org/simple .
+ARG UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG DEBIAN_MIRROR=http://deb.debian.org/debian
-
-# PyTorch 单独一套索引：CPU-only 轮子只在 pytorch.org 上，PyPI 上是 CUDA 版。
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=120 \
+    UV_CONCURRENT_DOWNLOADS=4 \
+    UV_CONCURRENT_BUILDS=2 \
+    UV_INDEX_URL=${UV_INDEX_URL} \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     TZ=Asia/Shanghai
+
+# uv 官方静态二进制；不在镜像里再装一遍 pip。
+COPY --from=uv /uv /uvx /bin/
 
 # ---------------------------------------------------------------------------
 # 1. 系统依赖
@@ -73,61 +82,30 @@ RUN sed -i "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.
  && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 2. Python 依赖（分三层，为的是让改代码不必重装依赖）
+# 2. Python 依赖（uv + uv.lock）
 # ---------------------------------------------------------------------------
 #
-# 三层的顺序即缓存粒度，从"几乎不变"到"常变"：
-#   层 A  torch 三件套  —— 几百 MB，几乎不动
-#   层 B  其余依赖
-#   层 C  代码          —— 每次改动都变，所以放最后
-#
-# 依赖清单的唯一来源是 requirements-dev.txt（开发镜像，测试工具也要有；
-# 它的首行是 `-r requirements.txt`）。这里既不抄一份 torch 名单，也不抄一份
-# pytest/httpx —— 都由 tools/split_requirements.py 现算，它会跟随 `-r` 引用
-# 把被引用的清单展开进来。
-#
+# 先只拷依赖清单并同步，代码放在最后一层：改代码不会重装 torch。
 # venv 放 /opt/venv 而**不是** /app/venv：docker-compose 会把仓库目录
-# 挂载到 /app，那样一来 /app 下的任何东西都会被宿主目录盖掉，
-# 包括刚装好的依赖。这是容器化里最常见的"装了却找不到"。
-
-ENV VIRTUAL_ENV=/opt/venv
-RUN python -m venv "$VIRTUAL_ENV"
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-
-# cython 先装：insightface 的 setup.py 在 build 期 import 它
-RUN pip install --index-url "$PIP_INDEX_URL" "cython<4"
-
-# ARG 的可见范围到 stage 末尾，但 ENV 会一直传到运行时；这里写进 ENV，
-# 后续的 pip 就都不用再重复 --index-url。
-ENV PIP_INDEX_URL="$PIP_INDEX_URL"
-
-# 两份清单都要 COPY：requirements-dev.txt 靠 `-r requirements.txt` 引用后者，
-# 只拷一份的话展开会失败（而它失败的方式是**警告后跳过**，于是 torch 静默消失）。
-COPY requirements.txt requirements-dev.txt tools/split_requirements.py /tmp/build/
-
-# 层 A：torch 三件套，走 CPU 索引。
+# 挂载到 /app，那样一来 /app 下的任何东西都会被宿主目录盖掉。
 #
-# 主索引必须是 pytorch.org，否则 torch 会被镜像里的 CUDA 版抢先命中；
-# torch 自己的纯 Python 依赖（sympy / networkx / jinja2 / fsspec 之类）
-# pypi 镜像上不全，得靠 --extra-index-url 回落。
-RUN python /tmp/build/split_requirements.py \
-        /tmp/build/requirements-dev.txt /tmp/req-heavy.txt /tmp/req-light.txt \
- && test -s /tmp/req-heavy.txt \
- && pip install --index-url "$TORCH_INDEX_URL" --extra-index-url "$PIP_INDEX_URL" \
-        -r /tmp/req-heavy.txt
-
-# 层 B：其余全部。必须在层 A 之后——insightface / pyannote.audio / resemblyzer
-# 在安装期就要 import torch 来构建或校验。
+# `--frozen` 禁止解析新版本，构建结果由 uv.lock 唯一决定。
+# `--group dev` 安装 pytest/httpx（开发镜像需要）；运行镜像可去掉。
+# `cython<4` 已在 pyproject 的运行时依赖里，insightface 构建期需要它。
 #
-# 刻意**不**跑 `pip check`：这套栈存在版本重叠（funasr / insightface / pyannote
-# 各自钉住不同版本的 numpy、protobuf、onnx），它会一直报一堆。
-RUN pip install -r /tmp/req-light.txt
+# shortcut: GPU 构建仍依赖旧的 TORCH_INDEX_URL 流程；uv.lock 冻结的是 CPU
+# 轮子，需要 GPU 时单独加 lock/index，不要直接改这里的 CPU index。
+
+WORKDIR /app
+COPY pyproject.toml uv.lock .python-version ./
+RUN uv sync --frozen --no-progress --no-install-project --group dev \
+ && rm -rf /root/.cache/uv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # ---------------------------------------------------------------------------
 # 3. 应用代码
 # ---------------------------------------------------------------------------
 
-WORKDIR /app
 COPY . .
 
 # 构建期冒烟：整条导入链跑一遍。

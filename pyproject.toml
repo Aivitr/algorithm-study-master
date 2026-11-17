@@ -44,6 +44,8 @@ dependencies = [
     "alibabacloud-tea-openapi",
     "alibabacloud-facebody20191230",
     "agora-token-builder==1.0.0",
+    # insightface 的 setup.py 在构建期 import Cython；必须随依赖一起装
+    "cython<4",
     # webrtcvad 在模块顶层 import pkg_resources；setuptools 81 起移除了它
     "setuptools<81",
 ]
