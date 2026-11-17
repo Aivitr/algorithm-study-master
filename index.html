@@ -2311,12 +2311,12 @@
                     </button>
                     <button v-if="mediaMode !== 'none'" @click="stopVideoShare" :disabled="mediaSwitching"
                             class="status-badge text-white shadow-2xl"
-                            style="pointer-events:auto; background: rgba(220,38,38,0.85);">
+                            style="pointer-events:auto; background: var(--danger-bg);">
                         <i class="fas fa-stop-circle mr-2"></i>
                         <span>停止分享</span>
                     </button>
                 </template>
-                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: rgba(217,119,6,0.9);">
+                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: var(--warning-bg);">
                     <i class="fas fa-eye mr-2"></i>
                     <span>小组查看模式 · 不发布本地音视频</span>
                 </div>
@@ -2329,7 +2329,7 @@
                 <button v-if="currentUser && currentUser.role !== 'teacher'"
                         @click="endClass"
                         class="classroom-mobile-only status-badge text-white shadow-2xl"
-                        style="pointer-events:auto; background: rgba(220,38,38,0.85);">
+                        style="pointer-events:auto; background: var(--danger-bg);">
                     <i class="fas fa-door-open mr-2"></i>
                     <span>退出课堂</span>
                 </button>
@@ -2344,7 +2344,7 @@
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
                     class="classroom-end-btn absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
-                    style="background: rgba(220,38,38,0.85);">
+                    style="background: var(--danger-bg);">
                 <i class="fas fa-stop-circle mr-2"></i>结束课堂
             </button>
 
