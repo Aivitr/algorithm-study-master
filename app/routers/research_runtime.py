@@ -12,7 +12,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Depends, Form
 
 from app.core.config import (
     apply_research_runtime_config,
@@ -21,6 +21,7 @@ from app.core.config import (
     persist_research_runtime_config,
 )
 from app.services.research_runtime import research_runtime
+from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
 
@@ -62,7 +63,10 @@ async def update_research_runtime_config(
     enabled: Optional[str] = Form(None),
     runtime_mode: Optional[str] = Form(None),
     persist: Optional[str] = Form("true"),
+    ctx: SessionContext = Depends(require_session),
 ):
+    if ctx.user.role != "teacher":
+        return {"status": "error", "message": "只有教师可以修改运行时配置"}
     try:
         enabled_value = _as_bool(enabled, deployment_profile.strip().lower() == "enhanced")
         persist_value = _as_bool(persist, True)
@@ -93,7 +97,11 @@ async def update_research_runtime_config(
 
 
 @router.post("/api/research-runtime/prepare-layout")
-async def prepare_research_runtime_layout():
+async def prepare_research_runtime_layout(
+    ctx: SessionContext = Depends(require_session),
+):
+    if ctx.user.role != "teacher":
+        return {"status": "error", "message": "只有教师可以准备运行时目录"}
     try:
         paths = ensure_research_directories()
         _reset_research_runtime_state()

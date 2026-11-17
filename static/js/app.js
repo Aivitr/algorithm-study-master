@@ -39,6 +39,13 @@ axios.interceptors.response.use(
         } else if (error.response) {
             console.error('响应状态:', error.response.status);
             console.error('响应数据:', error.response.data);
+            if (error.response.status === 401) {
+                const app = document.getElementById('app');
+                const vm = app && app.__vue__;
+                if (vm && vm.sessionToken) {
+                    vm.invalidateSession('登录已失效，请重新登录');
+                }
+            }
         } else {
             console.error('网络连接失败，请检查服务器是否启动');
         }
@@ -189,6 +196,8 @@ new Vue({
         currentTopic: '', goals: [], msgs: [], currentRelevance: null, hint: null,
         ws: null, wsHeartbeatTimer: null, recorder: null, audioCtx: null, analyser: null, dataArray: null, volumeLevel: 0, silenceStart: null, isSpeaking: false, speakingStartTime: null, statusText: 'Listening...', recordingStartTime: null,
         localMediaStream: null,
+        mediaMode: 'none',           // camera / screen / none
+        mediaSwitching: false,
         // ===== 声网 Agora SDK (替代 WebRTC Mesh) =====
         agoraAppId: 'd3144900be6843d8a8c14271f1da8cdb',
         agoraClient: null,           // AgoraRTCClient 实例
@@ -203,6 +212,7 @@ new Vue({
         realtimeSubtitle: null, realtimeSubtitleTimer: null, realtimeSubtitleLastAt: 0,
         asrWs: null, audioProcessor: null, audioSource: null,
         asrWsSeq: 0,
+        asrUnavailable: false,
         asrReconnectTimer: null,
         asrDroppedFrames: 0,
         asrHealthTimer: null,
@@ -1754,19 +1764,22 @@ new Vue({
         invalidateSession(message) {
             if (this.sessionInvalidated) return;
             this.sessionInvalidated = true;
+            // 先切页再清 currentUser；大厅模板会直接读 currentUser.role，
+            // 反过来会在某些渲染时机里读到 null。
+            const wasClassroom = this.pageState === 'classroom';
+            this.pageState = 'login';
             this.stopSessionHeartbeat();
             this.sessionToken = null;
             this.applySessionToken();
             this.clearPersistedSession();
             this.releaseClassroomLock();
-            if (this.pageState === 'classroom') {
+            if (wasClassroom) {
                 this._cleanupClassroom();
             }
             this.currentUser = null;
             this.loginForm = { student_id: '', password: '' };
             this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
             this.closeClassModal();
-            this.pageState = 'login';
             this.showAlert(message, 'warning', '登录状态已失效');
         },
         releaseSession() {
@@ -2024,15 +2037,17 @@ new Vue({
             } catch(e) { this.showAlert('进入课堂失败', 'error', '错误'); this.loading = false; }
         },
         // 可靠绑定本地视频流（使用 getElementById 避免 Vue ref 在 v-for 内的数组问题）
-        _bindLocalVideo() {
+        _bindLocalVideo(force = false) {
             if (!this.localMediaStream) return;
             const tryBind = (attempt) => {
                 const videoEl = document.getElementById('localVideo');
                 if (videoEl) {
-                    if (videoEl.srcObject !== this.localMediaStream) {
+                    if (force || videoEl.srcObject !== this.localMediaStream) {
                         videoEl.srcObject = this.localMediaStream;
                         console.log('✅ 本地视频已绑定 (attempt ' + attempt + ')');
                     }
+                    const playResult = videoEl.play();
+                    if (playResult && playResult.catch) playResult.catch(() => {});
                 } else if (attempt < 20) {
                     setTimeout(() => tryBind(attempt + 1), 300);
                 } else {
@@ -2076,7 +2091,10 @@ new Vue({
                 try {
                     const micStream = await navigator.mediaDevices.getUserMedia({audio: true});
                     if (screenSharing) {
-                        stream.getAudioTracks().forEach(track => stream.removeTrack(track));
+                        stream.getAudioTracks().forEach(track => {
+                            stream.removeTrack(track);
+                            track.stop();
+                        });
                     }
                     micStream.getAudioTracks().forEach(track => stream.addTrack(track));
                     console.log('🎤 已接入麦克风音轨');
@@ -2086,43 +2104,12 @@ new Vue({
                 }
             }
             this.localMediaStream = stream;
+            this.mediaMode = screenSharing ? 'screen' : (stream.getVideoTracks().length ? 'camera' : 'none');
+            this._watchVideoTrack(stream.getVideoTracks()[0]);
             // 使用 getElementById 绑定（更可靠）
             this._bindLocalVideo();
             // 启动本地麦克风活跃检测
             this.startLocalAudioAnalysis();
-            // 降低视频帧率录制，减少CPU开销（5fps足够做表情识别）
-            const lowFpsStream = new MediaStream([
-                ...stream.getAudioTracks(),
-                ...stream.getVideoTracks()
-            ]);
-            this.recorder = new MediaRecorder(lowFpsStream, {
-                mimeType: 'video/webm',
-                videoBitsPerSecond: 500000
-            });
-            this.recorder.ondataavailable = e => {
-                console.log('🎤 ondataavailable 触发:', {
-                    size: e.data.size,
-                    isPaused: this.isPaused,
-                    wsExists: !!this.ws,
-                    wsState: this.ws?.readyState
-                });
-
-                if(this.isPaused) {
-                    console.warn('⏸️ 当前已暂停，忽略录音片段');
-                    return;
-                }
-                if(e.data.size > 0 && this.ws && this.ws.readyState==1) {
-                    this.ws.send(e.data);
-                    console.log("📤 发送切片:", e.data.size);
-                } else {
-                    console.warn('⚠️ 音频数据未发送:', {
-                        isPaused: this.isPaused,
-                        dataSize: e.data.size,
-                        wsExists: !!this.ws,
-                        wsState: this.ws?.readyState
-                    });
-                }
-            };
             if (stream.getAudioTracks().length) {
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = this.audioCtx.createMediaStreamSource(stream); this.analyser = this.audioCtx.createAnalyser(); this.analyser.fftSize = 512; source.connect(this.analyser); this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
@@ -2138,7 +2125,7 @@ new Vue({
                 this.audioProcessor.connect(this.audioCtx.destination);
 
                 this.audioProcessor.port.onmessage = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
                         const MAX_BUFFERED_BYTES = 256 * 1024;
                         if ((this.asrWs.bufferedAmount || 0) > MAX_BUFFERED_BYTES) {
@@ -2160,7 +2147,7 @@ new Vue({
                 this.audioSource.connect(this.audioProcessor);
                 this.audioProcessor.connect(this.audioCtx.destination);
                 this.audioProcessor.onaudioprocess = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     const inputData = e.inputBuffer.getChannelData(0);
                     const sampleRate = this.audioCtx.sampleRate;
                     const targetRate = 16000;
@@ -2191,7 +2178,7 @@ new Vue({
             }
             // --- 结束新增 ---
 
-            this.recorder.start(); this.recordingStartTime = Date.now(); this.detectVolume();
+            this._startRecorder(stream); this.detectVolume();
             } catch (e) {
                 const name = (e && e.name) || '';
                 let message = '无法开启摄像头/麦克风';
@@ -2220,9 +2207,169 @@ new Vue({
                     try { this.audioCtx.close(); } catch (err) {}
                     this.audioCtx = null;
                 }
+                this.mediaMode = 'none';
                 this.showAlert(message, 'error', '无法开启音视频');
             } finally {
                 this._startingMedia = false;
+            }
+        },
+        _startRecorder(stream) {
+            if (this.recorder && this.recorder.state !== 'inactive') {
+                try { this.recorder.stop(); } catch (e) {}
+            }
+            this.recorder = null;
+            if (!stream) return;
+            const tracks = [...stream.getAudioTracks(), ...stream.getVideoTracks()];
+            if (!tracks.length) return;
+            try {
+                this.recorder = new MediaRecorder(new MediaStream(tracks), {
+                    mimeType: 'video/webm',
+                    videoBitsPerSecond: 500000
+                });
+                this.recorder.ondataavailable = e => {
+                    console.log('🎤 ondataavailable 触发:', {
+                        size: e.data.size,
+                        isPaused: this.isPaused,
+                        wsExists: !!this.ws,
+                        wsState: this.ws?.readyState
+                    });
+
+                    if(this.isPaused) {
+                        console.warn('⏸️ 当前已暂停，忽略录音片段');
+                        return;
+                    }
+                    if(e.data.size > 0 && this.ws && this.ws.readyState==1) {
+                        this.ws.send(e.data);
+                        console.log("📤 发送切片:", e.data.size);
+                    } else {
+                        console.warn('⚠️ 音频数据未发送:', {
+                            isPaused: this.isPaused,
+                            dataSize: e.data.size,
+                            wsExists: !!this.ws,
+                            wsState: this.ws?.readyState
+                        });
+                    }
+                };
+                this.recorder.start();
+                if (this.isPaused) {
+                    try { this.recorder.pause(); } catch (e) {}
+                }
+                this.recordingStartTime = Date.now();
+            } catch (e) {
+                console.warn('⚠️ 录音初始化失败:', e);
+                this.recorder = null;
+                if (!this._recorderWarned) {
+                    this._recorderWarned = true;
+                    this.showClassroomHint('⚠️ 录制初始化失败，分享可继续但不会保存录像', 8000, { force: true });
+                }
+            }
+        },
+        async startScreenShare() {
+            return this._applyMediaMode('screen');
+        },
+        async startCameraShare() {
+            return this._applyMediaMode('camera');
+        },
+        async switchVideoSource() {
+            if (this.mediaSwitching || this.mediaMode === 'none') return;
+            return this._applyMediaMode(this.mediaMode === 'screen' ? 'camera' : 'screen');
+        },
+        async stopVideoShare() {
+            if (this.mediaSwitching || this.mediaMode === 'none') return;
+            await this._dropLocalVideo(false);
+        },
+        async _applyMediaMode(mode) {
+            if (!['screen', 'camera'].includes(mode)) return;
+            if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+            if (this.mediaSwitching || mode === this.mediaMode) return;
+            if (!this.localMediaStream) {
+                this.showAlert('媒体尚未初始化，请重新进入课堂', 'warning', '无法切换');
+                return;
+            }
+            this.mediaSwitching = true;
+            let acquired = null;
+            try {
+                acquired = mode === 'screen'
+                    ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+                    : await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const track = acquired.getVideoTracks()[0];
+                if (!track) throw new Error('未获取到视频轨道');
+                await this._replaceLocalVideoTrack(track, mode);
+            } catch (e) {
+                if (acquired) acquired.getTracks().forEach(t => t.stop());
+                if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) {
+                    if (mode === 'camera') {
+                        this.showAlert('摄像头权限被拒绝，请在浏览器地址栏允许后重试。', 'warning', '无法打开摄像头');
+                    }
+                    return;
+                }
+                this.showAlert('切换分享失败：' + ((e && e.message) || e), 'error', '切换分享');
+            } finally {
+                this.mediaSwitching = false;
+            }
+        },
+        async _replaceLocalVideoTrack(track, mode) {
+            const oldTrack = this.localMediaStream.getVideoTracks()[0];
+            if (oldTrack && oldTrack !== track) {
+                oldTrack.removeEventListener('ended', this._onLocalVideoEnded);
+                this.localMediaStream.removeTrack(oldTrack);
+                oldTrack.stop();
+            }
+            this._watchVideoTrack(track);
+            if (!this.localMediaStream.getVideoTracks().includes(track)) {
+                this.localMediaStream.addTrack(track);
+            }
+            this.mediaMode = mode;
+            this.statusText = mode === 'screen' ? 'Screen Sharing...' : 'Listening...';
+            this._bindLocalVideo(true);
+            this._startRecorder(this.localMediaStream);
+            await this._replaceAgoraVideoTrack(track);
+            this.showClassroomHint(mode === 'screen' ? '已切换为屏幕共享' : '已切换为摄像头', 3000);
+        },
+        async _dropLocalVideo(silent) {
+            const track = this.localMediaStream && this.localMediaStream.getVideoTracks()[0];
+            if (track) {
+                track.removeEventListener('ended', this._onLocalVideoEnded);
+                this.localMediaStream.removeTrack(track);
+                track.stop();
+            }
+            this.mediaMode = 'none';
+            if (!this.isPaused) this.statusText = 'Listening...';
+            this._bindLocalVideo(false);
+            if (this.localMediaStream) this._startRecorder(this.localMediaStream);
+            await this._replaceAgoraVideoTrack(null);
+            if (!silent) this.showClassroomHint('已停止视频分享', 3000);
+        },
+        _watchVideoTrack(track) {
+            if (!track) return;
+            track.removeEventListener('ended', this._onLocalVideoEnded);
+            track.addEventListener('ended', this._onLocalVideoEnded);
+        },
+        _onLocalVideoEnded() {
+            if (this.mediaMode === 'none') return;
+            this._dropLocalVideo(true);
+            this.showClassroomHint('分享已结束，可重新共享屏幕或打开摄像头', 7000, { force: true });
+        },
+        async _replaceAgoraVideoTrack(mediaStreamTrack) {
+            if (this.agoraLocalVideoTrack) {
+                try {
+                    if (this.agoraClient) await this.agoraClient.unpublish(this.agoraLocalVideoTrack);
+                } catch (e) {
+                    console.warn('Agora 取消发布本地视频失败:', e);
+                }
+                try { this.agoraLocalVideoTrack.close(); } catch (e) {}
+                this.agoraLocalVideoTrack = null;
+            }
+            if (!mediaStreamTrack || !this.agoraClient) return;
+            try {
+                this.agoraLocalVideoTrack = AgoraRTC.createCustomVideoTrack({
+                    mediaStreamTrack
+                });
+                await this.agoraClient.publish(this.agoraLocalVideoTrack);
+                console.log('✅ Agora: 本地视频已切换');
+            } catch (e) {
+                console.warn('Agora 发布本地视频失败:', e);
+                this.agoraLocalVideoTrack = null;
             }
         },
         detectVolume() {
@@ -2304,9 +2451,14 @@ new Vue({
             // 停止录制和媒体
             if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop();
             if (this.localMediaStream) {
+                const videoTrack = this.localMediaStream.getVideoTracks()[0];
+                if (videoTrack) videoTrack.removeEventListener('ended', this._onLocalVideoEnded);
                 this.localMediaStream.getTracks().forEach(t => t.stop());
                 this.localMediaStream = null;
             }
+            this.mediaMode = 'none';
+            this.mediaSwitching = false;
+            this.asrUnavailable = false;
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
                 this.agoraLocalVideoTrack.stop();
@@ -2506,6 +2658,7 @@ new Vue({
                 if (this.asrWs !== ws || this.asrWsSeq !== seq) return;
                 console.log('✅ 实时ASR WebSocket已连接');
                 this._asrErrorShown = false;
+                this.asrUnavailable = false;
                 this.asrLastMessageAt = 0;
                 if (this.asrHealthTimer) clearTimeout(this.asrHealthTimer);
                 this.asrHealthTimer = setTimeout(() => {
@@ -2522,12 +2675,14 @@ new Vue({
                 let d = JSON.parse(e.data);
                 if (d.type === 'asr_partial') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, false);
                     this.upsertAsrPartialToChat(d.username, d.text, d.asr_sentence_id);
                     return;
                 } else if (d.type === 'asr_final') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, true);
                     this.appendAsrFinalToChat(d.username, d.text, d.asr_sentence_id);
@@ -2539,11 +2694,13 @@ new Vue({
                 } else if (d.type === 'asr_error') {
                     console.error('❌ 实时ASR不可用:', d.message || d);
                     this.asrLastMessageAt = 0;
+                    this.asrUnavailable = true;
                     if (!this._asrErrorShown) {
                         this._asrErrorShown = true;
                         this.showAlert(d.message || '实时语音转文字暂时不可用', 'warning', 'ASR连接异常');
                     }
                 } else if (d.type === 'asr_status') {
+                    this.asrUnavailable = false;
                     console.log('ℹ️ 实时ASR状态:', d.message || d);
                 } else if (d.type === 'asr_gate_status') {
                     if (d.status === 'passed') {
@@ -4555,7 +4712,14 @@ new Vue({
                 videoEl.srcObject.getTracks().forEach(track => track.stop());
                 videoEl.srcObject = null;
             }
+            if (this.localMediaStream) {
+                const videoTrack = this.localMediaStream.getVideoTracks()[0];
+                if (videoTrack) videoTrack.removeEventListener('ended', this._onLocalVideoEnded);
+            }
             this.localMediaStream = null;
+            this.mediaMode = 'none';
+            this.mediaSwitching = false;
+            this.asrUnavailable = false;
 
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
@@ -6841,8 +7005,20 @@ new Vue({
             }
         },
         // 下载习题
-        downloadExercises(reportId) {
-            window.open(`/api/download-exercises/${reportId}`, '_blank');
+        async downloadExercises(reportId) {
+            try {
+                const res = await axios.get(`/api/download-exercises/${reportId}`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `exercises_${reportId}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                this.showAlert('下载习题失败: ' + (e.message || e), 'error', '下载失败');
+            }
         },
         // 格式化日期
         formatDate(isoStr) {

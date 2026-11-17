@@ -14,6 +14,8 @@
             --success: #4BAA7A;
             --warning: #D9A441;
             --danger: #D66565;
+            --danger-bg: rgba(220,38,38,0.85);
+            --warning-bg: rgba(217,119,6,0.9);
             --info: #4B86C5;
             
             /* 渐变 */

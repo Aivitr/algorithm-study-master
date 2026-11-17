@@ -49,7 +49,11 @@ from app.realtime.state import (
 )
 from app.realtime.stream import process_user_stream_generator
 from app.services.llm_service import llm
-from app.services.session_service import websocket_context
+from app.services.session_service import (
+    SessionContext,
+    require_session,
+    websocket_context,
+)
 
 router = APIRouter()
 
@@ -168,14 +172,17 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                 # 阿里云会话收到音频后立即启动；实时转文字不使用声纹门控。
                 if not session_started:
                     print(f"[ASR] 启动阿里云实时会话，声纹门控已关闭: {username}")
-                    success = await asr_manager.start_session(username, meeting_id, websocket)
+                    success, asr_error = await asr_manager.start_session(
+                        username, meeting_id, websocket
+                    )
                     if not success:
                         print("[ASR] 阿里云会话启动失败，继续接收但不转发")
                         try:
                             await websocket.send_json(
                                 {
                                     "type": "asr_error",
-                                    "message": "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置",
+                                    "message": asr_error
+                                    or "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置",
                                 }
                             )
                         except Exception:
@@ -356,7 +363,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
 
 
 @router.post("/api/ai-tutor")
-async def ai_tutor(question: str = Form(...)):
+async def ai_tutor(question: str = Form(...), ctx: SessionContext = Depends(require_session)):
     """
     AI导师接口
     学生提问，返回AI解答
@@ -390,8 +397,11 @@ async def browser_asr_final(
     meeting_id: int = Form(...),
     username: str = Form(...),
     text: str = Form(...),
+    ctx: SessionContext = Depends(require_session),
 ):
     """浏览器原生语音识别兜底：将最终句子回写到课堂流和报告链路"""
+    if username not in {ctx.user.student_id, ctx.user.username}:
+        return {"status": "error", "message": "只能回写自己的识别结果"}
     clean_text = str(text or "").strip()
     if not clean_text:
         return {"status": "ignored", "message": "empty text"}
@@ -417,9 +427,18 @@ async def browser_asr_final(
 
 
 @router.post("/api/check-silence")
-async def check_silence(meeting_id: int = Form(...), db: Session = Depends(get_db)):
+async def check_silence(
+    meeting_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """检查课堂是否沉默超过2分钟，如果是则生成话题建议"""
     try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以触发检查"}
         if not manager.is_group_silent(meeting_id, silence_seconds=120):
             return {"status": "ok", "silent": False}
 
@@ -466,12 +485,18 @@ async def check_silence(meeting_id: int = Form(...), db: Session = Depends(get_d
 
 
 @router.post("/api/check-quiet-members")
-async def check_quiet_members(meeting_id: int = Form(...), db: Session = Depends(get_db)):
+async def check_quiet_members(
+    meeting_id: int = Form(...),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """检查发言少的成员并推送个性化话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以触发检查"}
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
@@ -514,7 +539,11 @@ async def check_quiet_members(meeting_id: int = Form(...), db: Session = Depends
 
 
 @router.post("/api/ai-tutor-stream")
-async def ai_tutor_stream(question: str = Form(...), history: str = Form(default="[]")):
+async def ai_tutor_stream(
+    question: str = Form(...),
+    history: str = Form(default="[]"),
+    ctx: SessionContext = Depends(require_session),
+):
     """
     AI导师流式接口 - SSE
     """

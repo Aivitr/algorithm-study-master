@@ -23,24 +23,73 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import CREATED, ENDED
-from app.models import Meeting, User
+from app.models import Meeting
 from app.services.llm_service import llm
-from app.services.session_service import create_session
+from app.services.password_service import (
+    hash_password,
+    is_legacy_password,
+    validate_password_strength,
+    verify_password,
+)
+from app.services.rate_limit import SlidingWindowLimiter
+from app.services.session_service import SessionContext, create_session, require_session
 
 router = APIRouter()
+
+_login_limiter = SlidingWindowLimiter(limit=10, window_seconds=60)
+_register_limiter = SlidingWindowLimiter(limit=5, window_seconds=600)
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _connect_db():
+    import pymssql
+
+    return pymssql.connect(
+        server=os.getenv("DB_HOST", ""),
+        port=int(os.getenv("DB_PORT", "3433")),
+        user=os.getenv("DB_USER", ""),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", ""),
+        charset="utf8",
+        timeout=10,
+        login_timeout=10,
+    )
+
+
+def _upgrade_password_hash(user_id: int, password: str) -> None:
+    conn = _connect_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET password = %s WHERE id = %s",
+            (hash_password(password), user_id),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 @router.post("/api/register")
 async def register(
+    request: Request,
     student_id: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form("student"),
 ):
     """User registration"""
+    if not _register_limiter.allow(_client_ip(request)):
+        return {"status": "error", "message": "注册尝试过于频繁，请稍后再试"}
     student_id = student_id.strip()
     if not re.fullmatch(r"[0-9]+", student_id):
         return {"status": "error", "message": "学号/工号只能包含数字"}
+    password_error = validate_password_strength(password)
+    if password_error:
+        return {"status": "error", "message": password_error}
 
     try:
         print(f"[NOTE] Register request - ID: {student_id}, Role: {role}")
@@ -50,23 +99,14 @@ async def register(
     import pymssql
 
     try:
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset="utf8",
-            timeout=10,
-            login_timeout=10,
-        )
+        conn = _connect_db()
         cursor = conn.cursor()
 
         # Insert user
         print("[SAVE] Executing INSERT...")
         cursor.execute(
             "INSERT INTO users (student_id, username, password, role, created_at) VALUES (%s, %s, %s, %s, GETDATE())",
-            (student_id, username, password, role),
+            (student_id, username, hash_password(password), role),
         )
         conn.commit()
         cursor.close()
@@ -95,25 +135,16 @@ async def api_login(
 ):
     """User login"""
     print(f"[LOGIN] Login request - ID: {student_id}")
+    if not _login_limiter.allow(f"{_client_ip(request)}|{student_id}"):
+        return {"status": "error", "message": "尝试过于频繁，请稍后再试"}
 
     import time
-
-    import pymssql
 
     try:
         start_time = time.time()
         print("[DB] Connecting...")
 
-        conn = pymssql.connect(
-            server=os.getenv("DB_HOST", ""),
-            port=int(os.getenv("DB_PORT", "3433")),
-            user=os.getenv("DB_USER", ""),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", ""),
-            charset="utf8",
-            timeout=10,
-            login_timeout=10,
-        )
+        conn = _connect_db()
         print(f"[OK] Connected: {time.time() - start_time:.2f}s")
 
         cursor = conn.cursor(as_dict=True)
@@ -134,9 +165,16 @@ async def api_login(
             print(f"[ERROR] User not found: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
 
-        if user["password"] != password:
+        if not verify_password(password, user["password"]):
             print(f"[ERROR] Wrong password: {student_id}")
             return {"status": "error", "message": "学号或密码错误"}
+
+        if is_legacy_password(user["password"]):
+            try:
+                _upgrade_password_hash(int(user["id"]), password)
+                print(f"[OK] 旧密码已升级为哈希: {student_id}")
+            except Exception as exc:
+                print(f"[WARN] 旧密码哈希升级失败: {exc}")
 
         total_time = time.time() - start_time
         print(f"[OK] Login success: {user['username']} ({user['role']}) - Time: {total_time:.2f}s")
@@ -195,20 +233,16 @@ async def login(
     template_path: str = Form(None),  # 模板路径
     student_id: str = Form(None),  # 用 student_id 查找用户，避免中文编码问题
     db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """
     统一登录接口（兼容前端）
     - 学生端:加入课堂
     - 教师端:创建课堂
+
+    身份只认服务端会话；表单里的 username/student_id/role 仅为兼容旧前端保留。
     """
-    # 验证用户 — 优先用 student_id（纯ASCII，无编码问题）
-    user = None
-    if student_id:
-        user = db.query(User).filter(User.student_id == student_id).first()
-    if not user:
-        user = db.query(User).filter(User.username == username).first()
-    if not user:
-        return {"status": "error", "message": "用户不存在，请先注册"}
+    user = ctx.user
 
     # 课堂码唯一：先查真实课堂，再按生命周期决定能否加入/复用。
     meeting = db.query(Meeting).filter(Meeting.class_code == class_code).first()

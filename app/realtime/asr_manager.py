@@ -840,8 +840,10 @@ class ASRSessionManager:
             self.sessions[key] = transcriber
             self.session_websockets[key] = client_ws
             print(f"[ASR] 实时会话已启动: {username}@meeting{meeting_id}")
-        else:
-            print(f"[ASR ERROR] 会话启动失败: {username}@meeting{meeting_id}")
+            return True, ""
+        error = getattr(transcriber, "last_error", "") or "阿里云实时转写会话启动失败"
+        print(f"[ASR ERROR] 会话启动失败: {username}@meeting{meeting_id}: {error}")
+        return False, error
 
         return success
 

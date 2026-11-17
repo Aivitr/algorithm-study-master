@@ -28,13 +28,24 @@ from app.core.database import get_db
 from app.core.meeting_state import CREATED
 from app.models import Exercise, LearningReport, Meeting, Transcript, User
 from app.services.class_stats_service import ClassStatsService
+from app.services.session_service import SessionContext, require_session
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_session)])
+
+
+def _can_view_teacher(ctx: SessionContext, teacher_id: int) -> bool:
+    return ctx.user.role == "teacher" and int(ctx.user.id) == int(teacher_id)
 
 
 @router.get("/api/teacher-templates/{teacher_id}")
-async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
+async def get_teacher_templates(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
+    if not _can_view_teacher(ctx, teacher_id):
+        return {"status": "error", "message": "无权查看其他教师的数据"}
     try:
         from app.models import ReportTemplate
 
@@ -64,13 +75,19 @@ async def get_teacher_templates(teacher_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/delete-template/{template_id}")
-async def delete_template(template_id: int, db: Session = Depends(get_db)):
+async def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
     try:
         from app.models import ReportTemplate
 
         template = db.query(ReportTemplate).filter(ReportTemplate.id == template_id).first()
         if template:
+            if ctx.user.role != "teacher" or int(template.teacher_id or 0) != int(ctx.user.id):
+                return {"status": "error", "message": "只能删除自己的模板"}
             # ??
             if os.path.exists(template.filepath):
                 os.remove(template.filepath)
@@ -85,8 +102,14 @@ async def delete_template(template_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/teacher-stats/{teacher_id}")
-async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
+async def get_teacher_stats(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
+    if not _can_view_teacher(ctx, teacher_id):
+        return {"status": "error", "message": "无权查看其他教师的数据"}
     try:
         meetings = db.query(Meeting).filter(Meeting.teacher_id == teacher_id).all()
         meeting_ids = [int(m.id) for m in meetings]
@@ -141,8 +164,14 @@ async def get_teacher_stats(teacher_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/teacher-classes/{teacher_id}")
-async def get_teacher_classes(teacher_id: int, db: Session = Depends(get_db)):
+async def get_teacher_classes(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
+    if not _can_view_teacher(ctx, teacher_id):
+        return {"status": "error", "message": "无权查看其他教师的数据"}
     try:
         meetings = (
             db.query(Meeting)
@@ -277,8 +306,14 @@ async def get_class_groups(meeting_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/all-student-reports/{teacher_id}")
-async def get_all_student_reports(teacher_id: int, db: Session = Depends(get_db)):
+async def get_all_student_reports(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
     """??"""
+    if not _can_view_teacher(ctx, teacher_id):
+        return {"status": "error", "message": "无权查看其他教师的数据"}
     try:
         # ??
         meetings = db.query(Meeting).filter(Meeting.teacher_id == teacher_id).all()

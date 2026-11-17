@@ -233,6 +233,7 @@ class RealtimeTranscriber:
         self.ws = None
         self.task_id = None
         self.is_started = False
+        self.last_error = ""
         self._task_started = threading.Event()
 
         # 说话人分离相关
@@ -249,7 +250,8 @@ class RealtimeTranscriber:
         """
         token = refresh_aliyun_token()
         if not token:
-            self.on_error("无法获取阿里云Token")
+            self.last_error = "阿里云 NLS Token 获取失败，请检查 AccessKey 是否启用且有效"
+            self.on_error(self.last_error)
             return False
 
         ws_url = f"wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1?token={token}"
@@ -291,13 +293,16 @@ class RealtimeTranscriber:
 
                 elif name == "TaskFailed":
                     reason = msg.get("header", {}).get("status_text", "unknown")
-                    self.on_error(f"TaskFailed: {reason}")
+                    self.last_error = f"阿里云实时转写失败: {reason}"
+                    self.on_error(self.last_error)
 
             except Exception as e:
-                self.on_error(f"消息解析错误: {e}")
+                self.last_error = f"消息解析错误: {e}"
+                self.on_error(self.last_error)
 
         def on_error_ws(ws, error):
-            self.on_error(f"WebSocket错误: {error}")
+            self.last_error = f"WebSocket错误: {error}"
+            self.on_error(self.last_error)
 
         def on_close(ws, status, msg):
             self.is_started = False
@@ -341,9 +346,11 @@ class RealtimeTranscriber:
 
         # 等待 TaskStarted 确认
         if not self._task_started.wait(timeout=5):
-            self.on_error("等待TaskStarted超时")
+            self.last_error = "等待阿里云 TaskStarted 超时"
+            self.on_error(self.last_error)
             return False
 
+        self.last_error = ""
         self.is_started = True
         print(f"[ASR] 实时转写会话已启动 (task_id={self.task_id[:8]}...)")
         return True

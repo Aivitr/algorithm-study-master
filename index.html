@@ -2279,7 +2279,7 @@
             <div class="classroom-statusbar absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
                 <div v-if="!isPaused" class="status-badge text-white flex items-center space-x-2 shadow-2xl" style="pointer-events:auto;">
                     <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
-                    <span>{{ statusText }}</span>
+                    <span>{{ asrUnavailable ? 'ASR 不可用' : statusText }}</span>
                 </div>
                 <div v-else class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
                     <i class="fas fa-pause mr-2"></i>
@@ -2293,7 +2293,30 @@
                     <i class="fas fa-users mr-2"></i>
                     <span>{{ onlineMembers.length }} 人在线</span>
                 </div>
-                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: rgba(217,119,6,0.9);">
+                <template v-if="!viewingGroupId && currentUser && currentUser.role === 'teacher'">
+                    <button v-if="mediaMode === 'none'" @click="startScreenShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i class="fas fa-desktop mr-2"></i>
+                        <span>共享屏幕</span>
+                    </button>
+                    <button v-if="mediaMode === 'none'" @click="startCameraShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i class="fas fa-video mr-2"></i>
+                        <span>使用摄像头</span>
+                    </button>
+                    <button v-else @click="switchVideoSource" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i :class="mediaSwitching ? 'fas fa-spinner fa-spin mr-2' : (mediaMode === 'screen' ? 'fas fa-video mr-2' : 'fas fa-desktop mr-2')"></i>
+                        <span>{{ mediaSwitching ? '切换中...' : (mediaMode === 'screen' ? '切换摄像头' : '共享屏幕') }}</span>
+                    </button>
+                    <button v-if="mediaMode !== 'none'" @click="stopVideoShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl"
+                            style="pointer-events:auto; background: var(--danger-bg);">
+                        <i class="fas fa-stop-circle mr-2"></i>
+                        <span>停止分享</span>
+                    </button>
+                </template>
+                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: var(--warning-bg);">
                     <i class="fas fa-eye mr-2"></i>
                     <span>小组查看模式 · 不发布本地音视频</span>
                 </div>
@@ -2306,7 +2329,7 @@
                 <button v-if="currentUser && currentUser.role !== 'teacher'"
                         @click="endClass"
                         class="classroom-mobile-only status-badge text-white shadow-2xl"
-                        style="pointer-events:auto; background: rgba(220,38,38,0.85);">
+                        style="pointer-events:auto; background: var(--danger-bg);">
                     <i class="fas fa-door-open mr-2"></i>
                     <span>退出课堂</span>
                 </button>
@@ -2341,7 +2364,7 @@
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
                     class="classroom-end-btn absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
-                    style="background: rgba(220,38,38,0.85);">
+                    style="background: var(--danger-bg);">
                 <i class="fas fa-stop-circle mr-2"></i>结束课堂
             </button>
 
@@ -2358,7 +2381,8 @@
                         <!-- 本人视频 -->
                         <template v-if="member === effectiveLocalAgoraUid">
                             <video id="localVideo" ref="video" autoplay muted playsinline
-                                   class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                                   class="w-full h-full object-cover"
+                                   :class="{'transform scale-x-[-1]': mediaMode === 'camera'}"></video>
                         </template>
                         <!-- 远端视频（声网Agora） -->
                         <template v-else>

@@ -25,12 +25,12 @@
       "length": 10205
     },
     "课堂（学生）": {
-      "hash": "4c20b1595423a0fd",
-      "length": 7969
+      "hash": "0b24c90f73191fce",
+      "length": 7947
     },
     "课堂（教师）": {
-      "hash": "d452c5d49b7317d8",
-      "length": 8699
+      "hash": "621611cb9c79f01a",
+      "length": 8964
     },
     "AI 辅导弹窗": {
       "hash": "2a6b89369106145e",
@@ -137,9 +137,22 @@
     },
     "大厅（教师）点“课堂管理” → 切到课堂管理页": {
       "ok": true
+    },
+    "教师课堂内动态切换屏幕/摄像头": {
+      "ok": true
+    },
+    "ASR 不可用时状态栏明确提示": {
+      "ok": true
+    },
+    "401 响应统一退回登录页": {
+      "ok": true
     }
   },
-  "notes": [],
+  "notes": [
+    "error: ❌ 响应错误:",
+    "error: 响应状态:",
+    "error: 响应数据:"
+  ],
   "collisions": [],
   "watch_keys": [
     "showKnowledgeGraph"

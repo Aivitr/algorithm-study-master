@@ -146,6 +146,18 @@ def _cleanup_new_exercise_files(before: set[Path]) -> None:
 _BASELINE_RUN: dict[str, set[str]] = {}
 
 
+def _route_baseline_headers(seeded_ids):
+    from app.core import database
+    from app.services.session_service import create_session
+
+    db = database.SessionLocal()
+    try:
+        token, _ = create_session(db, seeded_ids["teacher_id"], device_id="route-baseline-teacher")
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture(scope="session")
 def raw_responses(client, seeded_ids):
     """遍历只读路由，保留原始响应（签名与凭据检查都从它派生）。
@@ -154,9 +166,15 @@ def raw_responses(client, seeded_ids):
     """
     result = {}
     before = _exercise_files()
+    teacher_headers = _route_baseline_headers(seeded_ids)
     try:
         for method, path, params in READ_ONLY_ROUTES:
-            response = client.request(method, path, **({"params": params} if params else {}))
+            response = client.request(
+                method,
+                path,
+                headers=teacher_headers,
+                **({"params": params} if params else {}),
+            )
             result[f"{method} {path}"] = response
     finally:
         _cleanup_new_exercise_files(before)
