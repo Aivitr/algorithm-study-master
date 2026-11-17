@@ -993,7 +993,7 @@
                                         </p>
                                     </div>
                                     <div class="flex items-center space-x-3">
-                                        <button @click="openTeacherDashboard({meeting_id: selectedClass.meeting_id, group_name: selectedClass.class_name || selectedClass.topic, member_count: selectedClass.member_count, score: selectedClass.score})" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full text-sm font-bold transition">
+                                        <button @click="openTeacherDashboard(selectedClass)" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full text-sm font-bold transition">
                                             <i class="fas fa-chart-line mr-1"></i>数据看板
                                         </button>
                                         <button @click="closeClassDetail" class="text-white hover:opacity-80 text-2xl transition">
@@ -1099,7 +1099,7 @@
                                             </button>
                                         </div>
                                         <span v-if="tdSwitchLoading" class="text-xs text-white opacity-90">加载中...</span>
-                                        <button @click="loadTeacherDashboardData" class="px-4 py-2 rounded-lg text-sm font-bold transition bg-white bg-opacity-20 hover:bg-opacity-30 text-white">
+                                        <button @click="refreshTeacherDashboard" class="px-4 py-2 rounded-lg text-sm font-bold transition bg-white bg-opacity-20 hover:bg-opacity-30 text-white">
                                             <i class="fas fa-sync-alt mr-1"></i>刷新
                                         </button>
                                         <button @click="closeTeacherDashboard" class="text-white hover:opacity-80 text-2xl transition">
@@ -1231,6 +1231,74 @@
                                         </h4>
                                         <div id="tdGroupEmotionChart" class="w-full h-72"></div>
                                         <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle mr-1"></i>所有成员平均情绪趋势</p>
+                                    </div>
+
+                                    <!-- 整节课 GCA 协作总结：保留上方原有统计，在最下方补充协作质量分析 -->
+                                    <div class="bg-white rounded-2xl shadow-lg p-6 mt-6">
+                                        <div class="flex items-start justify-between gap-4 mb-5">
+                                            <div>
+                                                <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                                                    <i class="fas fa-project-diagram mr-2" style="color: var(--primary);"></i>整节课 GCA 协作总结
+                                                    <span v-if="gcaDemoMode" class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style="background: #fef3c7; color: #92400e;">演示数据</span>
+                                                </h3>
+                                                <p class="text-xs text-gray-500 mt-1">基于学生发言分析协作行为特征，不作为成绩或排名。</p>
+                                            </div>
+                                            <button v-if="tdGcaData" @click="enterClassroomForGcaAnalysis"
+                                                    class="px-4 py-2 rounded-lg text-sm font-bold text-white whitespace-nowrap transition hover:opacity-90"
+                                                    style="background: var(--primary);">
+                                                进入课堂查看具体 GCA 分析 <i class="fas fa-sign-in-alt ml-1"></i>
+                                            </button>
+                                        </div>
+
+                                        <div v-if="tdGcaLoading" class="text-center py-10 text-gray-500">
+                                            <i class="fas fa-spinner fa-spin text-3xl mb-3" style="color: var(--primary);"></i>
+                                            <p>正在计算整节课协作指标...</p>
+                                        </div>
+                                        <div v-else-if="tdGcaError" class="rounded-xl p-5 text-center" style="background: #fef2f2; color: #b91c1c;">
+                                            <i class="fas fa-exclamation-circle mr-1"></i>{{ tdGcaError }}
+                                            <button @click="loadTdGcaSummary" class="ml-3 underline font-bold">重新加载</button>
+                                        </div>
+                                        <template v-else-if="tdGcaData">
+                                            <div class="flex flex-wrap gap-3 mb-5 text-sm">
+                                                <span class="px-3 py-2 rounded-lg font-bold" style="background: var(--primary-soft); color: var(--primary-dark);">
+                                                    <i class="fas fa-check-circle mr-1"></i>{{ tdGcaStatusText() }}
+                                                </span>
+                                                <span class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700"><i class="fas fa-users mr-1"></i>{{ tdGcaData.summary.student_count }} 名有效学生</span>
+                                                <span class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700"><i class="fas fa-comment-dots mr-1"></i>{{ tdGcaData.summary.utterance_count }} 条有效发言</span>
+                                                <span class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700"><i class="fas fa-clock mr-1"></i>{{ gcaDurationText(tdGcaData.summary.duration_seconds) }}</span>
+                                            </div>
+
+                                            <div v-if="tdGcaCanShowMetrics()" class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                                                <div v-for="metric in gcaMetricDefinitions" :key="'td-gca-' + metric.key"
+                                                     class="rounded-xl border border-gray-100 p-4" style="background: #f8fbfb;">
+                                                    <div class="flex items-center justify-between text-sm font-bold text-gray-700">
+                                                        <span>{{ metric.label }}</span><i class="fas fa-info-circle text-gray-400" :title="metric.description"></i>
+                                                    </div>
+                                                    <div class="text-2xl font-black mt-2" style="color: var(--primary);">{{ gcaMetricValue(tdGcaMetricStats(metric.key).mean) }}</div>
+                                                    <div class="flex justify-between text-[10px] text-gray-400 mt-2">
+                                                        <span>最低 {{ gcaMetricValue(tdGcaMetricStats(metric.key).min) }}</span>
+                                                        <span>最高 {{ gcaMetricValue(tdGcaMetricStats(metric.key).max) }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else class="rounded-xl bg-gray-50 p-6 text-center text-gray-500 mb-5">
+                                                <i class="fas fa-comments text-2xl mb-2"></i>
+                                                <p>{{ tdGcaData.error || '有效发言仍不足，暂时无法形成完整的六项协作指标。' }}</p>
+                                            </div>
+
+                                            <div v-if="tdGcaData.signals && tdGcaData.signals.length" class="border-t border-gray-100 pt-5">
+                                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-clipboard-check mr-2" style="color: var(--primary);"></i>课堂协作结论</h4>
+                                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                                    <div v-for="signal in tdGcaData.signals.slice(0, 3)" :key="'td-signal-' + signal.type"
+                                                         class="rounded-xl p-4 border" :class="signal.level === 'warning' ? 'bg-yellow-50 border-yellow-200' : signal.level === 'success' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'">
+                                                        <h5 class="text-sm font-bold text-gray-800">{{ signal.title }}</h5>
+                                                        <p class="text-xs text-gray-600 mt-1 leading-relaxed">{{ signal.description }}</p>
+                                                        <p class="text-xs mt-2 font-semibold" style="color: var(--primary-dark);">{{ signal.suggestion }}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div v-else class="text-center py-8 text-gray-400">等待 GCA 分析数据</div>
                                     </div>
                                 </div>
                             </div>
@@ -2342,7 +2410,7 @@
             </button>
             <!-- 教师端：暂停键下方的 GCA 协作分析入口 -->
             <button v-if="currentUser && currentUser.role === 'teacher'"
-                    @click="openGcaDashboard"
+                    @click="openGcaDashboard()"
                     class="gca-fab"
                     data-frontend-probe-ignore
                     :class="{ 'has-stale-data': gcaDashboardStale }"

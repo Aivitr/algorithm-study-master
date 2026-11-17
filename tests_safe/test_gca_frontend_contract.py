@@ -18,7 +18,12 @@ def test_teacher_dashboard_markup_and_endpoint_are_wired():
     assert "学生对比" in html
     assert "个人详情" in html
     assert "状态提醒" in html
-    assert "/api/gca-dashboard/${this.meetingId}" in javascript
+    assert "/api/gca-dashboard/${this.gcaMeetingId}" in javascript
+    assert "/api/gca-dashboard/${this.tdMeetingId}" in javascript
+    assert "整节课 GCA 协作总结" in html
+    assert "进入课堂查看具体 GCA 分析" in html
+    assert "enterClassroomForGcaAnalysis" in html
+    assert "已结束课堂只进入回顾界面" in javascript
     assert "/api/agents/group-analysis" not in javascript
 
 

@@ -255,6 +255,7 @@ new Vue({
         gcaDashboardLoading: false,
         gcaDashboardError: '',
         gcaDashboardData: null,
+        gcaMeetingId: null,
         gcaActiveTab: 'overview',
         gcaSelectedStudentId: '',
         gcaLastUpdatedAt: '',
@@ -344,6 +345,10 @@ new Vue({
         tdMemberScores: [],
         tdIndividualEmotions: {},
         tdGroupEmotionTimeline: [],
+        tdGcaData: null,
+        tdGcaLoading: false,
+        tdGcaError: '',
+        tdGcaRequestController: null,
         tdSelectedMember: '',
         tdTimeWindow: 0,
         tdChartInstances: {},
@@ -697,8 +702,10 @@ new Vue({
             });
         },
         // === 教师端 GCA 协作分析看板 ===
-        async openGcaDashboard() {
-            if (!this.currentUser || this.currentUser.role !== 'teacher' || !this.meetingId) return;
+        async openGcaDashboard(meetingId = null) {
+            const targetMeetingId = meetingId || this.meetingId;
+            if (!this.currentUser || this.currentUser.role !== 'teacher' || !targetMeetingId) return;
+            this.gcaMeetingId = targetMeetingId;
             this.gcaDashboardVisible = true;
             this.gcaActiveTab = 'overview';
             await this.loadGcaDashboard();
@@ -712,7 +719,7 @@ new Vue({
             this.disposeGcaCharts();
         },
         async loadGcaDashboard() {
-            if (!this.meetingId || !this.currentUser || this.currentUser.role !== 'teacher') return;
+            if (!this.gcaMeetingId || !this.currentUser || this.currentUser.role !== 'teacher') return;
             if (this.gcaRequestController) this.gcaRequestController.abort();
             this.gcaRequestController = new AbortController();
             this.gcaDashboardLoading = true;
@@ -720,7 +727,7 @@ new Vue({
             try {
                 const dataUrl = this.gcaDemoMode
                     ? GCA_DEMO_DATA_URL
-                    : `/api/gca-dashboard/${this.meetingId}`;
+                    : `/api/gca-dashboard/${this.gcaMeetingId}`;
                 const response = await axios.get(dataUrl, {
                     signal: this.gcaRequestController.signal,
                     timeout: 120000,
@@ -6276,10 +6283,13 @@ new Vue({
         openTeacherDashboard(group) {
             this.tdMeetingId = group.meeting_id;
             this.tdGroupInfo = group;
+            this.tdGcaData = null;
+            this.tdGcaError = '';
             this.showTeacherDashboard = true;
             this.tdLoading = true;
             this.$nextTick(() => {
                 this.loadTeacherDashboardData();
+                this.loadTdGcaSummary();
             });
         },
         // 关闭数据看板
@@ -6292,6 +6302,10 @@ new Vue({
             if (this.tdWindowDebounceTimer) {
                 clearTimeout(this.tdWindowDebounceTimer);
                 this.tdWindowDebounceTimer = null;
+            }
+            if (this.tdGcaRequestController) {
+                this.tdGcaRequestController.abort();
+                this.tdGcaRequestController = null;
             }
             // 关闭视频播放器
             this.closeTdVideoPlayer();
@@ -6313,12 +6327,110 @@ new Vue({
             this.tdMemberScores = [];
             this.tdIndividualEmotions = {};
             this.tdGroupEmotionTimeline = [];
+            this.tdGcaData = null;
+            this.tdGcaLoading = false;
+            this.tdGcaError = '';
             this.tdSelectedMember = '';
             this.tdTimeWindow = 0;
             this.tdRequestSeq = 0;
             this.tdSwitchLoading = false;
             this.tdMeetingId = null;
             this.tdGroupInfo = null;
+        },
+        async refreshTeacherDashboard() {
+            await Promise.allSettled([
+                this.loadTeacherDashboardData(),
+                this.loadTdGcaSummary(),
+            ]);
+        },
+        async loadTdGcaSummary() {
+            if (!this.tdMeetingId || !this.currentUser || this.currentUser.role !== 'teacher') return;
+            if (this.tdGcaRequestController) this.tdGcaRequestController.abort();
+            const controller = new AbortController();
+            this.tdGcaRequestController = controller;
+            this.tdGcaLoading = true;
+            this.tdGcaError = '';
+            try {
+                const dataUrl = this.gcaDemoMode
+                    ? GCA_DEMO_DATA_URL
+                    : `/api/gca-dashboard/${this.tdMeetingId}`;
+                const response = await axios.get(dataUrl, {
+                    signal: controller.signal,
+                    timeout: 120000,
+                });
+                this.tdGcaData = response.data;
+            } catch (error) {
+                if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return;
+                const detail = error.response && error.response.data && error.response.data.detail;
+                this.tdGcaError = detail || error.message || '整节课 GCA 分析加载失败';
+            } finally {
+                if (this.tdGcaRequestController === controller) {
+                    this.tdGcaLoading = false;
+                    this.tdGcaRequestController = null;
+                }
+            }
+        },
+        tdGcaMetricStats(metricKey) {
+            return (((this.tdGcaData || {}).group_metrics || {})[metricKey]) || {};
+        },
+        tdGcaCanShowMetrics() {
+            const status = this.tdGcaData && this.tdGcaData.status;
+            return status === 'success' || status === 'single_speaker';
+        },
+        tdGcaStatusText() {
+            const status = this.tdGcaData && this.tdGcaData.status;
+            const labels = {
+                success: '分析正常',
+                empty_transcript: '暂无学生发言',
+                single_speaker: '目前只有一名学生发言',
+                insufficient_data: '数据不足',
+                invalid_input: '输入数据异常',
+                not_found: '课堂不存在',
+                internal_error: '分析暂时不可用',
+            };
+            return labels[status] || '等待分析';
+        },
+        async enterClassroomForGcaAnalysis() {
+            const targetMeetingId = this.tdMeetingId;
+            const classroom = { ...(this.tdGroupInfo || {}), meeting_id: targetMeetingId };
+            const status = classroom.status || 'running';
+            if (!targetMeetingId) {
+                this.showAlert('未找到对应课堂，无法进入', 'error', '进入失败');
+                return;
+            }
+            if (status === 'created') {
+                this.showAlert('课堂尚未开始，暂时没有完整 GCA 分析', 'info', '课堂待开始');
+                return;
+            }
+
+            this.closeTeacherDashboard();
+            this.selectedClass = null;
+
+            if (status === 'running') {
+                await this.enterGroupView({ ...classroom, status: 'running' });
+                if (String(this.meetingId) !== String(targetMeetingId) || this.pageState !== 'classroom') {
+                    return;
+                }
+            } else if (status === 'ended') {
+                // 已结束课堂只进入回顾界面：不占用课堂锁，也不连接音视频或 WebSocket。
+                this.viewingGroupId = targetMeetingId;
+                this.meetingId = targetMeetingId;
+                this.meetingStatus = 'ended';
+                this.meetingStartedAt = classroom.started_at || classroom.start_time || null;
+                this.meetingEndedAt = classroom.ended_at || null;
+                this.currentTopic = this.displayTopicText(classroom.topic || classroom.group_name, classroom.class_code);
+                this.classForm.class_code = classroom.class_code || '';
+                this.joined = true;
+                this.pageState = 'classroom';
+                this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
+                await this.loadClassroomData(targetMeetingId);
+            } else {
+                this.showAlert('当前课堂状态无法进入', 'info', '进入失败');
+                return;
+            }
+
+            await this.$nextTick();
+            await this.openGcaDashboard(targetMeetingId);
         },
         setTdTimeWindow(minutes) {
             const parsed = Number(minutes);

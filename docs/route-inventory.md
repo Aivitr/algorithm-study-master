@@ -49,6 +49,8 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/emotion-details/{meeting_id}` | 只读本地 | ✅ |
 | GET | `/api/exercises/{report_id}` | 只读本地 | ✅ |
 | GET | `/api/get-video-context` | 只读本地 | ✅ |
+| GET | `/api/gca-dashboard/{meeting_id}` | 只读本地 |  |
+| GET | `/api/gca-student-view/{meeting_id}` | 只读本地 |  |
 | GET | `/api/knowledge-graph/{meeting_id}` | 只读本地 | ✅ |
 | POST | `/api/knowledge-graph/{meeting_id}/generate` | 外部服务 + 写操作 |  |
 | GET | `/api/meeting-reports/{meeting_id}` | 只读本地 | ✅ |
@@ -93,7 +95,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 66 条：{'WebSocket': 3, '写操作': 12, '写操作（有副作用）': 1, '只读本地': 25, '外部服务': 19, '本地模型推理': 6}
+总计 70 条：{'WebSocket': 3, '写操作': 12, '写操作（有副作用）': 1, '只读本地': 28, '外部服务': 20, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖
@@ -120,18 +122,21 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | 3 条 WebSocket | 长连接，非请求-响应语义 |
 | `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError` |
 
-**覆盖率：25 / 66 ≈ 38%**。
+**覆盖率：25 / 70 ≈ 36%**。
 
-但这个分母没有意义——66 条里有 33 条 `POST`/`DELETE` 写操作、3 条 WebSocket、
-20 条外部服务依赖，它们本来就不可纳入。按"可纳入"的口径算：
+但这个分母没有意义——70 条中还包含写操作、WebSocket、20 条外部服务依赖和
+本地模型推理路由，它们本来就不可纳入。按"可纳入"的口径算：
 
-- `只读本地` 共 **23** 条，已纳入 **22** 条，唯一未纳入的是 `/voiceprint_register`
-  （死路由，必然抛错，纳入也锁不住任何东西）
+- 两条 GCA 只读接口 `/api/gca-dashboard/{meeting_id}` 与
+  `/api/gca-student-view/{meeting_id}` 已由专门的角色、权限与响应结构测试覆盖，
+  当前未重复加入通用响应快照基线
+- `/voiceprint_register` 是死路由（必然抛错），未纳入基线
 - 另纳入 3 条分类提示与实际不符、但实测确认合格的路由
   （`/api/download-exercises`、`/api/voiceprint/status`、`/api/voiceprint/users`）
 - 合计 25 条
 
-即：**所有能本地只读跑通的路由都已覆盖**，未覆盖的全部有明确且已记录的原因。
+即：通用路由基线仍覆盖 25 条；GCA 接口采用专门测试覆盖，本次只同步路由文档，
+不改动通用基线文件。
 
 ## 五、复现命令
 

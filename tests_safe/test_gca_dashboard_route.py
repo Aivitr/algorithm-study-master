@@ -86,6 +86,14 @@ def test_student_gca_view_requires_participation(client, seeded_ids, student_hea
     finally:
         db.close()
 
-    response = client.get(f"/api/gca-student-view/{meeting_id}", headers=student_headers)
-    assert response.status_code == 403
-    assert response.json()["detail"] == "你尚未加入该课堂"
+    try:
+        response = client.get(f"/api/gca-student-view/{meeting_id}", headers=student_headers)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "你尚未加入该课堂"
+    finally:
+        cleanup = database.SessionLocal()
+        try:
+            cleanup.query(Meeting).filter(Meeting.id == meeting_id).delete()
+            cleanup.commit()
+        finally:
+            cleanup.close()
