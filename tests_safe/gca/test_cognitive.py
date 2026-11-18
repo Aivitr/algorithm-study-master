@@ -4,6 +4,7 @@ import json
 import unittest
 
 from gca_engine.engagement.cognitive import analyze_cognitive
+
 from gca_engine.engagement.protocols import EngagementDimensionResult, SpeechQualityRecord
 from gca_engine.schemas import AnalysisStatus, GroupAnalysisResult, Utterance
 
@@ -43,9 +44,7 @@ class TestCognitiveBoundaries(unittest.TestCase):
         self.assertTrue(any("清洗后为空" in item for item in result.warnings))
 
     def test_valid_speech_without_metrics_has_only_coverage_metadata(self):
-        result = analyze_cognitive(
-            "m1", [_utterance(1), _utterance(2, "u2")], [_score(1, 0, None)]
-        )
+        result = analyze_cognitive("m1", [_utterance(1), _utterance(2, "u2")], [_score(1, 0, None)])
 
         self.assertEqual(result.status, "insufficient")
         self.assertEqual(result.student_metrics, {})
@@ -66,9 +65,14 @@ class TestCognitiveBoundaries(unittest.TestCase):
     def test_single_utterance_keeps_valid_quality(self):
         result = analyze_cognitive("m1", [_utterance(1)], [_score(1, 80)])
         self.assertEqual(result.status, "insufficient")
-        self.assertEqual(result.student_metrics["u1"], {
-            "quality_mean": 80, "quality_count": 1, "quality_coverage": 1.0,
-        })
+        self.assertEqual(
+            result.student_metrics["u1"],
+            {
+                "quality_mean": 80,
+                "quality_count": 1,
+                "quality_coverage": 1.0,
+            },
+        )
         self.assertEqual(result.group_metrics["quality_mean"]["std"], 0.0)
 
     def test_empty_text_is_excluded_from_matching_and_coverage(self):
@@ -91,12 +95,27 @@ class TestCognitiveMetrics(unittest.TestCase):
         self.assertEqual(result.status, "ok")
         self.assertIsNone(result.error)
         self.assertIsNone(result.timeline)
-        self.assertEqual(result.student_metrics, {
-            "u1": {"overall_responsivity": 0.25, "newness": 0.75, "internal_cohesion": 0.5,
-                   "quality_mean": 50, "quality_count": 2, "quality_coverage": 1.0},
-            "u2": {"overall_responsivity": 0.75, "newness": 0.25, "internal_cohesion": 0.25,
-                   "quality_mean": 90, "quality_count": 2, "quality_coverage": 1.0},
-        })
+        self.assertEqual(
+            result.student_metrics,
+            {
+                "u1": {
+                    "overall_responsivity": 0.25,
+                    "newness": 0.75,
+                    "internal_cohesion": 0.5,
+                    "quality_mean": 50,
+                    "quality_count": 2,
+                    "quality_coverage": 1.0,
+                },
+                "u2": {
+                    "overall_responsivity": 0.75,
+                    "newness": 0.25,
+                    "internal_cohesion": 0.25,
+                    "quality_mean": 90,
+                    "quality_count": 2,
+                    "quality_coverage": 1.0,
+                },
+            },
+        )
         for name, expected in {
             "overall_responsivity": (0.5, 0.25, 0.75, 0.25, 2),
             "newness": (0.5, 0.25, 0.75, 0.25, 2),
@@ -106,9 +125,10 @@ class TestCognitiveMetrics(unittest.TestCase):
             "quality_coverage": (1.0, 1.0, 1.0, 0.0, 2),
         }.items():
             with self.subTest(metric=name):
-                self.assertEqual(result.group_metrics[name], dict(zip(
-                    ("mean", "min", "max", "std", "count"), expected
-                )))
+                self.assertEqual(
+                    result.group_metrics[name],
+                    dict(zip(("mean", "min", "max", "std", "count"), expected)),
+                )
 
     def test_result_serializes_strictly_and_inputs_remain_unchanged(self):
         utterances = [_utterance(2, "u2"), _utterance(1)]
@@ -121,13 +141,27 @@ class TestCognitiveMetrics(unittest.TestCase):
         payload = json.loads(json.dumps(result.to_dict(), allow_nan=False))
 
         self.assertEqual(payload, result.to_dict())
-        self.assertEqual(set(payload), {
-            "dimension", "status", "student_metrics", "group_metrics", "timeline",
-            "metadata", "warnings", "error",
-        })
-        self.assertEqual(before, (
-            [u.to_dict() for u in utterances], [r.to_dict() for r in quality], gca.to_dict(),
-        ))
+        self.assertEqual(
+            set(payload),
+            {
+                "dimension",
+                "status",
+                "student_metrics",
+                "group_metrics",
+                "timeline",
+                "metadata",
+                "warnings",
+                "error",
+            },
+        )
+        self.assertEqual(
+            before,
+            (
+                [u.to_dict() for u in utterances],
+                [r.to_dict() for r in quality],
+                gca.to_dict(),
+            ),
+        )
 
     def test_group_quality_mean_weights_students_equally(self):
         utterances = [_utterance(1), _utterance(2), _utterance(3), _utterance(4, "u2")]
@@ -140,9 +174,16 @@ class TestCognitiveMetrics(unittest.TestCase):
         self.assertEqual(result.student_metrics["u2"]["quality_coverage"], 1.0)
         self.assertEqual(result.metadata["quality_coverage"], 0.75)
         self.assertAlmostEqual(result.group_metrics["quality_coverage"]["mean"], 5 / 6)
-        self.assertEqual(result.group_metrics["quality_mean"], {
-            "mean": 65, "min": 50, "max": 80, "std": 15, "count": 2,
-        })
+        self.assertEqual(
+            result.group_metrics["quality_mean"],
+            {
+                "mean": 65,
+                "min": 50,
+                "max": 80,
+                "std": 15,
+                "count": 2,
+            },
+        )
 
     def test_low_coverage_can_still_be_ok_with_complete_gca(self):
         utterances = [_utterance(i, "u2" if i % 2 == 0 else "u1") for i in range(1, 11)]
@@ -165,9 +206,14 @@ class TestCognitiveQuality(unittest.TestCase):
         self.assertEqual(result.metadata["quality_coverage"], 1.0)
 
     def test_real_zero_and_default_zero_have_different_coverage(self):
-        result = analyze_cognitive("m1", [_utterance(1), _utterance(2)], [
-            _score(1, 0, None), _score(2, 0, "发言与本题无关"),
-        ])
+        result = analyze_cognitive(
+            "m1",
+            [_utterance(1), _utterance(2)],
+            [
+                _score(1, 0, None),
+                _score(2, 0, "发言与本题无关"),
+            ],
+        )
         self.assertEqual(result.student_metrics["u1"]["quality_mean"], 0)
         self.assertEqual(result.student_metrics["u1"]["quality_count"], 1)
         self.assertEqual(result.metadata["quality_coverage"], 0.5)
@@ -181,10 +227,15 @@ class TestCognitiveQuality(unittest.TestCase):
 
     def test_fifty_is_excluded_only_when_source_evidence_is_missing(self):
         utterances = [_utterance(1), _utterance(2), _utterance(3)]
-        result = analyze_cognitive("m1", utterances, [
-            _score(1, 50, "已评估"), _score(2, 50, None),
-            _score(3, 50, "解释了步骤，但缺少论据"),
-        ])
+        result = analyze_cognitive(
+            "m1",
+            utterances,
+            [
+                _score(1, 50, "已评估"),
+                _score(2, 50, None),
+                _score(3, 50, "解释了步骤，但缺少论据"),
+            ],
+        )
         self.assertEqual(result.student_metrics["u1"]["quality_mean"], 50)
         self.assertEqual(result.metadata["n_valid_quality_scores"], 1)
         self.assertEqual(result.metadata["n_excluded_quality_records"], 2)
@@ -208,9 +259,15 @@ class TestCognitiveQuality(unittest.TestCase):
                 self.assertEqual(result.metadata["quality_coverage"], 0.0)
 
     def test_no_valid_scores_keeps_gca_metrics(self):
-        result = analyze_cognitive("m1", [_utterance(1), _utterance(2, "u2")], [
-            _score(1, None), _score(2, 50, "评估超时"),
-        ], _gca())
+        result = analyze_cognitive(
+            "m1",
+            [_utterance(1), _utterance(2, "u2")],
+            [
+                _score(1, None),
+                _score(2, 50, "评估超时"),
+            ],
+            _gca(),
+        )
         self.assertEqual(result.status, "insufficient")
         self.assertEqual(result.student_metrics["u2"]["newness"], 0.25)
         self.assertEqual(result.group_metrics["newness"]["mean"], 0.5)
@@ -234,9 +291,16 @@ class TestCognitiveGCA(unittest.TestCase):
         self.assertNotIn("newness", result.student_metrics["u2"])
         self.assertEqual(result.student_metrics["u2"]["quality_mean"], 75)
         self.assertEqual(result.student_metrics["u2"]["internal_cohesion"], 0.25)
-        self.assertEqual(result.group_metrics["newness"], {
-            "mean": 0.75, "min": 0.75, "max": 0.75, "std": 0.0, "count": 1,
-        })
+        self.assertEqual(
+            result.group_metrics["newness"],
+            {
+                "mean": 0.75,
+                "min": 0.75,
+                "max": 0.75,
+                "std": 0.0,
+                "count": 1,
+            },
+        )
 
     def test_nonfinite_gca_numbers_are_excluded(self):
         gca = _gca()

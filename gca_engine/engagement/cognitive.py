@@ -31,7 +31,9 @@ def _validate_inputs(
         raise ValueError("meeting_id 必须是非空字符串")
     if not isinstance(utterances, list) or not all(isinstance(u, Utterance) for u in utterances):
         raise ValueError("utterances 必须是 Utterance 列表")
-    if not isinstance(quality, list) or not all(isinstance(r, SpeechQualityRecord) for r in quality):
+    if not isinstance(quality, list) or not all(
+        isinstance(r, SpeechQualityRecord) for r in quality
+    ):
         raise ValueError("quality 必须是 SpeechQualityRecord 列表")
 
     utterance_ids = set()
@@ -53,7 +55,8 @@ def _validate_inputs(
         if record.feedback is not None and not isinstance(record.feedback, str):
             raise ValueError("评分的 feedback 必须是字符串或 None")
         if record.quality_score is not None and (
-            not isinstance(record.quality_score, (int, float)) or isinstance(record.quality_score, bool)
+            not isinstance(record.quality_score, (int, float))
+            or isinstance(record.quality_score, bool)
         ):
             raise ValueError("quality_score 必须是数字或 None")
 
@@ -137,7 +140,11 @@ def analyze_cognitive(
 
     gca_students = {}
     gca_status = gca_result.status if gca_result is not None else None
-    if gca_status in (AnalysisStatus.SUCCESS, AnalysisStatus.SINGLE_SPEAKER, AnalysisStatus.INSUFFICIENT_DATA):
+    if gca_status in (
+        AnalysisStatus.SUCCESS,
+        AnalysisStatus.SINGLE_SPEAKER,
+        AnalysisStatus.INSUFFICIENT_DATA,
+    ):
         gca_students = gca_result.student_metrics
     if gca_status is None:
         warnings.append("未提供 GCA 结果。")
@@ -212,7 +219,9 @@ def analyze_cognitive(
     elif gca_mismatch:
         status = "insufficient"
         error = "GCA 结果和输入发言不一致，已保留可匹配指标。"
-    elif gca_status != AnalysisStatus.SUCCESS or single_speaker or incomplete_metrics or not n_scores:
+    elif (
+        gca_status != AnalysisStatus.SUCCESS or single_speaker or incomplete_metrics or not n_scores
+    ):
         status = "insufficient"
         error = "认知代理指标或发言质量评分不足，已保留可用指标。"
     else:
