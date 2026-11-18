@@ -31,7 +31,6 @@ def _u(speaker: str, ts: float, uid: str | None = None, end_time: float | None =
 
 
 class TestDiscussionStall(unittest.TestCase):
-
     def test_triggers_at_exactly_threshold(self):
         us = [_u("A", 10.0), _u("B", 100.0)]
         candidates = discussion_stall_candidates("m1", us, now_second=220.0)
@@ -66,18 +65,22 @@ class TestDiscussionStall(unittest.TestCase):
     def test_custom_threshold(self):
         us = [_u("A", 10.0), _u("B", 100.0)]
         config = HintTriggerConfig(stall_silence_seconds=60)
-        self.assertEqual(len(discussion_stall_candidates("m1", us, now_second=160.0, config=config)), 1)
+        self.assertEqual(
+            len(discussion_stall_candidates("m1", us, now_second=160.0, config=config)), 1
+        )
         self.assertEqual(discussion_stall_candidates("m1", us, now_second=159.0, config=config), [])
 
 
 class TestLowParticipation(unittest.TestCase):
-
     def _three_speaker_scene(self):
         """A 最后发言在 300 秒，B/C 在 400-600 秒之间活跃。"""
         return [
-            _u("A", 10.0), _u("A", 300.0),
-            _u("B", 400.0), _u("B", 500.0),
-            _u("C", 450.0), _u("C", 600.0),
+            _u("A", 10.0),
+            _u("A", 300.0),
+            _u("B", 400.0),
+            _u("B", 500.0),
+            _u("C", 450.0),
+            _u("C", 600.0),
         ]
 
     def test_zero_speech_rule_triggers(self):
@@ -95,8 +98,14 @@ class TestLowParticipation(unittest.TestCase):
     def test_low_ratio_rule_triggers(self):
         us = [
             _u("A", 500.0),
-            _u("B", 400.0), _u("B", 410.0), _u("B", 420.0), _u("B", 430.0),
-            _u("C", 450.0), _u("C", 460.0), _u("C", 470.0), _u("C", 480.0),
+            _u("B", 400.0),
+            _u("B", 410.0),
+            _u("B", 420.0),
+            _u("B", 430.0),
+            _u("C", 450.0),
+            _u("C", 460.0),
+            _u("C", 470.0),
+            _u("C", 480.0),
         ]
         candidates = low_participation_candidates("m1", us, now_second=660.0)
         self.assertEqual(len(candidates), 1)
@@ -117,8 +126,10 @@ class TestLowParticipation(unittest.TestCase):
     def test_consecutive_points_required(self):
         # 条件只在当前窗口满足、上一个评估点不满足（A 在上一窗口内还发过言）→ 不触发
         us = [
-            _u("A", 10.0), _u("A", 400.0),
-            _u("B", 600.0), _u("C", 610.0),
+            _u("A", 10.0),
+            _u("A", 400.0),
+            _u("B", 600.0),
+            _u("C", 610.0),
         ]
         self.assertEqual(low_participation_candidates("m1", us, now_second=660.0), [])
 
@@ -126,8 +137,10 @@ class TestLowParticipation(unittest.TestCase):
         # 上一个评估点窗口 (0,300]：A 在 t=0 恰好落在边界上，左开右闭 → 不算
         us = [
             _u("A", 0.0),
-            _u("B", 100.0), _u("B", 200.0),
-            _u("C", 150.0), _u("C", 250.0),
+            _u("B", 100.0),
+            _u("B", 200.0),
+            _u("C", 150.0),
+            _u("C", 250.0),
         ]
         candidates = low_participation_candidates("m1", us, now_second=330.0)
         self.assertEqual(len(candidates), 1)
@@ -138,7 +151,6 @@ class TestLowParticipation(unittest.TestCase):
 
 
 class TestComputeWithCooldown(unittest.TestCase):
-
     def _stall_scene(self):
         return [_u("A", 10.0), _u("B", 100.0)]
 
@@ -156,9 +168,12 @@ class TestComputeWithCooldown(unittest.TestCase):
 
     def test_student_cooldown_suppresses_repeat(self):
         us = [
-            _u("A", 10.0), _u("A", 300.0),
-            _u("B", 400.0), _u("B", 500.0),
-            _u("C", 450.0), _u("C", 600.0),
+            _u("A", 10.0),
+            _u("A", 300.0),
+            _u("B", 400.0),
+            _u("B", 500.0),
+            _u("C", 450.0),
+            _u("C", 600.0),
         ]
         state = HintTriggerState()
         first = compute_hint_candidates("m1", us, now_second=660.0, state=state)
@@ -166,16 +181,17 @@ class TestComputeWithCooldown(unittest.TestCase):
         self.assertEqual(len(student_candidates), 1)
         # 同一时刻重复评估不重复产出（120 秒学生级冷却）
         second = compute_hint_candidates("m1", us, now_second=660.0, state=state)
-        self.assertEqual(
-            [c for c in second if c.hint_type == "low_participation"], []
-        )
+        self.assertEqual([c for c in second if c.hint_type == "low_participation"], [])
 
     def test_stall_and_low_participation_can_coexist(self):
         # A 长时间沉默：既是个人低参与，也可能全组停滞（B/C 也停够久时）
         us = [
-            _u("A", 10.0), _u("A", 60.0),
-            _u("B", 200.0), _u("B", 210.0),
-            _u("C", 220.0), _u("C", 230.0),
+            _u("A", 10.0),
+            _u("A", 60.0),
+            _u("B", 200.0),
+            _u("B", 210.0),
+            _u("C", 220.0),
+            _u("C", 230.0),
         ]
         candidates = compute_hint_candidates("m1", us, now_second=400.0)
         types = sorted({c.hint_type for c in candidates})
@@ -190,9 +206,12 @@ class TestOnlineMembers(unittest.TestCase):
     def _scene_with_silent_stranger(self):
         """D 从未发言；A/B/C 在窗口内活跃。"""
         return [
-            _u("A", 400.0), _u("A", 500.0),
-            _u("B", 420.0), _u("B", 520.0),
-            _u("C", 440.0), _u("C", 540.0),
+            _u("A", 400.0),
+            _u("A", 500.0),
+            _u("B", 420.0),
+            _u("B", 520.0),
+            _u("C", 440.0),
+            _u("C", 540.0),
         ]
 
     def test_no_online_list_never_spoken_student_not_flagged(self):
@@ -215,8 +234,10 @@ class TestOnlineMembers(unittest.TestCase):
     def test_online_list_without_all_peers_spoken_no_flag(self):
         # D 未发言，但窗口内 B/C 也未发言 → 条件1/2 都不满足，不触发
         us = [
-            _u("A", 400.0), _u("A", 500.0),
-            _u("B", 100.0), _u("C", 200.0),
+            _u("A", 400.0),
+            _u("A", 500.0),
+            _u("B", 100.0),
+            _u("C", 200.0),
         ]
         candidates = low_participation_candidates(
             "m1", us, now_second=660.0, online_members=["A", "B", "C", "D"]
@@ -236,9 +257,7 @@ class TestOnlineMembers(unittest.TestCase):
         for bad in ("A,B", [1, 2], ["A", ""]):
             with self.subTest(bad=bad):
                 with self.assertRaises(ValueError):
-                    low_participation_candidates(
-                        "m1", us, now_second=660.0, online_members=bad
-                    )
+                    low_participation_candidates("m1", us, now_second=660.0, online_members=bad)
 
     def test_compute_passthrough_online_members(self):
         us = self._scene_with_silent_stranger()
@@ -250,7 +269,6 @@ class TestOnlineMembers(unittest.TestCase):
 
 
 class TestValidationAndConfig(unittest.TestCase):
-
     def test_bad_meeting_id_raises(self):
         with self.assertRaises(ValueError):
             compute_hint_candidates("", [_u("A", 1.0)])

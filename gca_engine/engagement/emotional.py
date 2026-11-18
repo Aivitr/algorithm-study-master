@@ -175,7 +175,7 @@ def _fixed_windows(
     records: list[dict],
     duration: float,
     window_seconds: int = FIXED_WINDOW_SECONDS,
-) -> list[dict]:
+) -> list[tuple[float, float, list[dict]]]:
     """按 windows.py 的固定窗口边界 [start, end) 划分情绪记录。"""
     max_timestamp = max((item["timestamp"] for item in records), default=0.0)
     # 即使最后一条记录恰好落在 300/600 秒边界，也为它保留后一个窗口。

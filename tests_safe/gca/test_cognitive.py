@@ -4,7 +4,6 @@ import json
 import unittest
 
 from gca_engine.engagement.cognitive import analyze_cognitive
-
 from gca_engine.engagement.protocols import EngagementDimensionResult, SpeechQualityRecord
 from gca_engine.schemas import AnalysisStatus, GroupAnalysisResult, Utterance
 

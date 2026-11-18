@@ -60,17 +60,17 @@ from gca_engine.schemas import Utterance
 class HintTriggerConfig:
     """Hint 触发规则的参数（全部可在实例化时覆盖）。"""
 
-    sliding_window_seconds: int = 300   # 与 gca_engine/config.py SLIDING_WINDOW_SECONDS 一致
-    sliding_step_seconds: int = 30      # 与 gca_engine/config.py SLIDING_STEP_SECONDS 一致
-    stall_silence_seconds: int = 120    # 已有依据：connection.py is_group_silent(120)
+    sliding_window_seconds: int = 300  # 与 gca_engine/config.py SLIDING_WINDOW_SECONDS 一致
+    sliding_step_seconds: int = 30  # 与 gca_engine/config.py SLIDING_STEP_SECONDS 一致
+    stall_silence_seconds: int = 120  # 已有依据：connection.py is_group_silent(120)
     low_participation_min_peers_spoken: int = 1  # 条件1：其他人至少都发过 1 次言
-    low_participation_ratio: float = 0.3         # 已有依据：get_quiet_members 条件 2 的 0.3
-    low_participation_peers_mean_min: int = 3    # 已有依据：get_quiet_members 的 others_avg >= 3
-    min_utterances_total: int = 2       # 与 gca_engine/config.py EngineConfig.min_utterances 一致
-    min_utterances_window: int = 2      # 窗口内发言总数少于这个数不触发（数据不足）
+    low_participation_ratio: float = 0.3  # 已有依据：get_quiet_members 条件 2 的 0.3
+    low_participation_peers_mean_min: int = 3  # 已有依据：get_quiet_members 的 others_avg >= 3
+    min_utterances_total: int = 2  # 与 gca_engine/config.py EngineConfig.min_utterances 一致
+    min_utterances_window: int = 2  # 窗口内发言总数少于这个数不触发（数据不足）
     consecutive_points_required: int = 2  # 候选：连续 N 个更新点满足才触发
-    student_cooldown_seconds: int = 120   # 候选：学生级冷却（前端已有 120s 节流先例）
-    group_cooldown_seconds: int = 300     # 候选：小组级冷却（等于一个完整滑动窗口）
+    student_cooldown_seconds: int = 120  # 候选：学生级冷却（前端已有 120s 节流先例）
+    group_cooldown_seconds: int = 300  # 候选：小组级冷却（等于一个完整滑动窗口）
 
     # 每个参数的依据（如实标注：已有代码依据 / 候选配置 / 口径一致）
     NOTES: dict = field(default_factory=dict, init=False, repr=False)
@@ -91,8 +91,7 @@ class HintTriggerConfig:
         self.NOTES.update(
             {
                 "stall_silence_seconds": (
-                    "已有代码依据：app/realtime/connection.py "
-                    "is_group_silent(silence_seconds=120)"
+                    "已有代码依据：app/realtime/connection.py is_group_silent(silence_seconds=120)"
                 ),
                 "low_participation_ratio": (
                     "已有代码依据：connection.py get_quiet_members 条件 2 的 0.3 比例"
@@ -145,9 +144,7 @@ def _recent_subset(utterances, end_second: float, window_seconds: int) -> list[U
 def _validate_inputs(meeting_id: str, utterances: list[Utterance]) -> None:
     if not isinstance(meeting_id, str) or not meeting_id.strip():
         raise ValueError("meeting_id 必须是非空字符串")
-    if not isinstance(utterances, list) or not all(
-        isinstance(u, Utterance) for u in utterances
-    ):
+    if not isinstance(utterances, list) or not all(isinstance(u, Utterance) for u in utterances):
         raise ValueError("utterances 必须是 Utterance 列表")
 
 
@@ -248,10 +245,7 @@ def _point_condition(
 
 def _reason_text(speaker: str, evidence: dict) -> str:
     if evidence["rule"] == "zero_speech":
-        return (
-            f"最近窗口内 {speaker} 0 次发言，"
-            f"其余 {evidence['peers_total']} 名成员均有发言"
-        )
+        return f"最近窗口内 {speaker} 0 次发言，其余 {evidence['peers_total']} 名成员均有发言"
     return (
         f"最近窗口内 {speaker} 发言 {evidence['self_utterances']} 次，"
         f"不足其他成员平均 {evidence['peer_utterances_mean']:g} 次的 "
@@ -311,14 +305,17 @@ def low_participation_candidates(
         )
         if not ok:
             continue
+        assert evidence is not None  # ok 为 True 时 _point_condition 必返回证据
         # 连续 N 个更新点：上一个评估点的窗口也要满足（课堂不足一个更新点时不触发）
         consecutive = 1
         if config.consecutive_points_required > 1:
             if now < step:
                 continue
             prev_ok, _ = _point_condition(
-                speaker, pool,
-                _recent_subset(utterances, now - step, window), config,
+                speaker,
+                pool,
+                _recent_subset(utterances, now - step, window),
+                config,
             )
             if not prev_ok:
                 continue
@@ -375,8 +372,7 @@ def discussion_stall_candidates(
             target_user_id=None,
             window={"start_second": max(0.0, now - window), "end_second": now},
             trigger_reason=(
-                f"全组已 {silence:g} 秒没有新发言"
-                f"（阈值 {config.stall_silence_seconds} 秒）"
+                f"全组已 {silence:g} 秒没有新发言（阈值 {config.stall_silence_seconds} 秒）"
             ),
             evidence={
                 "last_speech_second": last,
@@ -422,11 +418,12 @@ def compute_hint_candidates(
     now = _resolve_now(now_second, utterances)
 
     merged = low_participation_candidates(
-        meeting_id, utterances, now_second=now, config=config,
+        meeting_id,
+        utterances,
+        now_second=now,
+        config=config,
         online_members=online_members,
-    ) + discussion_stall_candidates(
-        meeting_id, utterances, now_second=now, config=config
-    )
+    ) + discussion_stall_candidates(meeting_id, utterances, now_second=now, config=config)
 
     out: list[HintCandidate] = []
     for candidate in merged:

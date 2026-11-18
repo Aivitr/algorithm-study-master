@@ -138,9 +138,9 @@ def analyze_cognitive(
     if len(speaker_by_utterance) < len(utterances):
         warnings.append("已排除清洗后为空的发言。")
 
-    gca_students = {}
+    gca_students: dict[str, dict[str, float]] = {}
     gca_status = gca_result.status if gca_result is not None else None
-    if gca_status in (
+    if gca_result is not None and gca_status in (
         AnalysisStatus.SUCCESS,
         AnalysisStatus.SINGLE_SPEAKER,
         AnalysisStatus.INSUFFICIENT_DATA,
@@ -201,7 +201,8 @@ def analyze_cognitive(
             metrics["quality_count"] = len(scores)
             metrics["quality_coverage"] = len(scores) / utterance_count
             if scores:
-                metrics["quality_mean"] = mean(scores)
+                # _has_valid_quality 保证入列的 quality_score 非 None
+                metrics["quality_mean"] = mean(score for score in scores if score is not None)
 
     n_valid_utterances = len(speaker_by_utterance)
     n_scores = sum(len(scores) for scores in scores_by_speaker.values())

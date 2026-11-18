@@ -175,9 +175,7 @@ class TestJiebaFallback(unittest.TestCase):
 
     def test_fallback_still_supports_dedup(self):
         with self._with_jieba_blocked():
-            self.assertEqual(
-                tokenize("hello hello hello", dedup=True), ["hello"]
-            )
+            self.assertEqual(tokenize("hello hello hello", dedup=True), ["hello"])
 
 
 class TestNormalizeDedupSwitch(unittest.TestCase):
@@ -248,9 +246,7 @@ class TestKnownLimitations(unittest.TestCase):
 
     def test_mixed_cn_number_no_space_preserved(self):
         # 无空白分隔的中英/数字混合重复无法识别，保守保留
-        self.assertEqual(
-            normalize_text("第1组第1组第1组", dedup=True), "第1组第1组第1组"
-        )
+        self.assertEqual(normalize_text("第1组第1组第1组", dedup=True), "第1组第1组第1组")
 
     def test_double_chinese_groups_preserved(self):
         # 2 组两字词与合法 ABAB 无法区分（讨论讨论），保留
@@ -274,8 +270,13 @@ class TestLongAndExtremeInput(unittest.TestCase):
 
     def test_dedup_false_never_changes_normal_text(self):
         # 无噪声标记、无多余空白的文本：默认关闭时必须逐字不变
-        texts = ["哈哈哈哈", "好的好的好的好的", "hello hello hello",
-                 "我们讨论讨论这个问题", "2024年11月11日"]
+        texts = [
+            "哈哈哈哈",
+            "好的好的好的好的",
+            "hello hello hello",
+            "我们讨论讨论这个问题",
+            "2024年11月11日",
+        ]
         for t in texts:
             self.assertEqual(normalize_text(t), t)
 

@@ -15,7 +15,6 @@ import json
 import unittest
 
 from gca_engine.engagement.emotional import analyze_emotional
-
 from gca_engine.engagement.protocols import EmotionRecord
 
 

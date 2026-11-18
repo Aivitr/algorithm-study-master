@@ -11,8 +11,8 @@ import json
 import unittest
 
 from gca_engine.engagement.protocols import (
-    DIMENSIONS,
     DIMENSION_STATUS,
+    DIMENSIONS,
     HINT_TYPES,
     TARGET_TYPES,
     EmotionRecord,
@@ -34,7 +34,6 @@ def _ok_dimension(name: str, metric: str = "positive_ratio") -> EngagementDimens
 
 
 class TestConstants(unittest.TestCase):
-
     def test_dimensions_exactly_three(self):
         self.assertEqual(DIMENSIONS, ("emotional", "behavioral", "cognitive"))
 
@@ -49,7 +48,6 @@ class TestConstants(unittest.TestCase):
 
 
 class TestEmotionRecord(unittest.TestCase):
-
     def test_create_basic(self):
         r = EmotionRecord("m1", "u001", "happy", 12.5, intensity=0.8, source="video")
         self.assertEqual(r.to_dict()["emotion_type"], "happy")
@@ -81,7 +79,6 @@ class TestEmotionRecord(unittest.TestCase):
 
 
 class TestSpeechQualityRecord(unittest.TestCase):
-
     def test_create_basic(self):
         r = SpeechQualityRecord("t1", quality_score=85.0, relevance_score=3.0)
         self.assertEqual(r.to_dict()["quality_score"], 85.0)
@@ -101,7 +98,6 @@ class TestSpeechQualityRecord(unittest.TestCase):
 
 
 class TestEngagementDimensionResult(unittest.TestCase):
-
     def test_ok_result(self):
         r = _ok_dimension("behavioral", "utterance_count")
         self.assertEqual(r.status, "ok")
@@ -126,7 +122,6 @@ class TestEngagementDimensionResult(unittest.TestCase):
 
 
 class TestEngagementResult(unittest.TestCase):
-
     def test_all_three_dimensions_required(self):
         with self.assertRaises(ValueError):
             EngagementResult(
@@ -159,8 +154,11 @@ class TestEngagementResult(unittest.TestCase):
             status="success",
             dimensions={d: _ok_dimension(d) for d in DIMENSIONS},
             student_metrics={"u001": {"behavioral": {"utterance_count": 3.0}}},
-            group_metrics={"behavioral": {"utterance_count": {
-                "mean": 3.0, "min": 3.0, "max": 3.0, "std": 0.0, "count": 1}}},
+            group_metrics={
+                "behavioral": {
+                    "utterance_count": {"mean": 3.0, "min": 3.0, "max": 3.0, "std": 0.0, "count": 1}
+                }
+            },
             metadata={"generated_at": "2026-11-14T00:00:00+00:00"},
         )
         data = json.loads(json.dumps(result.to_dict(), allow_nan=False))
@@ -169,7 +167,6 @@ class TestEngagementResult(unittest.TestCase):
 
 
 class TestHintCandidate(unittest.TestCase):
-
     def _candidate(self, **kwargs):
         base = dict(
             meeting_id="m1",
@@ -229,9 +226,7 @@ class TestSampleScenarios(unittest.TestCase):
                 student_metrics.setdefault(uid, {})[dim_result.dimension] = metrics
             group_metrics[dim_result.dimension] = dim_result.group_metrics
         status = (
-            "success"
-            if any(d.status == "ok" for d in dimensions.values())
-            else "insufficient_data"
+            "success" if any(d.status == "ok" for d in dimensions.values()) else "insufficient_data"
         )
         return EngagementResult(
             meeting_id="m1",
@@ -249,9 +244,7 @@ class TestSampleScenarios(unittest.TestCase):
 
     def test_scenario2_one_dimension_missing(self):
         dims = {d: _ok_dimension(d) for d in DIMENSIONS}
-        dims["emotional"] = dimension_result(
-            "emotional", "unavailable", error="课堂未开启情绪识别"
-        )
+        dims["emotional"] = dimension_result("emotional", "unavailable", error="课堂未开启情绪识别")
         result = self._merged(dims)
         data = json.loads(json.dumps(result.to_dict(), allow_nan=False))
         self.assertEqual(data["status"], "success")
@@ -259,10 +252,7 @@ class TestSampleScenarios(unittest.TestCase):
         self.assertNotIn("emotional", data["group_metrics"])
 
     def test_scenario3_no_speech(self):
-        dims = {
-            d: dimension_result(d, "unavailable", error="没有任何发言记录")
-            for d in DIMENSIONS
-        }
+        dims = {d: dimension_result(d, "unavailable", error="没有任何发言记录") for d in DIMENSIONS}
         result = self._merged(dims)
         data = json.loads(json.dumps(result.to_dict(), allow_nan=False))
         self.assertEqual(data["status"], "insufficient_data")
@@ -274,7 +264,8 @@ class TestSampleScenarios(unittest.TestCase):
             "emotional": _ok_dimension("emotional"),
             "behavioral": _ok_dimension("behavioral", "utterance_count"),
             "cognitive": dimension_result(
-                "cognitive", "insufficient",
+                "cognitive",
+                "insufficient",
                 metadata={"n_speakers": 1},
                 error="只有一名发言人，回应类指标无比较对象",
             ),
@@ -289,16 +280,19 @@ class TestSampleScenarios(unittest.TestCase):
         # 部分指标可用但不计算综合分：本轮不输出 E_e/E_b/E_c
         dims = {
             "emotional": dimension_result(
-                "emotional", "insufficient",
+                "emotional",
+                "insufficient",
                 student_metrics={"u001": {"positive_ratio": 0.5}},
-                group_metrics={"positive_ratio": {
-                    "mean": 0.5, "min": 0.5, "max": 0.5, "std": 0.0, "count": 1}},
+                group_metrics={
+                    "positive_ratio": {"mean": 0.5, "min": 0.5, "max": 0.5, "std": 0.0, "count": 1}
+                },
                 metadata={"coverage": 0.2},
                 error="情绪记录覆盖不足，未计算综合分",
             ),
             "behavioral": _ok_dimension("behavioral", "utterance_count"),
             "cognitive": dimension_result(
-                "cognitive", "insufficient",
+                "cognitive",
+                "insufficient",
                 metadata={"quality_score_coverage": 0.3},
                 error="质量评分缺失较多，未计算综合分",
             ),

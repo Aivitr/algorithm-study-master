@@ -93,7 +93,11 @@ class EmotionRecord:
             raise ValueError("timestamp 必须是 >= 0 的有限数字（课堂开始后的秒数）")
         for name in ("intensity",):
             value = getattr(self, name)
-            if value is not None and not (isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(float(value))):
+            if value is not None and not (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and isfinite(float(value))
+            ):
                 raise ValueError(f"{name} 必须是有限数字或 None")
 
     def to_dict(self) -> dict:
@@ -121,7 +125,11 @@ class SpeechQualityRecord:
             raise ValueError("utterance_id 必须是非空字符串")
         for name in ("quality_score", "relevance_score"):
             value = getattr(self, name)
-            if value is not None and not (isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(float(value))):
+            if value is not None and not (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and isfinite(float(value))
+            ):
                 raise ValueError(f"{name} 必须是有限数字或 None")
 
     def to_dict(self) -> dict:
@@ -217,7 +225,9 @@ class EngagementResult:
         if not isinstance(self.meeting_id, str) or not self.meeting_id.strip():
             raise ValueError("meeting_id 必须是非空字符串")
         if self.status not in {s.value for s in AnalysisStatus}:
-            raise ValueError(f"status 必须是 AnalysisStatus 7 种之一：{[s.value for s in AnalysisStatus]}")
+            raise ValueError(
+                f"status 必须是 AnalysisStatus 7 种之一：{[s.value for s in AnalysisStatus]}"
+            )
         if not isinstance(self.dimensions, dict):
             raise ValueError("dimensions 必须是 dict，且 emotional/behavioral/cognitive 三键齐全")
         missing = [d for d in DIMENSIONS if d not in self.dimensions]
@@ -272,7 +282,11 @@ class HintCandidate:
             raise ValueError("学生级候选必须给非空 target_user_id")
         if self.target_type == "group" and self.target_user_id is not None:
             raise ValueError("小组级候选的 target_user_id 必须是 None")
-        if not isinstance(self.window, dict) or "start_second" not in self.window or "end_second" not in self.window:
+        if (
+            not isinstance(self.window, dict)
+            or "start_second" not in self.window
+            or "end_second" not in self.window
+        ):
             raise ValueError("window 必须是含 start_second / end_second 的 dict")
         for key in ("start_second", "end_second"):
             value = self.window.get(key)
