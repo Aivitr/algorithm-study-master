@@ -66,6 +66,16 @@
             --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
             --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
             
+            /* 品牌/面板阴影 */
+            --shadow-panel: 0 4px 14px rgba(24, 52, 61, 0.08);
+            --shadow-float: 0 20px 60px rgba(0,0,0,0.2);
+            --shadow-primary-sm: 0 2px 8px rgba(62, 124, 134, 0.25);
+            --shadow-primary-md: 0 4px 12px rgba(62, 124, 134, 0.35);
+            --shadow-danger: 0 4px 12px rgba(239, 68, 68, 0.35);
+            --shadow-soft: 0 2px 6px rgba(19, 55, 62, 0.12);
+            --shadow-soft-sm: 0 2px 8px rgba(19, 55, 62, 0.08);
+            --shadow-teal: 0 0 8px rgba(13, 119, 122, 0.24);
+
             /* Focus Ring */
             --ring: rgba(62,124,134,0.35);
         }
@@ -813,13 +823,13 @@
             border-radius: var(--radius-md);
             padding: 12px 24px;
             font-weight: 600;
-            box-shadow: 0 2px 8px rgba(62, 124, 134, 0.25);
+            box-shadow: var(--shadow-primary-sm);
             transition: all 180ms ease;
         }
         
         .page-classroom .btn-primary-classroom:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(62, 124, 134, 0.35);
+            box-shadow: var(--shadow-primary-md);
         }
         
         .page-classroom .btn-secondary-classroom {
@@ -848,7 +858,7 @@
         
         .page-classroom .btn-danger-classroom:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+            box-shadow: var(--shadow-danger);
         }
 
         /* ========================================
@@ -868,7 +878,7 @@
         .page-classroom .classroom-sidebar {
             background: var(--classroom-panel) !important;
             border-right: 1px solid var(--classroom-border-soft) !important;
-            box-shadow: 0 4px 14px rgba(24, 52, 61, 0.08) !important;
+            box-shadow: var(--shadow-panel) !important;
         }
 
         .page-classroom .classroom-sidebar .sidebar-card {
@@ -978,7 +988,7 @@
         .page-classroom .classroom-rightpanel {
             background: var(--classroom-card) !important;
             border-left: 1px solid #dbe4e8 !important;
-            box-shadow: 0 4px 14px rgba(24, 52, 61, 0.08) !important;
+            box-shadow: var(--shadow-panel) !important;
         }
 
         .page-classroom .classroom-tabbar {
@@ -998,7 +1008,7 @@
             background: #ffffff !important;
             color: var(--classroom-text-dark) !important;
             border: 1px solid #d7e5e2 !important;
-            box-shadow: 0 2px 6px rgba(19, 55, 62, 0.12) !important;
+            box-shadow: var(--shadow-soft) !important;
         }
 
         .page-classroom .classroom-tab-inactive {
@@ -1020,7 +1030,7 @@
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
             border-color: #dfe8ec !important;
-            box-shadow: 0 2px 8px rgba(19, 55, 62, 0.08) !important;
+            box-shadow: var(--shadow-soft-sm) !important;
         }
 
         .page-classroom .goal-card::before {
@@ -1028,7 +1038,7 @@
         }
 
         .page-classroom .progress-fill {
-            box-shadow: 0 0 8px rgba(13, 119, 122, 0.24) !important;
+            box-shadow: var(--shadow-teal) !important;
         }
 
         .page-classroom .progress-fill::after {
@@ -2057,7 +2067,7 @@
 
         /* 目标完成弹窗 */
         .goal-complete-overlay { position: fixed; inset: 0; z-index: 9990; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
-        .goal-complete-card { background: white; border-radius: var(--radius-xl); padding: var(--space-8); max-width: 360px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: goalPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .goal-complete-card { background: white; border-radius: var(--radius-xl); padding: var(--space-8); max-width: 360px; width: 90%; text-align: center; box-shadow: var(--shadow-float); animation: goalPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes goalPopIn { 0% { transform: scale(0.5) translateY(40px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-60px) rotate(360deg); opacity: 0; } }
 
@@ -2071,7 +2081,7 @@
         .global-modal-card {
             background: white; border-radius: var(--radius-lg); padding: 28px 32px;
             max-width: 400px; width: 88%; text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-float);
             animation: goalPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .global-modal-icon {

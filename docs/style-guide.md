@@ -41,7 +41,9 @@
 - 小控件：`--radius-sm`（10px）；中等控件：`--radius-md`（12px）
 - 卡片/输入：`--radius-lg`（16px）；大容器：`--radius-xl`（20px）
 - 胶囊按钮/徽标：`--radius-pill`（999px）
-- 阴影只用 `--shadow-sm/md/lg`，不新增自定义阴影
+- 阴影只用 `--shadow-sm/md/lg` 与品牌阴影 token（`--shadow-panel`、`--shadow-float`、
+  `--shadow-primary-sm/md`、`--shadow-danger`、`--shadow-soft/soft-sm`、`--shadow-teal`），
+  不新增自定义阴影
 
 ## 图标与文案
 
