@@ -42,6 +42,11 @@ jobs:
               exit 1
             fi
             cd ${{ vars.DEPLOY_PATH }}
+            # 旧部署进程可能仍持有 flock；先探测，避免新的 checkout 改到它正在构建的工作树。
+            if ! flock -n /var/lock/smartclass-deploy.lock true; then
+              echo "another deploy is already running"
+              exit 1
+            fi
             # 先记下当前运行版本；后面的 checkout 会把它覆盖。
             PREV_SHA="$(git rev-parse HEAD)"
             # 先更新到最新 main 再执行 deploy.sh：否则 Bash 会继续运行服务器上
