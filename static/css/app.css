@@ -39,8 +39,11 @@
             --muted: #6B7B88;
             
             /* 圆角 */
+            --radius-sm: 10px;
+            --radius-md: 12px;
             --radius-lg: 16px;
             --radius-xl: 20px;
+            --radius-pill: 999px;
             
             /* 阴影 */
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
@@ -63,12 +66,12 @@
         
         *::-webkit-scrollbar-track {
             background: #f1f5f9;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
         }
         
         *::-webkit-scrollbar-thumb {
             background: var(--primary-gradient);
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
         }
         
         *::-webkit-scrollbar-thumb:hover {
@@ -155,7 +158,7 @@
         }
         
         .video-container {
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             overflow: hidden;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             border: 3px solid rgba(255, 255, 255, 0.1);
@@ -239,7 +242,7 @@
 
         .voiceprint-wave-bar {
             width: 7px;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             background: var(--primary-gradient);
             animation: voiceprint-wave 1s ease-in-out infinite;
         }
@@ -322,7 +325,7 @@
         
         .progress-bar {
             height: 10px;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             overflow: hidden;
             background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 100%);
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -423,7 +426,7 @@
         
         .sidebar-card {
             background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 20px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
@@ -460,7 +463,7 @@
             display: inline-flex;
             align-items: center;
             padding: 6px 16px;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
@@ -791,7 +794,7 @@
         .page-classroom .btn-primary-classroom {
             background: linear-gradient(135deg, #3E7C86 0%, #4BA3B0 100%);
             color: white;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             padding: 12px 24px;
             font-weight: 600;
             box-shadow: 0 2px 8px rgba(62, 124, 134, 0.25);
@@ -807,7 +810,7 @@
             background: white;
             color: #475569;
             border: 1px solid rgba(148, 163, 184, 0.3);
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             padding: 10px 20px;
             font-weight: 500;
             transition: all 180ms ease;
@@ -821,7 +824,7 @@
         .page-classroom .btn-danger-classroom {
             background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
             color: white;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             padding: 10px 20px;
             font-weight: 600;
             transition: all 180ms ease;
@@ -890,7 +893,7 @@
         .video-grid-cell {
             position: relative;
             background: #1a2740;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             overflow: hidden;
             border: 2px solid transparent;
             transition: border-color 0.3s, box-shadow 0.3s;
@@ -970,7 +973,7 @@
         .page-classroom .classroom-tabbar > .flex {
             background: #f3f8f8;
             border: 1px solid #dde9e8;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             padding: 4px;
             gap: 4px;
         }
@@ -1159,7 +1162,7 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(94, 168, 171, 0.25);
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 24px;
             cursor: pointer;
             opacity: 0;
@@ -1200,7 +1203,7 @@
         .bento-card-icon {
             width: 56px;
             height: 56px;
-            border-radius: 12px;
+            border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1340,7 +1343,7 @@
         .page-landing .lp-register-btn {
             background: linear-gradient(135deg, #4fa5a0 0%, #4aa883 100%);
             color: #fff;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             font-weight: 700;
             box-shadow: 0 10px 20px rgba(70, 156, 138, 0.3);
             transition: transform 180ms ease, box-shadow 180ms ease;
@@ -1491,7 +1494,7 @@
         .page-landing .lp-hero-decor.is-mid {
             width: 164px;
             height: 212px;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
         }
 
         .page-landing .lp-hero-decor.is-front {
@@ -1624,7 +1627,7 @@
 
         .page-landing .lp-feature-card {
             background: #f8fbfb;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             border: 1px solid #dce8e5;
             box-shadow: 0 10px 20px rgba(33, 54, 56, 0.08);
             padding: 30px 24px;
@@ -1681,7 +1684,7 @@
 
         .page-landing .lp-why-img img {
             width: 100%;
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             height: 300px;
             object-fit: cover;
             display: block;
@@ -1723,7 +1726,7 @@
 
         .page-landing .lp-review-card {
             background: #f8fbfb;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             border: 1px solid #dce8e5;
             box-shadow: 0 10px 20px rgba(33, 54, 56, 0.07);
             padding: 20px 20px 18px;
@@ -1760,7 +1763,7 @@
         .page-landing .lp-avatar {
             width: 34px;
             height: 34px;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             background: #b7ded4;
             color: #2a646a;
             display: flex;
@@ -1848,7 +1851,7 @@
         .page-landing .lp-cta-btn {
             background: #f7fcfb;
             color: #2f6e73;
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 14px 34px;
             min-width: 144px;
             font-weight: 800;
@@ -1989,7 +1992,7 @@
         .ai-md-content ul, .ai-md-content ol { padding-left: 1.5em; margin: 6px 0; }
         .ai-md-content li { margin: 3px 0; }
         .ai-md-content code { background: #e8f5e9; color: #2e7d32; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: 'Consolas', monospace; }
-        .ai-md-content pre { background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 10px; overflow-x: auto; margin: 8px 0; font-size: 0.88em; }
+        .ai-md-content pre { background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; font-size: 0.88em; }
         .ai-md-content pre code { background: none; color: inherit; padding: 0; }
         .ai-md-content blockquote { border-left: 3px solid #3E7C86; padding: 6px 12px; margin: 8px 0; background: #f0f9f4; color: #555; border-radius: 0 8px 8px 0; }
         .ai-md-content table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.92em; }
@@ -2007,7 +2010,7 @@
         .quiz-progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
         .quiz-progress-fill { height: 100%; background: linear-gradient(90deg, #3E7C86, #2F6670); border-radius: 3px; transition: width 0.5s ease; }
         .quiz-card-header { background: linear-gradient(135deg, #3E7C86 0%, #2F6670 100%); }
-        .quiz-option { border: 2px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px; background: white; }
+        .quiz-option { border: 2px solid #e2e8f0; border-radius: var(--radius-md); padding: 14px 18px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px; background: white; }
         .quiz-option:hover { border-color: #3E7C86; background: rgba(62, 124, 134, 0.04); }
         .quiz-option.selected { border-color: #3E7C86; background: rgba(62, 124, 134, 0.08); }
         .quiz-option.correct { border-color: #3E7C86; background: rgba(62, 124, 134, 0.08); }
@@ -2018,11 +2021,11 @@
         .quiz-option.correct .quiz-option-letter { background: #3E7C86; color: white; }
         .quiz-option.wrong .quiz-option-letter { background: #ef4444; color: white; }
         .quiz-option.show-correct .quiz-option-letter { background: #3E7C86; color: white; }
-        .quiz-btn-primary { background: var(--primary-gradient); color: white; font-weight: 700; padding: 12px 24px; border-radius: 12px; transition: all 0.2s; }
+        .quiz-btn-primary { background: var(--primary-gradient); color: white; font-weight: 700; padding: 12px 24px; border-radius: var(--radius-md); transition: all 0.2s; }
         .quiz-btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .quiz-btn-secondary { background: linear-gradient(135deg, #b5864a, #c99a5e); color: white; font-weight: 700; padding: 12px 24px; border-radius: 12px; transition: all 0.2s; }
+        .quiz-btn-secondary { background: linear-gradient(135deg, #b5864a, #c99a5e); color: white; font-weight: 700; padding: 12px 24px; border-radius: var(--radius-md); transition: all 0.2s; }
         .quiz-btn-secondary:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .quiz-btn-outline { border: 2px solid #3E7C86; color: #3E7C86; font-weight: 700; padding: 10px 24px; border-radius: 12px; background: white; transition: all 0.2s; }
+        .quiz-btn-outline { border: 2px solid #3E7C86; color: #3E7C86; font-weight: 700; padding: 10px 24px; border-radius: var(--radius-md); background: white; transition: all 0.2s; }
         .quiz-btn-outline:hover { background: rgba(62, 124, 134, 0.08); }
         .quiz-feedback { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10000; padding: 20px; border-radius: 20px 20px 0 0; animation: slideUp 0.3s ease; }
         .quiz-feedback.correct { background: linear-gradient(135deg, #E7F2F3, #d4e8ea); border-top: 3px solid #3E7C86; }
@@ -2038,7 +2041,7 @@
 
         /* 目标完成弹窗 */
         .goal-complete-overlay { position: fixed; inset: 0; z-index: 9990; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
-        .goal-complete-card { background: white; border-radius: 20px; padding: 32px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: goalPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .goal-complete-card { background: white; border-radius: var(--radius-xl); padding: 32px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: goalPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes goalPopIn { 0% { transform: scale(0.5) translateY(40px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-60px) rotate(360deg); opacity: 0; } }
 
@@ -2050,7 +2053,7 @@
             animation: fadeIn 0.2s ease;
         }
         .global-modal-card {
-            background: white; border-radius: 16px; padding: 28px 32px;
+            background: white; border-radius: var(--radius-lg); padding: 28px 32px;
             max-width: 400px; width: 88%; text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.2);
             animation: goalPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -2066,7 +2069,7 @@
         .global-modal-title { font-size: 17px; font-weight: 700; color: #1a2e35; margin-bottom: 8px; }
         .global-modal-msg { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 20px; }
         .global-modal-btn {
-            display: inline-block; padding: 10px 32px; border-radius: 10px;
+            display: inline-block; padding: 10px 32px; border-radius: var(--radius-sm);
             font-weight: 700; font-size: 14px; cursor: pointer; transition: all 0.2s;
             border: none; outline: none;
         }
