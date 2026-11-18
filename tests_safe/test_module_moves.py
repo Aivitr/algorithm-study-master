@@ -152,15 +152,17 @@ def test_detector_actually_detects():
         )
 
     # 反向对照：这些**不该**被报出来。写错方向同样致命——满屏误报会让守卫
-    # 很快被 `# noqa` 或删除处理掉，等于没有。
-    clean = "\n".join([
-        "import os",
-        "from app.core import config",
-        "from app.core.config import settings",
-        "import app.models",
-        "from . import sibling",
-        "from .config import local",
-    ])
+    # 很快被 noqa 注释或删除处理掉，等于没有。
+    clean = "\n".join(
+        [
+            "import os",
+            "from app.core import config",
+            "from app.core.config import settings",
+            "import app.models",
+            "from . import sibling",
+            "from .config import local",
+        ]
+    )
     assert bare_imports(clean) == [], f"检测器误报了合法导入：{bare_imports(clean)}"
 
 

@@ -29,12 +29,7 @@ def normalize_context_lines(
     lines = []
     for item in items[-max_items:]:
         if isinstance(item, dict):
-            user = (
-                item.get("username")
-                or item.get("student_name")
-                or item.get("user")
-                or "用户"
-            )
+            user = item.get("username") or item.get("student_name") or item.get("user") or "用户"
             content = item.get("content") or item.get("text") or item.get("speech") or ""
             line = f"{user}: {normalize_text(content, each_len)}"
         else:

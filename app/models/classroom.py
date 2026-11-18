@@ -2,17 +2,10 @@
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-from sqlalchemy import JSON
-from sqlalchemy import String
-from sqlalchemy import Text
+from sqlalchemy import JSON, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text
 
-from app.models.base import Base
 from app.core.meeting_state import CREATED
+from app.models.base import Base
 
 
 class Meeting(Base):
@@ -35,6 +28,7 @@ class Meeting(Base):
     created_at = Column(DateTime, default=datetime.now)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
+
 
 # [EMOJI]: [EMOJI]([EMOJI])
 class MemberConnection(Base):

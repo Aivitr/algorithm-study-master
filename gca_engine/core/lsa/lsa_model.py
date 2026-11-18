@@ -50,8 +50,7 @@ class LSAModel:
     def _preprocess(self, documents: list[str]) -> list[str]:
         cfg = self.config
         return [
-            clean_text(d, lowercase=cfg.lowercase,
-                       remove_punctuation=cfg.remove_punctuation)
+            clean_text(d, lowercase=cfg.lowercase, remove_punctuation=cfg.remove_punctuation)
             for d in documents
         ]
 
@@ -89,7 +88,11 @@ class LSAModel:
             logger.warning(
                 "requested n_components=%d exceeds max feasible %d "
                 "(min(n_samples=%d, n_features=%d) - 1); clamping to %d",
-                requested, max_dim, n_samples, n_features, max_dim,
+                requested,
+                max_dim,
+                n_samples,
+                n_features,
+                max_dim,
             )
             actual = max_dim
         else:
@@ -156,14 +159,14 @@ class LSAModel:
         model.tfidf.load_vectorizer(model_dir / "vectorizer.joblib")
         model.svd = joblib.load(model_dir / "svd.joblib")
         model.actual_dimensions = int(model.svd.n_components)
-        logger.info("LSA model loaded from %s (dims=%d)",
-                    model_dir, model.actual_dimensions)
+        logger.info("LSA model loaded from %s (dims=%d)", model_dir, model.actual_dimensions)
         return model
 
 
 # ---------------------------------------------------------------------------
 # Verification
 # ---------------------------------------------------------------------------
+
 
 def run_verification_checks(
     vectors: np.ndarray,

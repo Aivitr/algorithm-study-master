@@ -1,0 +1,67 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref or SHA to deploy"
+        required: true
+        default: "main"
+      confirm_db_backup:
+        description: "I have taken an RDS snapshot / confirmed the database backup"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://47.114.103.74
+    timeout-minutes: 60
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 60m
+          script: |
+            set -euo pipefail
+            if [ "${{ github.event.inputs.confirm_db_backup }}" != "true" ]; then
+              echo "RDS backup not confirmed"
+              exit 1
+            fi
+            cd ${{ vars.DEPLOY_PATH }}
+            # 先记下当前运行版本；后面的 checkout 会把它覆盖。
+            PREV_SHA="$(git rev-parse HEAD)"
+            # 先更新到最新 main 再执行 deploy.sh：否则 Bash 会继续运行服务器上
+            # 旧版脚本，脚本内部的 checkout 无法影响已经在执行的进程。
+            # 服务器到 GitHub 偶尔出现 HTTP/2 framing 或 GnuTLS recv 错误；
+            # 固定 HTTP/1.1，并在失败时换 OpenSSL 后端重试。
+            for attempt in 1 2 3 4 5; do
+              if git -c http.version=HTTP/1.1 fetch --depth 1 origin main; then
+                break
+              fi
+              if git -c http.version=HTTP/1.1 -c http.sslBackend=openssl \
+                  fetch --depth 1 origin main; then
+                break
+              fi
+              if [ "$attempt" = "5" ]; then
+                echo "git fetch failed after 5 attempts"
+                exit 1
+              fi
+              sleep 10
+            done
+            git checkout -f -B main origin/main
+            PREV_SHA="$PREV_SHA" SKIP_GIT_FETCH=1 CONFIRM_DB_BACKUP=1 \
+              ./deploy/deploy.sh "${{ github.event.inputs.ref }}"

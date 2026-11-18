@@ -14,19 +14,24 @@
 见 `app/routers/__init__.py`。
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.meeting_state import ENDED, RUNNING, meeting_status_error
-from app.models import Meeting
+from app.models import KnowledgeGraph, Meeting
 from app.services.class_stats_service import ClassStatsService
+from app.services.knowledge_graph_service import kg_service
 from app.services.knowledge_trace_service import KnowledgeTraceService
 from app.services.llm_service import llm
 from app.services.meeting_context_service import MeetingContextService
+from app.services.session_service import SessionContext, require_session
 from app.services.transcript_query_service import TranscriptQueryService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_session)])
+
 
 @router.get("/summary")
 async def get_summary(meeting_id: int, db: Session = Depends(get_db)):
@@ -48,6 +53,51 @@ async def get_knowledge_graph(meeting_id: int, db: Session = Depends(get_db)):
     return KnowledgeTraceService(db).visualize(meeting_id)
 
 
+@router.post("/api/knowledge-graph/{meeting_id}/generate")
+async def generate_knowledge_graph(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
+    """用课堂转写现场构建知识图谱并保存；没有发言时不调用 LLM。"""
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以生成知识图谱"}
+        state_error = meeting_status_error(meeting.status, {RUNNING, ENDED})
+        if state_error:
+            return {"status": "error", "message": state_error}
+
+        service = KnowledgeTraceService(db)
+        graph = service.build_from_transcripts(meeting_id)
+        if graph is None:
+            return {"status": "error", "message": "暂无可用发言，无法生成知识图谱"}
+        if not graph.get("nodes"):
+            return {
+                "status": "error",
+                "message": "当前发言内容不足，未提取到概念，请多讨论几轮后重试",
+            }
+
+        row = db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
+        if row:
+            row.graph_data = graph
+            row.updated_at = datetime.now()
+        else:
+            db.add(KnowledgeGraph(meeting_id=meeting_id, graph_data=graph))
+        db.commit()
+
+        return {
+            "status": "success",
+            "data": kg_service.generate_graph_visualization_data(graph),
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"[ERROR] 生成知识图谱失败: {e}")
+        return {"status": "error", "message": "生成知识图谱失败，请稍后重试"}
+
+
 @router.get("/api/meeting/{meeting_id}")
 async def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
     """获取课堂信息（包括状态、时间与目标）"""
@@ -59,9 +109,7 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
     """获取课堂历史发言（用于前端对话栏展示）"""
     try:
         limit = max(1, min(int(limit), 2000))
-        transcripts = TranscriptQueryService(db).list_for_meeting(
-            meeting_id, limit=limit
-        )
+        transcripts = TranscriptQueryService(db).list_for_meeting(meeting_id, limit=limit)
 
         items = []
         for t in transcripts:
@@ -69,16 +117,18 @@ async def get_transcripts(meeting_id: int, limit: int = 500, db: Session = Depen
             if getattr(t.user, "role", None) == "teacher":
                 continue
             ts = t.created_at or t.timestamp
-            items.append({
-                "id": t.id,
-                "username": t.user.username if t.user else "",
-                "text": t.content,
-                "timestamp": int(ts.timestamp() * 1000) if ts else None,
-                "quality_score": getattr(t, "quality_score", None),
-                "quality_feedback": getattr(t, "quality_feedback", None),
-                "emotion": getattr(t, "emotion_tag", None),
-                "action": getattr(t, "body_action", None),
-            })
+            items.append(
+                {
+                    "id": t.id,
+                    "username": t.user.username if t.user else "",
+                    "text": t.content,
+                    "timestamp": int(ts.timestamp() * 1000) if ts else None,
+                    "quality_score": getattr(t, "quality_score", None),
+                    "quality_feedback": getattr(t, "quality_feedback", None),
+                    "emotion": getattr(t, "emotion_tag", None),
+                    "action": getattr(t, "body_action", None),
+                }
+            )
 
         return {"status": "success", "transcripts": items}
     except Exception as e:

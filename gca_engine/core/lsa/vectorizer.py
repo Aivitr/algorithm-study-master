@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import joblib
-import numpy as np
 from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -64,9 +63,7 @@ class TfidfStage:
     def fit(self, documents: list[str]) -> TfidfStats:
         """Build the vocabulary and IDF weights from *documents*."""
         if not any(d.strip() for d in documents):
-            raise ValueError(
-                "TF-IDF fit failed: corpus contains no non-empty documents"
-            )
+            raise ValueError("TF-IDF fit failed: corpus contains no non-empty documents")
 
         self._vectorizer = self._build_vectorizer()
         matrix = self._vectorizer.fit_transform(documents)
@@ -77,8 +74,11 @@ class TfidfStage:
             vocabulary_size=len(self._vectorizer.vocabulary_),
             feature_names=list(self._vectorizer.get_feature_names_out()),
         )
-        logger.info("TF-IDF fitted: matrix=%s vocabulary=%d",
-                    self.stats.matrix_shape, self.stats.vocabulary_size)
+        logger.info(
+            "TF-IDF fitted: matrix=%s vocabulary=%d",
+            self.stats.matrix_shape,
+            self.stats.vocabulary_size,
+        )
         return self.stats
 
     def transform(self, documents: list[str]) -> sparse.csr_matrix:

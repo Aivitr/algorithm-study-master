@@ -14,7 +14,6 @@ from agents import RunHooks
 
 from app.core.paths import STORAGE_DIR
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,7 +67,9 @@ class LocalTraceHooks(RunHooks[Any]):
         self._tool_calls[call_id] = (event, perf_counter())
 
     async def on_tool_end(self, context, agent, tool, result) -> None:
-        call_id = str(getattr(context, "tool_call_id", "") or f"{tool.name}-{len(self._events) - 1}")
+        call_id = str(
+            getattr(context, "tool_call_id", "") or f"{tool.name}-{len(self._events) - 1}"
+        )
         call = self._tool_calls.pop(call_id, None)
         if call is None:
             return

@@ -107,9 +107,9 @@ _FORBIDDEN_IN_CONTEXT = (
 # 听上去相当合理），宿主机上的每一条测试都会照样全绿，只有容器里的页面变成白屏。
 # 阶段 6 把前端资源全量落到 static/ 之后，这条路径第一次真的会疼。
 _REQUIRED_IN_CONTEXT = (
-    "index.html",        # app/routers/pages.py 的 `GET /` 真的读这个文件
+    "index.html",  # app/routers/pages.py 的 `GET /` 真的读这个文件
     "pcm-processor.js",  # `GET /pcm-processor.js`
-    "static",            # 阶段 6：本地化的前端资源，由 server.py 的 /static 挂载伺服
+    "static",  # 阶段 6：本地化的前端资源，由 server.py 的 /static 挂载伺服
     "app",
     "tools",
     "tests_safe",
@@ -245,11 +245,9 @@ class TestDockerignore:
             if line.strip() and not line.strip().startswith("#")
         }
         # 接受 `venv`、`venv/`、`**/venv` 等写法
-        assert any(entry == line or line.rstrip("/").lstrip("*").lstrip("/") == entry
-                   for line in lines), (
-            f".dockerignore 没有排除 {entry!r}。"
-            f"现有条目：{sorted(lines)}"
-        )
+        assert any(
+            entry == line or line.rstrip("/").lstrip("*").lstrip("/") == entry for line in lines
+        ), f".dockerignore 没有排除 {entry!r}。现有条目：{sorted(lines)}"
 
     @pytest.mark.parametrize("entry", _REQUIRED_IN_CONTEXT)
     def test_runtime_asset_is_not_excluded(self, entry):
@@ -325,8 +323,7 @@ class TestComposePointsAtTheLocalDatabase:
         assert db is not None, "docker-compose.yml 里没有 db 服务"
 
         assert db.get("build") is None, (
-            "db 声明了 build —— 数据库应当用 registry 镜像单独拉取，"
-            "而不是由本仓库构建。"
+            "db 声明了 build —— 数据库应当用 registry 镜像单独拉取，而不是由本仓库构建。"
         )
         image = str(db.get("image", ""))
         assert image.startswith("mcr.microsoft.com/mssql/server"), (
@@ -389,10 +386,9 @@ class TestComposePointsAtTheLocalDatabase:
                 assert "IF NOT EXISTS (SELECT 1 FROM sys.indexes" in sql, (
                     f"有 {stmt} 但没有对应的 IF NOT EXISTS 守卫"
                 )
-        assert "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys" in sql or \
-               "ADD CONSTRAINT" not in sql, (
-            "有外键约束但没有 IF NOT EXISTS 守卫，重复执行会撞名"
-        )
+        assert (
+            "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys" in sql or "ADD CONSTRAINT" not in sql
+        ), "有外键约束但没有 IF NOT EXISTS 守卫，重复执行会撞名"
 
     def test_local_db_is_opt_in(self):
         """默认 `docker compose up` 只起 app；本地库必须显式 `--profile local-db`。"""
@@ -411,9 +407,7 @@ class TestComposePointsAtTheLocalDatabase:
         app = _compose()["services"]["app"]
 
         entries = dict(_env_file_entries(app))
-        assert ".env.dev" in entries, (
-            "app 没有读 .env.dev —— 库指向就没来源了"
-        )
+        assert ".env.dev" in entries, "app 没有读 .env.dev —— 库指向就没来源了"
         assert entries[".env.dev"] is True, (
             ".env.dev 必须写成 required: true。\n"
             "缺了它的正确表现是 compose 立刻报错；写成 required: false 的话，"
@@ -458,8 +452,7 @@ class TestDevEnvLayer:
     def example(self) -> dict[str, str]:
         path = REPO_ROOT / ".env.dev.example"
         assert path.is_file(), (
-            f"{path.name} 不存在。它是给人照抄的模板（cp .env.dev.example .env.dev），"
-            f"必须入库。"
+            f"{path.name} 不存在。它是给人照抄的模板（cp .env.dev.example .env.dev），必须入库。"
         )
         return _parse_env_file(path)
 
@@ -493,13 +486,9 @@ class TestDevEnvLayer:
         """口令与连接串必须是占位符，不能是真实凭据。"""
         from urllib.parse import unquote, urlsplit
 
-        assert example["DB_PASSWORD"].startswith("<"), (
-            "DB_PASSWORD 必须是占位符，不能写真实口令"
-        )
+        assert example["DB_PASSWORD"].startswith("<"), "DB_PASSWORD 必须是占位符，不能写真实口令"
         url = urlsplit(example["DATABASE_URL"])
-        assert unquote(url.password or "").startswith("<"), (
-            "DATABASE_URL 里的口令必须是占位符"
-        )
+        assert unquote(url.password or "").startswith("<"), "DATABASE_URL 里的口令必须是占位符"
 
     def test_database_url_matches_the_same_target(self, example):
         """DATABASE_URL 的方言必须正确；主机/口径用占位符。"""
@@ -510,9 +499,7 @@ class TestDevEnvLayer:
             f"DATABASE_URL 的方言是 {url.scheme!r}，应为 mssql+pymssql"
         )
         assert (url.hostname or "").startswith("<"), "DATABASE_URL 的主机必须是占位符"
-        assert (url.path.lstrip("/") or "").startswith("<"), (
-            "DATABASE_URL 的库名必须是占位符"
-        )
+        assert (url.path.lstrip("/") or "").startswith("<"), "DATABASE_URL 的库名必须是占位符"
 
 
 # --------------------------------------------------------------------------
@@ -552,7 +539,9 @@ class TestNoProductionCredentialsAreTracked:
         for key, value in values.items():
             result = subprocess.run(
                 ["git", "grep", "-lF", "--", value],
-                cwd=str(REPO_ROOT), capture_output=True, text=True,
+                cwd=str(REPO_ROOT),
+                capture_output=True,
+                text=True,
             )
             if result.stdout.strip():
                 leaked[key] = result.stdout.strip().splitlines()
@@ -592,9 +581,9 @@ class TestGeneratedSchemaCarriesNoSourceHost:
         改产物是治标：`db/schema.sql` 是**生成物**，跑一次
         `python tools/export_prod_schema.py --yes` 就带回来了。真正的修处在模板。
         """
-        lines = (REPO_ROOT / "tools" / "export_prod_schema.py").read_text(
-            encoding="utf-8"
-        ).splitlines()
+        lines = (
+            (REPO_ROOT / "tools" / "export_prod_schema.py").read_text(encoding="utf-8").splitlines()
+        )
         offenders = [ln.strip() for ln in lines if "来源：" in ln and "{host}" in ln]
         assert not offenders, (
             "生成器的头部模板又把源主机名插回去了：\n  "
@@ -643,12 +632,8 @@ class TestRequirementsSplit:
             it = iter(whole)
             return all(item in it for item in sub)
 
-        assert is_subsequence(heavy, origin), (
-            f"重型层的顺序与 {manifest} 不一致：{heavy}"
-        )
-        assert is_subsequence(light, origin), (
-            f"其余层的顺序与 {manifest} 不一致：{light}"
-        )
+        assert is_subsequence(heavy, origin), f"重型层的顺序与 {manifest} 不一致：{heavy}"
+        assert is_subsequence(light, origin), f"其余层的顺序与 {manifest} 不一致：{light}"
 
     def test_every_declared_heavy_package_exists_in_requirements(self):
         tool = _load_split_tool()
@@ -656,9 +641,7 @@ class TestRequirementsSplit:
         path = REPO_ROOT / "requirements-dev.txt"
         names = {
             tool.package_name(line)
-            for line in tool.expand_requirements(
-                path.read_text(encoding="utf-8"), path.parent
-            )
+            for line in tool.expand_requirements(path.read_text(encoding="utf-8"), path.parent)
         }
         missing = [name for name in tool.HEAVY_PACKAGES if name not in names]
         assert not missing, (
@@ -697,12 +680,9 @@ def _reserved_devices(service: dict) -> list:
     所以调用方还得有一条反向断言盯着这个函数本身（见下面的
     `test_the_reservation_scanner_finds_the_known_good_override`）。
     """
-    return (
-        ((service.get("deploy") or {}).get("resources") or {})
-        .get("reservations", {})
-        .get("devices")
-        or []
-    )
+    return ((service.get("deploy") or {}).get("resources") or {}).get("reservations", {}).get(
+        "devices"
+    ) or []
 
 
 class TestGpuOverrideStaysAnOverride:
@@ -799,7 +779,9 @@ def test_compose_build_context_has_a_dockerfile():
         if build is None:
             continue
         context = build if isinstance(build, str) else build.get("context", ".")
-        dockerfile = "Dockerfile" if isinstance(build, str) else build.get("dockerfile", "Dockerfile")
+        dockerfile = (
+            "Dockerfile" if isinstance(build, str) else build.get("dockerfile", "Dockerfile")
+        )
         assert (REPO_ROOT / context / dockerfile).is_file(), (
             f"service {name!r} 声明构建 {context}/{dockerfile}，但该文件不存在"
         )

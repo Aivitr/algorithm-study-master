@@ -7,8 +7,8 @@ from app.core import database
 from app.services.meeting_context_service import MeetingContextService
 
 
-def test_route_exposes_state_and_times(client, seeded_ids):
-    body = client.get("/api/meeting/1").json()
+def test_route_exposes_state_and_times(client, seeded_ids, teacher_headers):
+    body = client.get("/api/meeting/1", headers=teacher_headers).json()
 
     assert set(body) == {
         "status",
@@ -31,8 +31,8 @@ def test_route_exposes_state_and_times(client, seeded_ids):
     assert body["teaching_design"] is None
 
 
-def test_missing_meeting_shape(client):
-    assert client.get("/api/meeting/999").json() == {
+def test_missing_meeting_shape(client, teacher_headers):
+    assert client.get("/api/meeting/999", headers=teacher_headers).json() == {
         "status": "error",
         "message": "课堂不存在",
     }
@@ -63,9 +63,13 @@ def test_to_dict_reads_started_at_when_present():
 def test_to_dict_tolerates_model_without_started_at():
     svc = MeetingContextService(None)
     meeting = SimpleNamespace(
-        id=8, topic="旧模型", status="active",
+        id=8,
+        topic="旧模型",
+        status="active",
         created_at=datetime(2026, 1, 1, 9, 0, 0),
-        ended_at=None, knowledge_points=None, teaching_design=None,
+        ended_at=None,
+        knowledge_points=None,
+        teaching_design=None,
     )
 
     body = svc.to_dict(meeting)

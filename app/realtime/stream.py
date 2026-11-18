@@ -61,8 +61,10 @@ from app.services.user_lookup import resolve_user_by_identifier
 # （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
+
 def process_user_stream_generator(username, video_data, meeting_id):
     import time
+
     db = SessionLocal()
     v_path = None
     a_path = None
@@ -87,9 +89,23 @@ def process_user_stream_generator(username, video_data, meeting_id):
         # 用 subprocess 检查 ffmpeg 是否成功
         try:
             proc = subprocess.run(
-                ["ffmpeg", "-y", "-i", v_path, "-ac", "1", "-ar", "16000", "-f", "wav", "-loglevel", "error", a_path],
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    v_path,
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-f",
+                    "wav",
+                    "-loglevel",
+                    "error",
+                    a_path,
+                ],
                 capture_output=True,
-                text=True
+                text=True,
             )
             if proc.returncode != 0 or (not os.path.exists(a_path)) or os.path.getsize(a_path) == 0:
                 err = (proc.stderr or proc.stdout or "").strip()
@@ -105,10 +121,14 @@ def process_user_stream_generator(username, video_data, meeting_id):
             print(f"[WARN] 用户或课堂不存在: username={username}, meeting_id={meeting_id}")
             return
         if meeting.status != RUNNING:
-            print(f"[WARN] 非进行中课堂拒绝音视频写入: meeting_id={meeting_id}, status={meeting.status}")
+            print(
+                f"[WARN] 非进行中课堂拒绝音视频写入: meeting_id={meeting_id}, status={meeting.status}"
+            )
             return
 
-        ret, frame, vis_emotion, emotion_confidence, body_action = _detect_visual_state_from_video(v_path)
+        ret, frame, vis_emotion, emotion_confidence, body_action = _detect_visual_state_from_video(
+            v_path
+        )
 
         vad_check = is_speaking(a_path)
 
@@ -122,7 +142,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 "type": "speaking_status",
                 "username": username,
                 "status": "recognizing",
-                "tags": {"emotion": vis_emotion, "action": body_action}
+                "tags": {"emotion": vis_emotion, "action": body_action},
             }
 
             # 语音识别。实时 ASR 会晚一点返回 final 文本，所以先把本轮音频/视频证据暂存起来，
@@ -132,7 +152,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 try:
                     has_active_realtime_asr = bool(
                         globals().get("asr_manager")
-                        and getattr(globals().get("asr_manager"), "sessions", {}).get((meeting_id, username))
+                        and getattr(globals().get("asr_manager"), "sessions", {}).get(
+                            (meeting_id, username)
+                        )
                     )
                 except Exception:
                     has_active_realtime_asr = False
@@ -166,7 +188,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     tone,
                     audio_path=staged_recent_assets.get("audio_path", a_path),
                     video_path=staged_recent_assets.get("video_path", v_path),
-                    snapshot_path=staged_recent_assets.get("snapshot_path", artifacts.get("snapshot_path", "")),
+                    snapshot_path=staged_recent_assets.get(
+                        "snapshot_path", artifacts.get("snapshot_path", "")
+                    ),
                     video_url=artifacts.get("video_url", ""),
                     snapshot_url=artifacts.get("snapshot_url", ""),
                 )
@@ -174,7 +198,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     return
                 if has_active_realtime_asr:
                     return
-                print(f"[FALLBACK] ASR会话不可用，回退到切片转写: meeting={meeting_id}, user={username}")
+                print(
+                    f"[FALLBACK] ASR会话不可用，回退到切片转写: meeting={meeting_id}, user={username}"
+                )
             else:
                 _remember_recent_media_state(
                     meeting_id,
@@ -199,11 +225,12 @@ def process_user_stream_generator(username, video_data, meeting_id):
             except Exception as e:
                 print(f"[ERROR] [{username}] 识别失败: {e}")
                 import traceback
+
                 traceback.print_exc()
                 text = None
 
             if text:
-                normalized_text = re.sub(r'\s+', '', str(text or '').strip())
+                normalized_text = re.sub(r"\s+", "", str(text or "").strip())
                 recent_key = (int(meeting_id), normalized_text)
                 now_ts = time.time()
                 with recent_speech_cache_lock:
@@ -211,9 +238,13 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     if cached and (now_ts - cached.get("ts", 0)) < 3.0:
                         cached_user = cached.get("username", "")
                         if cached_user != username:
-                            print(f"[DEDUP] 同时窗内重复转写，保留首个端: meeting={meeting_id}, first={cached_user}, skip={username}")
+                            print(
+                                f"[DEDUP] 同时窗内重复转写，保留首个端: meeting={meeting_id}, first={cached_user}, skip={username}"
+                            )
                         else:
-                            print(f"[DEDUP] 跳过同端重复转写: meeting={meeting_id}, user={username}")
+                            print(
+                                f"[DEDUP] 跳过同端重复转写: meeting={meeting_id}, user={username}"
+                            )
                         return
                     recent_speech_cache[recent_key] = {"username": username, "ts": now_ts}
 
@@ -231,7 +262,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     "timestamp": timestamp,
                     "goals": meeting.knowledge_points,
                     "quality_score": 50,
-                    "quality_feedback": "评估中..."
+                    "quality_feedback": "评估中...",
                 }
                 if enhanced_runtime_active:
                     research_binding = research_runtime.build_initial_transcript_state(
@@ -268,13 +299,15 @@ def process_user_stream_generator(username, video_data, meeting_id):
                         try:
                             oss_mgr = get_oss_manager()
 
-                            print(f"[FAST] 上传视频到OSS...")
+                            print("[FAST] 上传视频到OSS...")
                             oss_video_url = oss_mgr.upload_video(_v_path, _user_id, _meeting_id)
 
                             oss_snapshot_url = None
                             if _has_snapshot and _snapshot_path and os.path.exists(_snapshot_path):
-                                print(f"[FAST] 上传快照到OSS...")
-                                oss_snapshot_url = oss_mgr.upload_snapshot(_snapshot_path, _user_id, _meeting_id)
+                                print("[FAST] 上传快照到OSS...")
+                                oss_snapshot_url = oss_mgr.upload_snapshot(
+                                    _snapshot_path, _user_id, _meeting_id
+                                )
 
                                 try:
                                     os.remove(_snapshot_path)
@@ -284,20 +317,25 @@ def process_user_stream_generator(username, video_data, meeting_id):
 
                             db_update = SessionLocal()
                             try:
-                                emotion_log = db_update.query(EmotionLog).filter(
-                                    EmotionLog.meeting_id == _meeting_id,
-                                    EmotionLog.user_id == _user_id,
-                                    EmotionLog.video_url == _video_url
-                                ).order_by(EmotionLog.id.desc()).first()
+                                emotion_log = (
+                                    db_update.query(EmotionLog)
+                                    .filter(
+                                        EmotionLog.meeting_id == _meeting_id,
+                                        EmotionLog.user_id == _user_id,
+                                        EmotionLog.video_url == _video_url,
+                                    )
+                                    .order_by(EmotionLog.id.desc())
+                                    .first()
+                                )
 
                                 if emotion_log:
                                     emotion_log.video_url = oss_video_url
                                     if oss_snapshot_url:
                                         emotion_log.snapshot_path = oss_snapshot_url
                                     db_update.commit()
-                                    print(f"[OK] OSS链接已更新")
+                                    print("[OK] OSS链接已更新")
                                 else:
-                                    print(f"[WARN] 未找到待更新的EmotionLog记录")
+                                    print("[WARN] 未找到待更新的EmotionLog记录")
                             except Exception as db_err:
                                 print(f"[ERROR] 数据库更新失败: {db_err}")
                                 db_update.rollback()
@@ -307,6 +345,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                         except Exception as e:
                             print(f"[ERROR] 上传到OSS失败: {e}")
                             import traceback
+
                             traceback.print_exc()
 
                     threading.Thread(target=async_upload, daemon=True).start()
@@ -317,14 +356,16 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 if len(emo_str) > 90:
                     emo_str = emo_str[:90]
 
-                db.add(EmotionLog(
-                    meeting_id=meeting_id,
-                    user_id=user.id,
-                    emotion_type=emo_str,
-                    intensity=0.8,
-                    video_url=video_url,
-                    snapshot_path=snapshot_url
-                ))
+                db.add(
+                    EmotionLog(
+                        meeting_id=meeting_id,
+                        user_id=user.id,
+                        emotion_type=emo_str,
+                        intensity=0.8,
+                        video_url=video_url,
+                        snapshot_path=snapshot_url,
+                    )
+                )
                 db.commit()
 
                 # 保存转录（先用占位评分）
@@ -336,14 +377,24 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     emotion_tag=vis_emotion,
                     body_action=body_action,
                     audio_tone=tone if enhanced_runtime_active else None,
-                    binding_source=research_binding.get("binding_source") if research_binding else None,
-                    binding_confidence=research_binding.get("binding_confidence") if research_binding else None,
-                    identity_review_status=research_binding.get("identity_review_status") if research_binding else None,
-                    identity_review_note=research_binding.get("identity_review_note") if research_binding else None,
-                    cross_modal_consistency=research_binding.get("cross_modal_consistency") if research_binding else None,
+                    binding_source=research_binding.get("binding_source")
+                    if research_binding
+                    else None,
+                    binding_confidence=research_binding.get("binding_confidence")
+                    if research_binding
+                    else None,
+                    identity_review_status=research_binding.get("identity_review_status")
+                    if research_binding
+                    else None,
+                    identity_review_note=research_binding.get("identity_review_note")
+                    if research_binding
+                    else None,
+                    cross_modal_consistency=research_binding.get("cross_modal_consistency")
+                    if research_binding
+                    else None,
                     timestamp=datetime.now(),
                     quality_score=50,
-                    quality_feedback="评估中..."
+                    quality_feedback="评估中...",
                 )
                 db.add(trans)
                 db.commit()
@@ -381,15 +432,24 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 quality_score = 50
                 quality_feedback = ""
                 dimensions = {"relevance": 50, "depth": 50, "creativity": 50, "expression": 50}
-                quality_distribution = {"relevance": 0.25, "depth": 0.25, "creativity": 0.25, "expression": 0.25}
+                quality_distribution = {
+                    "relevance": 0.25,
+                    "depth": 0.25,
+                    "creativity": 0.25,
+                    "expression": 0.25,
+                }
                 quality_research = {}
 
                 # 低信息量短句不触发LLM，直接给默认评价
                 if len((text or "").strip()) >= 8:
                     try:
-                        recents = db.query(Transcript).filter(
-                            Transcript.meeting_id == meeting_id
-                        ).order_by(Transcript.id.desc()).limit(3).all()
+                        recents = (
+                            db.query(Transcript)
+                            .filter(Transcript.meeting_id == meeting_id)
+                            .order_by(Transcript.id.desc())
+                            .limit(3)
+                            .all()
+                        )
                         ctx = "\n".join([f"{t.user.username}:{t.content}" for t in recents])
 
                         print("[AI] 开始联合分析(评分+进度)...")
@@ -399,7 +459,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                             topic=meeting.topic,
                             recent_context=ctx,
                             current_goals=meeting.knowledge_points,
-                            student_name=username
+                            student_name=username,
                         )
 
                         if combined and isinstance(combined, dict):
@@ -409,7 +469,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
                             hint = combined.get("hint", "") or ""
                             updated_goals = combined.get("updated_goals")
                             dimensions = combined.get("dimensions", dimensions)
-                            print(f"[OK] 联合分析完成: score={quality_score}, relevance={relevance}")
+                            print(
+                                f"[OK] 联合分析完成: score={quality_score}, relevance={relevance}"
+                            )
                         else:
                             print(f"[WARN] 联合分析返回格式异常: {combined}")
                             quality_feedback = "已评估"
@@ -417,6 +479,7 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     except Exception as e:
                         print(f"[ERROR] 联合AI分析失败: {e}")
                         import traceback
+
                         traceback.print_exc()
                         quality_feedback = "评估超时"
                 else:
@@ -427,20 +490,26 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 # 更新数据库
                 if updated_goals:
                     # 检测新完成的目标
-                    old_done = {g["id"] for g in (meeting.knowledge_points or []) if g.get("status") == "done"}
+                    old_done = {
+                        g["id"]
+                        for g in (meeting.knowledge_points or [])
+                        if g.get("status") == "done"
+                    }
                     new_done = {g["id"] for g in updated_goals if g.get("status") == "done"}
                     newly_completed = new_done - old_done
                     meeting.knowledge_points = updated_goals
 
                     # 如果有新完成的目标，发送目标完成通知
                     if newly_completed:
-                        completed_descs = [g["desc"] for g in updated_goals if g["id"] in newly_completed]
+                        completed_descs = [
+                            g["desc"] for g in updated_goals if g["id"] in newly_completed
+                        ]
                         all_done = all(g.get("status") == "done" for g in updated_goals)
                         yield {
                             "type": "goal_completed",
                             "completed_goals": completed_descs,
                             "all_done": all_done,
-                            "goals": updated_goals
+                            "goals": updated_goals,
                         }
                 if enhanced_runtime_active:
                     pdl_result = research_runtime.refine_speech_assessment(
@@ -458,7 +527,9 @@ def process_user_stream_generator(username, video_data, meeting_id):
                         quality_score = pdl_result.get("score", quality_score)
                         quality_feedback = pdl_result.get("quality_feedback", quality_feedback)
                         dimensions = pdl_result.get("dimensions", dimensions)
-                        quality_distribution = pdl_result.get("soft_distribution", quality_distribution)
+                        quality_distribution = pdl_result.get(
+                            "soft_distribution", quality_distribution
+                        )
                         quality_research = pdl_result.get("research", quality_research)
                 trans.relevance_score = relevance
                 trans.quality_score = quality_score
@@ -466,12 +537,11 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 db.commit()
 
                 if hint:
-                    db.add(AIInsight(
-                        meeting_id=meeting_id,
-                        target_user=username,
-                        content=hint,
-                        type="hint"
-                    ))
+                    db.add(
+                        AIInsight(
+                            meeting_id=meeting_id, target_user=username, content=hint, type="hint"
+                        )
+                    )
                     db.commit()
 
                 # 第二次返回：带AI分析结果
@@ -486,40 +556,48 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     "quality_feedback": quality_feedback,
                     "quality_dimensions": dimensions,
                     "goals": meeting.knowledge_points,
-                    "hint": hint
+                    "hint": hint,
                 }
                 if enhanced_runtime_active:
-                    payload["research_binding"] = research_runtime.get_transcript_review(trans.id) or research_binding
+                    payload["research_binding"] = (
+                        research_runtime.get_transcript_review(trans.id) or research_binding
+                    )
                     payload["quality_distribution"] = quality_distribution
                     payload["quality_research"] = quality_research
                 yield payload
 
                 # 材料推荐（每10条发言）
-                transcript_count = db.query(Transcript).filter(
-                    Transcript.meeting_id == meeting_id
-                ).count()
+                transcript_count = (
+                    db.query(Transcript).filter(Transcript.meeting_id == meeting_id).count()
+                )
 
                 if transcript_count > 0 and transcript_count % 10 == 0:
                     print(f"[BOOK] 触发材料推荐: {transcript_count}条发言")
                     try:
-                        recent_5 = db.query(Transcript).filter(
-                            Transcript.meeting_id == meeting_id
-                        ).order_by(Transcript.id.desc()).limit(5).all()
+                        recent_5 = (
+                            db.query(Transcript)
+                            .filter(Transcript.meeting_id == meeting_id)
+                            .order_by(Transcript.id.desc())
+                            .limit(5)
+                            .all()
+                        )
 
                         if len(recent_5) >= 3:
-                            discussion_ctx = [{
-                                "username": t.user.username,
-                                "content": t.content
-                            } for t in reversed(recent_5)]
+                            discussion_ctx = [
+                                {"username": t.user.username, "content": t.content}
+                                for t in reversed(recent_5)
+                            ]
 
-                            materials_result = llm.recommend_materials(discussion_ctx, meeting.topic)
+                            materials_result = llm.recommend_materials(
+                                discussion_ctx, meeting.topic
+                            )
 
                             if materials_result.get("materials"):
                                 print(f"[BOOK] 推荐了 {len(materials_result['materials'])} 个材料")
                                 yield {
                                     "type": "material_recommendation",
                                     "materials": materials_result["materials"],
-                                    "trigger_reason": materials_result.get("trigger_reason", "")
+                                    "trigger_reason": materials_result.get("trigger_reason", ""),
                                 }
                     except Exception as e:
                         print(f"[ERROR] 材料推荐失败: {e}")
@@ -530,18 +608,15 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 kg_counter[meeting_id] += 1
 
                 if kg_counter[meeting_id] % 10 == 0:
-                    print(f"[WEB] 更新知识图谱...")
+                    print("[WEB] 更新知识图谱...")
                     updated_graph = update_knowledge_graph(meeting_id, db)
                     if updated_graph:
                         viz_data = kg_service.generate_graph_visualization_data(updated_graph)
-                        yield {
-                            "type": "knowledge_graph_update",
-                            "data": viz_data
-                        }
+                        yield {"type": "knowledge_graph_update", "data": viz_data}
 
         else:
             silent_emotion = map_silent_emotion(vis_emotion)
-            if silent_emotion != 'calm' or body_action == 'high_activity':
+            if silent_emotion != "calm" or body_action == "high_activity":
                 snapshot_url = None
 
                 try:
@@ -552,8 +627,10 @@ def process_user_stream_generator(username, video_data, meeting_id):
 
                         if USE_OSS:
                             oss_mgr = get_oss_manager()
-                            print(f"[FAST] 上传快照到OSS...")
-                            snapshot_url = oss_mgr.upload_snapshot(local_snapshot_path, user.id, meeting_id)
+                            print("[FAST] 上传快照到OSS...")
+                            snapshot_url = oss_mgr.upload_snapshot(
+                                local_snapshot_path, user.id, meeting_id
+                            )
 
                             try:
                                 os.remove(local_snapshot_path)
@@ -573,13 +650,15 @@ def process_user_stream_generator(username, video_data, meeting_id):
                 if len(emo_str) > 90:
                     emo_str = emo_str[:90]
 
-                db.add(EmotionLog(
-                    meeting_id=meeting_id,
-                    user_id=user.id,
-                    emotion_type=emo_str,
-                    intensity=0.8,
-                    snapshot_path=snapshot_url
-                ))
+                db.add(
+                    EmotionLog(
+                        meeting_id=meeting_id,
+                        user_id=user.id,
+                        emotion_type=emo_str,
+                        intensity=0.8,
+                        snapshot_path=snapshot_url,
+                    )
+                )
                 db.commit()
 
                 yield {
@@ -587,19 +666,22 @@ def process_user_stream_generator(username, video_data, meeting_id):
                     "username": username,
                     "emotion": silent_emotion,
                     "action": body_action,
-                    "snapshot": snapshot_url
+                    "snapshot": snapshot_url,
                 }
 
     except Exception as e:
         print(f"Error process: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         # 清理过期去重缓存，避免同一句话跨时段误伤后续发言
         try:
             now_ts = time.time()
             with recent_speech_cache_lock:
-                expired = [k for k, v in recent_speech_cache.items() if (now_ts - v.get("ts", 0)) > 15]
+                expired = [
+                    k for k, v in recent_speech_cache.items() if (now_ts - v.get("ts", 0)) > 15
+                ]
                 for k in expired:
                     recent_speech_cache.pop(k, None)
         except Exception:

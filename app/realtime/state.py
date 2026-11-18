@@ -46,12 +46,12 @@ recent_media_state_lock = threading.Lock()
 REALTIME_TEXT_SCORING_ENABLED = True
 REALTIME_SPEECH_DEDUP_WINDOW_SECONDS = 8.0
 RECENT_MEDIA_STATE_TTL_SECONDS = 90.0
-SENTENCE_SPLIT_PATTERN = re.compile(r'(?<=[。！？!?；;])\s*')
+SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[。！？!?；;])\s*")
 ASR_REQUIRE_VOICEPRINT_IDENTITY = False
 REALTIME_ASR_VOICEPRINT_DISABLED = True
 ASR_UNKNOWN_SPEAKER_LABEL = "未确认说话人"
-ASR_SPEAKER_CACHE_TTL_SECONDS = 10.0    # 句子级别缓存：10秒（一句话通常不超过10秒）
-ASR_SPEAKER_CACHE_MAX_HITS = 1          # 每句话只验证一次
+ASR_SPEAKER_CACHE_TTL_SECONDS = 10.0  # 句子级别缓存：10秒（一句话通常不超过10秒）
+ASR_SPEAKER_CACHE_MAX_HITS = 1  # 每句话只验证一次
 ASR_SENTENCE_END_SILENCE_SECONDS = 3.0  # 沉默3秒视为句子结束
 ASR_SELF_VOICE_GATE_ENABLED = False  # 关闭声纹门控，允许所有用户语音转文字
 ASR_SELF_VOICE_GATE_MIN_MS = 1400
@@ -86,12 +86,19 @@ def _transcript_text_similar(left: str, right: str) -> bool:
 def _cleanup_recent_speech_cache(expiry_seconds: float = 15.0) -> None:
     now_ts = time.time()
     with recent_speech_cache_lock:
-        expired = [k for k, v in recent_speech_cache.items() if (now_ts - v.get("ts", 0)) > expiry_seconds]
+        expired = [
+            k for k, v in recent_speech_cache.items() if (now_ts - v.get("ts", 0)) > expiry_seconds
+        ]
         for key in expired:
             recent_speech_cache.pop(key, None)
 
 
-def _mark_recent_speech(meeting_id: int, username: str, text: str, dedup_window: float = REALTIME_SPEECH_DEDUP_WINDOW_SECONDS) -> bool:
+def _mark_recent_speech(
+    meeting_id: int,
+    username: str,
+    text: str,
+    dedup_window: float = REALTIME_SPEECH_DEDUP_WINDOW_SECONDS,
+) -> bool:
     normalized_text = _normalize_transcript_text(text)
     if not normalized_text:
         return True
@@ -113,7 +120,9 @@ def _mark_recent_speech(meeting_id: int, username: str, text: str, dedup_window:
                 continue
             if _transcript_text_similar(cached_text, normalized_text):
                 cached_user = cached.get("username", "")
-                print(f"[DEDUP] 跳过相似重复转写: meeting={meeting_id}, first={cached_user}, skip={username}, sim_text={normalized_text[:30]}")
+                print(
+                    f"[DEDUP] 跳过相似重复转写: meeting={meeting_id}, first={cached_user}, skip={username}, sim_text={normalized_text[:30]}"
+                )
                 return True
         recent_speech_cache[(meeting_key, normalized_text)] = {"username": username, "ts": now_ts}
     return False
@@ -188,7 +197,9 @@ def _reserve_recent_speech_by_volume(
     return {"skip": False}
 
 
-def _attach_recent_speech_transcript(meeting_id: int, username: str, text: str, transcript_id: int, timestamp: int) -> None:
+def _attach_recent_speech_transcript(
+    meeting_id: int, username: str, text: str, transcript_id: int, timestamp: int
+) -> None:
     normalized_text = _normalize_transcript_text(text)
     if not normalized_text:
         return
@@ -202,7 +213,9 @@ def _attach_recent_speech_transcript(meeting_id: int, username: str, text: str, 
             if cached_meeting != meeting_key:
                 continue
             cached_text = str(cached.get("normalized_text") or key[1])
-            if cached.get("username") == username and _transcript_text_similar(cached_text, normalized_text):
+            if cached.get("username") == username and _transcript_text_similar(
+                cached_text, normalized_text
+            ):
                 cached["transcript_id"] = int(transcript_id)
                 cached["timestamp"] = int(timestamp)
                 cached["text"] = text
@@ -221,7 +234,9 @@ def _stage_recent_media_state_assets(
     snapshot_path: str = "",
 ) -> Dict[str, str]:
     safe_user = re.sub(r"[^0-9A-Za-z_.-]+", "_", str(username or "user"))
-    target_dir = os.path.join(ROOT_DIR, "storage", "realtime_media", str(int(meeting_id)), safe_user, str(timestamp))
+    target_dir = os.path.join(
+        ROOT_DIR, "storage", "realtime_media", str(int(meeting_id)), safe_user, str(timestamp)
+    )
     os.makedirs(target_dir, exist_ok=True)
 
     staged = {}
@@ -318,7 +333,11 @@ def _split_realtime_sentences(text: str) -> List[str]:
         if not normalized:
             continue
 
-        comma_parts = [part.strip() for part in re.split(r"(?<=[\uff0c,\u3001])\s*", normalized) if part and part.strip()]
+        comma_parts = [
+            part.strip()
+            for part in re.split(r"(?<=[\uff0c,\u3001])\s*", normalized)
+            if part and part.strip()
+        ]
         if len(normalized) >= 28 and len(comma_parts) >= 2:
             normalized_segments.extend(comma_parts)
         else:
@@ -326,7 +345,11 @@ def _split_realtime_sentences(text: str) -> List[str]:
 
     merged_segments = []
     for seg in normalized_segments:
-        if merged_segments and len(seg) <= 3 and not re.search(r"[\u3002\uff01\uff1f!?;\uff1b]$", merged_segments[-1]):
+        if (
+            merged_segments
+            and len(seg) <= 3
+            and not re.search(r"[\u3002\uff01\uff1f!?;\uff1b]$", merged_segments[-1])
+        ):
             merged_segments[-1] = f"{merged_segments[-1]}{seg}"
         else:
             merged_segments.append(seg)

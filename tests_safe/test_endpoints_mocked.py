@@ -51,15 +51,23 @@ def llm():
 
 
 @pytest.fixture
-def seeded_client(client, seeded_ids):
-    """带合成数据的客户端。
+def seeded_client(client, seeded_ids, teacher_headers):
+    """带合成数据的客户端，默认带教师会话。
 
     `client` 夹具只保证**建表**，不保证**播种**——`seeded_ids` 是另一个夹具。
     本文件按文件名排在 `tests_safe/` 最前，因而往往最先用到客户端，此时库还是空的。
     `/api/suggest-topic` 需要库里真有一场课堂，漏掉这个依赖就会以
     「会议不存在」失败——那是**数据缺失**，却伪装成**路由行为**，很容易查错方向。
+
+    LLM 写接口现在都要求登录；这里统一带教师会话，测试结束恢复原 header。
     """
-    return client
+    old = dict(client.headers)
+    client.headers.update(teacher_headers)
+    try:
+        yield client
+    finally:
+        client.headers.clear()
+        client.headers.update(old)
 
 
 @pytest.fixture
@@ -86,14 +94,14 @@ def stub_chat_completion(llm, monkeypatch):
         ("/api/quiz-error-analysis", {"wrong_questions": "[]"}),
     ],
 )
-def test_endpoints_reject_json_payloads(seeded_client, path, json_payload):
+def test_endpoints_reject_json_payloads(seeded_client, teacher_headers, path, json_payload):
     """**契约守卫**：这三条端点是 Form，不是 JSON。
 
     发 JSON 必须是 422，且 handler 根本不会被执行——这既是现状，也是
     "打桩漏了也不会误调生产 API" 的那道保险。若哪天有人把它改成
     `data=`，本测试会失败，从而把这个决定摊到明面上。
     """
-    response = seeded_client.post(path, json=json_payload)
+    response = seeded_client.post(path, json=json_payload, headers=teacher_headers)
 
     assert response.status_code == 422, (
         f"{path} 对 JSON payload 返回了 {response.status_code}，"
@@ -198,9 +206,11 @@ def test_ai_tutor_reports_error_when_llm_raises(seeded_client, llm, monkeypatch)
 # --------------------------------------------------------- /api/suggest-topic
 
 
-def test_suggest_topic_returns_llm_suggestion(seeded_client, stub_chat_completion):
+def test_suggest_topic_returns_llm_suggestion(seeded_client, teacher_headers, stub_chat_completion):
     """正常路径：把 LLM 的输出放进 `suggestion` 字段。"""
-    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 2})
+    response = seeded_client.post(
+        "/api/suggest-topic", data={"meeting_id": 2}, headers=teacher_headers
+    )
 
     assert response.status_code == 200
     assert response.json() == {"status": "success", "suggestion": "打桩生成的建议内容"}
@@ -208,22 +218,26 @@ def test_suggest_topic_returns_llm_suggestion(seeded_client, stub_chat_completio
 
 
 def test_suggest_topic_prompt_includes_class_topic_and_transcripts(
-    seeded_client, stub_chat_completion
+    seeded_client, teacher_headers, stub_chat_completion
 ):
     """提示词里必须带上课程主题与近期发言——这是该端点的全部价值所在。
 
     只看"返回了 200"是不够的：把 prompt 拼空的实现同样会返回 200。
     """
-    seeded_client.post("/api/suggest-topic", data={"meeting_id": 2})
+    seeded_client.post("/api/suggest-topic", data={"meeting_id": 2}, headers=teacher_headers)
 
     prompt = stub_chat_completion[0]["messages"][0]["content"]
     assert "测试课堂：细胞呼吸" in prompt, "提示词缺少课程主题"
     assert "李同学" in prompt, "提示词缺少近期发言"
 
 
-def test_suggest_topic_missing_meeting_returns_error(seeded_client, stub_chat_completion):
+def test_suggest_topic_missing_meeting_returns_error(
+    seeded_client, teacher_headers, stub_chat_completion
+):
     """课堂不存在时返回 error，且**不调用 LLM**。"""
-    response = seeded_client.post("/api/suggest-topic", data={"meeting_id": 99999})
+    response = seeded_client.post(
+        "/api/suggest-topic", data={"meeting_id": 99999}, headers=teacher_headers
+    )
 
     assert response.json() == {"status": "error", "message": "会议不存在"}
     assert stub_chat_completion == []

@@ -98,8 +98,7 @@ def block_external_network():
         if not _is_loopback(address):
             attempts.append(address)
             raise OSError(
-                f"测试进程禁止访问外部网络，已阻断：{address}。"
-                f"若该连接指向生产环境，即为隔离失效。"
+                f"测试进程禁止访问外部网络，已阻断：{address}。若该连接指向生产环境，即为隔离失效。"
             )
         return real_connect(self, address, *args, **kwargs)
 

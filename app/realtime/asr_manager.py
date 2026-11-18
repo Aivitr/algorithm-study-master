@@ -49,6 +49,7 @@ from app.services.voiceprint_manager import voiceprint_manager
 # （见 tests_safe/test_paths_anchor.py）。
 ROOT_DIR = str(PROJECT_ROOT)
 
+
 class ASRSessionManager:
     """
     为每个用户维护一个阿里云 NLS 实时转写会话。
@@ -115,10 +116,19 @@ class ASRSessionManager:
         start_ms = max(0, total_ms - int(window_ms))
         return self._extract_pcm_segment(key, start_ms, total_ms)
 
-    def _verify_own_voice_gate_sync(self, meeting_id: int, username: str, pcm_data: bytes) -> Dict[str, Any]:
-        return {"is_match": True, "reason": "realtime_voiceprint_disabled", "confidence": 1.0, "distance": 0.0}
+    def _verify_own_voice_gate_sync(
+        self, meeting_id: int, username: str, pcm_data: bytes
+    ) -> Dict[str, Any]:
+        return {
+            "is_match": True,
+            "reason": "realtime_voiceprint_disabled",
+            "confidence": 1.0,
+            "distance": 0.0,
+        }
 
-    async def _run_self_voice_gate_check(self, meeting_id: int, username: str, key, pcm_data: bytes, check_token: int):
+    async def _run_self_voice_gate_check(
+        self, meeting_id: int, username: str, key, pcm_data: bytes, check_token: int
+    ):
         return
 
     def _payload_number(self, payload: Dict[str, Any], names: List[str]):
@@ -136,14 +146,22 @@ class ASRSessionManager:
 
     def _payload_time_window_ms(self, key, payload: Dict[str, Any], text: str):
         total_ms = self.pcm_total_ms.get(key, 0)
-        begin = self._payload_number(payload, [
-            "begin_time", "beginTime", "start_time", "startTime",
-            "sentence_begin_time", "sentenceBeginTime", "begin", "start"
-        ])
-        end = self._payload_number(payload, [
-            "end_time", "endTime", "sentence_end_time", "sentenceEndTime",
-            "time", "end"
-        ])
+        begin = self._payload_number(
+            payload,
+            [
+                "begin_time",
+                "beginTime",
+                "start_time",
+                "startTime",
+                "sentence_begin_time",
+                "sentenceBeginTime",
+                "begin",
+                "start",
+            ],
+        )
+        end = self._payload_number(
+            payload, ["end_time", "endTime", "sentence_end_time", "sentenceEndTime", "time", "end"]
+        )
 
         def normalize_ms(value):
             if value is None:
@@ -192,13 +210,17 @@ class ASRSessionManager:
 
         return b"".join(pieces)
 
-    def _write_pcm_segment_wav(self, pcm_data: bytes, meeting_id: int, speaker_id: str) -> Optional[str]:
+    def _write_pcm_segment_wav(
+        self, pcm_data: bytes, meeting_id: int, speaker_id: str
+    ) -> Optional[str]:
         if len(pcm_data) < self.pcm_sample_rate * self.pcm_sample_width:
             return None
         seg_dir = os.path.join(ROOT_DIR, "storage", "asr_voiceprint_segments")
         os.makedirs(seg_dir, exist_ok=True)
         safe_speaker = re.sub(r"[^0-9A-Za-z_.-]+", "_", str(speaker_id or "spk"))
-        path = os.path.join(seg_dir, f"{int(meeting_id)}_{safe_speaker}_{int(time.time() * 1000)}.wav")
+        path = os.path.join(
+            seg_dir, f"{int(meeting_id)}_{safe_speaker}_{int(time.time() * 1000)}.wav"
+        )
         with wave.open(path, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(self.pcm_sample_width)
@@ -206,7 +228,13 @@ class ASRSessionManager:
             wf.writeframes(pcm_data)
         return path
 
-    def _resolve_speaker_identity_sync(self, meeting_id: int, mic_username: str, text: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _resolve_speaker_identity_sync(
+        self,
+        meeting_id: int,
+        mic_username: str,
+        text: str,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         payload = payload or {}
         speaker_id = (
             payload.get("speaker_id")
@@ -227,7 +255,11 @@ class ASRSessionManager:
                 key = (int(meeting_id), mic_username)
                 gate_state = self.self_voice_gate_state.get(key, {})
                 sentence_index = payload.get("index")
-                sentence_id = f"{int(meeting_id)}:{mic_username}:{sentence_index}" if sentence_index is not None else None
+                sentence_id = (
+                    f"{int(meeting_id)}:{mic_username}:{sentence_index}"
+                    if sentence_index is not None
+                    else None
+                )
                 last_pass_at = float(gate_state.get("last_pass_at") or 0)
                 pass_recent = bool(last_pass_at and (time.time() - last_pass_at) <= 8.0)
                 if sentence_id and gate_state.get("pending_gate_pass") and pass_recent:
@@ -235,7 +267,9 @@ class ASRSessionManager:
                     gate_state["active_sentence_id"] = sentence_id
                     gate_state["pending_gate_pass"] = False
                     gate_state["allow_output"] = True
-                sentence_verified = bool(sentence_id and gate_state.get("verified_sentence_id") == sentence_id)
+                sentence_verified = bool(
+                    sentence_id and gate_state.get("verified_sentence_id") == sentence_id
+                )
                 sentence_allowed = bool(
                     gate_state.get("allow_output")
                     and (
@@ -270,7 +304,9 @@ class ASRSessionManager:
                     "distance": None,
                 }
 
-            start_ms, end_ms = self._payload_time_window_ms((int(meeting_id), mic_username), payload, text)
+            start_ms, end_ms = self._payload_time_window_ms(
+                (int(meeting_id), mic_username), payload, text
+            )
             pcm_data = self._extract_pcm_segment((int(meeting_id), mic_username), start_ms, end_ms)
             wav_path = self._write_pcm_segment_wav(pcm_data, meeting_id, "no_speaker_id")
             if wav_path:
@@ -282,12 +318,16 @@ class ASRSessionManager:
                             threshold=ASR_SELF_VOICE_GATE_THRESHOLD,
                         )
                         if is_match:
-                            gate_state = self.self_voice_gate_state.get((int(meeting_id), mic_username))
+                            gate_state = self.self_voice_gate_state.get(
+                                (int(meeting_id), mic_username)
+                            )
                             if gate_state is not None:
                                 gate_state["allow_output"] = True
                                 gate_state["confidence"] = float(confidence)
                                 gate_state["distance"] = float(distance)
-                            print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} sentence self-match distance={distance:.3f}")
+                            print(
+                                f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} sentence self-match distance={distance:.3f}"
+                            )
                             return {
                                 "username": mic_username,
                                 "speaker_id": None,
@@ -301,7 +341,9 @@ class ASRSessionManager:
                             gate_state["allow_output"] = False
                             gate_state["confidence"] = float(confidence)
                             gate_state["distance"] = float(distance)
-                        print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} sentence rejected distance={distance:.3f}")
+                        print(
+                            f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} sentence rejected distance={distance:.3f}"
+                        )
                         return {
                             "username": None,
                             "speaker_id": None,
@@ -310,7 +352,9 @@ class ASRSessionManager:
                             "distance": float(distance),
                             "window_ms": [int(start_ms), int(end_ms)],
                         }
-                    matched_username, confidence, distance = voiceprint_manager.identify_speaker(wav_path)
+                    matched_username, confidence, distance = voiceprint_manager.identify_speaker(
+                        wav_path
+                    )
                 finally:
                     try:
                         os.remove(wav_path)
@@ -318,7 +362,9 @@ class ASRSessionManager:
                         pass
 
                 if matched_username:
-                    print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} no_speaker_id -> {matched_username} distance={distance:.3f}")
+                    print(
+                        f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} no_speaker_id -> {matched_username} distance={distance:.3f}"
+                    )
                     return {
                         "username": matched_username,
                         "speaker_id": None,
@@ -328,7 +374,9 @@ class ASRSessionManager:
                         "window_ms": [int(start_ms), int(end_ms)],
                     }
 
-                print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} no_speaker_id 未匹配，不归属到任何用户")
+                print(
+                    f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} no_speaker_id 未匹配，不归属到任何用户"
+                )
 
             if ASR_REQUIRE_VOICEPRINT_IDENTITY:
                 return {
@@ -365,9 +413,8 @@ class ASRSessionManager:
             verified_at = float(meta.get("verified_at") or 0)
             hits = int(meta.get("hits") or 0) + 1
             cache_is_fresh = (
-                (now_ts - verified_at) <= ASR_SPEAKER_CACHE_TTL_SECONDS
-                and hits <= ASR_SPEAKER_CACHE_MAX_HITS
-            )
+                now_ts - verified_at
+            ) <= ASR_SPEAKER_CACHE_TTL_SECONDS and hits <= ASR_SPEAKER_CACHE_MAX_HITS
             if cache_is_fresh:
                 meta["hits"] = hits
                 self.speaker_identity_meta[(key, speaker_id)] = meta
@@ -375,7 +422,9 @@ class ASRSessionManager:
                 meta.setdefault("speaker_id", speaker_id)
                 meta["source"] = "voiceprint_cache"
                 return meta
-            print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 缓存到期，重新声纹复核")
+            print(
+                f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 缓存到期，重新声纹复核"
+            )
 
         start_ms, end_ms = self._payload_time_window_ms(key, payload, text)
         pcm_data = self._extract_pcm_segment(key, start_ms, end_ms)
@@ -399,7 +448,9 @@ class ASRSessionManager:
 
         if matched_username:
             if cached_username and cached_username != matched_username:
-                print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 归属修正: {cached_username} -> {matched_username}")
+                print(
+                    f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 归属修正: {cached_username} -> {matched_username}"
+                )
             cache[speaker_id] = matched_username
             meta = {
                 "username": matched_username,
@@ -412,13 +463,19 @@ class ASRSessionManager:
                 "hits": 0,
             }
             self.speaker_identity_meta[(key, speaker_id)] = meta
-            print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} -> {matched_username} distance={distance:.3f}")
+            print(
+                f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} -> {matched_username} distance={distance:.3f}"
+            )
             return meta
 
         if ASR_REQUIRE_VOICEPRINT_IDENTITY:
-            print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 未匹配，不归属到任何用户")
+            print(
+                f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 未匹配，不归属到任何用户"
+            )
         else:
-            print(f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 未匹配，暂用麦克风用户")
+            print(
+                f"[VOICEPRINT-ASR] meeting={meeting_id} mic={mic_username} {speaker_id} 未匹配，暂用麦克风用户"
+            )
         return {
             "username": None if ASR_REQUIRE_VOICEPRINT_IDENTITY else mic_username,
             "speaker_id": speaker_id,
@@ -443,7 +500,9 @@ class ASRSessionManager:
                         continue
                     asyncio.run_coroutine_threadsafe(queue.put(event), loop)
 
-                for event in _run_realtime_speech_analysis(prepared, precomputed_combined=combined) or []:
+                for event in (
+                    _run_realtime_speech_analysis(prepared, precomputed_combined=combined) or []
+                ):
                     asyncio.run_coroutine_threadsafe(queue.put(event), loop)
             except Exception as e:
                 print(f"[ASR ERROR] 实时评分广播失败: {e}")
@@ -472,14 +531,16 @@ class ASRSessionManager:
         asr_index = buffer.get("asr_index")
         audio_volume = float(buffer.get("audio_volume") or 0.0)
 
-        print(f"[SENTENCE-MERGE] 发送合并句子: {username}@meeting{meeting_id}, 长度={len(merged_text)}, 文本={merged_text[:50]}")
+        print(
+            f"[SENTENCE-MERGE] 发送合并句子: {username}@meeting{meeting_id}, 长度={len(merged_text)}, 文本={merged_text[:50]}"
+        )
 
         # 发送 asr_final 作为中间结果
         display_username = identity.get("username") if identity else username
         asr_payload = {
             "type": "asr_final",
             "username": display_username or ASR_UNKNOWN_SPEAKER_LABEL,
-            "text": merged_text
+            "text": merged_text,
         }
         if asr_sentence_id:
             asr_payload["asr_sentence_id"] = asr_sentence_id
@@ -546,7 +607,9 @@ class ASRSessionManager:
             gate_state["pending_gate_pass"] = False
             gate_state["checking"] = False
 
-    async def _handle_final_result(self, meeting_id: int, username: str, text: str, payload: Optional[Dict[str, Any]] = None):
+    async def _handle_final_result(
+        self, meeting_id: int, username: str, text: str, payload: Optional[Dict[str, Any]] = None
+    ):
         identity = await asyncio.to_thread(
             self._resolve_speaker_identity_sync,
             meeting_id,
@@ -554,8 +617,7 @@ class ASRSessionManager:
             text,
             payload or {},
         )
-        resolved_username = identity.get("username")
-        display_username = resolved_username or ASR_UNKNOWN_SPEAKER_LABEL
+        identity.get("username")
         speaker_id = identity.get("speaker_id")
 
         # 关闭声纹门控检查，允许所有语音转文字输出
@@ -590,9 +652,13 @@ class ASRSessionManager:
         if not clean_text:
             return
         sentence_index = (payload or {}).get("index")
-        sentence_id = f"{int(meeting_id)}:{username}:{sentence_index}" if sentence_index is not None else None
+        sentence_id = (
+            f"{int(meeting_id)}:{username}:{sentence_index}" if sentence_index is not None else None
+        )
         try:
-            start_ms, end_ms = self._payload_time_window_ms((int(meeting_id), username), payload or {}, clean_text)
+            start_ms, end_ms = self._payload_time_window_ms(
+                (int(meeting_id), username), payload or {}, clean_text
+            )
             sentence_pcm = self._extract_pcm_segment((int(meeting_id), username), start_ms, end_ms)
             sentence_volume = self._pcm_rms(sentence_pcm)
         except Exception:
@@ -613,10 +679,12 @@ class ASRSessionManager:
                 "asr_sentence_id": sentence_id,
                 "asr_index": sentence_index,
                 "audio_volume": sentence_volume,
-                "timer": None
+                "timer": None,
             }
             buffer = self.sentence_merge_buffer[key]
-            print(f"[SENTENCE-MERGE] 开始新句子: {username}@meeting{meeting_id}, 文本={clean_text[:30]}")
+            print(
+                f"[SENTENCE-MERGE] 开始新句子: {username}@meeting{meeting_id}, 文本={clean_text[:30]}"
+            )
         else:
             # 追加到现有句子
             buffer["text"] += clean_text
@@ -625,11 +693,15 @@ class ASRSessionManager:
                 buffer["asr_sentence_id"] = sentence_id
             if sentence_index is not None and buffer.get("asr_index") is None:
                 buffer["asr_index"] = sentence_index
-            buffer["audio_volume"] = max(float(buffer.get("audio_volume") or 0.0), float(sentence_volume or 0.0))
+            buffer["audio_volume"] = max(
+                float(buffer.get("audio_volume") or 0.0), float(sentence_volume or 0.0)
+            )
             # 取消之前的定时器
             if buffer.get("timer"):
                 buffer["timer"].cancel()
-            print(f"[SENTENCE-MERGE] 追加句子: {username}@meeting{meeting_id}, 当前长度={len(buffer['text'])}")
+            print(
+                f"[SENTENCE-MERGE] 追加句子: {username}@meeting{meeting_id}, 当前长度={len(buffer['text'])}"
+            )
 
         # 设置3秒后自动发送的定时器
         async def delayed_flush():
@@ -657,22 +729,26 @@ class ASRSessionManager:
             """阿里云回调线程 → 异步广播中间结果"""
             payload = payload or {}
             sentence_index = payload.get("index")
-            sentence_id = f"{int(meeting_id)}:{username}:{sentence_index}" if sentence_index is not None else None
+            sentence_id = (
+                f"{int(meeting_id)}:{username}:{sentence_index}"
+                if sentence_index is not None
+                else None
+            )
             if ASR_SELF_VOICE_GATE_ENABLED:
-                gate_state = self.self_voice_gate_state.setdefault((int(meeting_id), username), {
-                    "last_check_ms": 0,
-                    "last_voice_ms": 0,
-                    "allow_output": False,
-                    "checking": False,
-                    "check_token": 0,
-                })
+                gate_state = self.self_voice_gate_state.setdefault(
+                    (int(meeting_id), username),
+                    {
+                        "last_check_ms": 0,
+                        "last_voice_ms": 0,
+                        "allow_output": False,
+                        "checking": False,
+                        "check_token": 0,
+                    },
+                )
                 if sentence_id and gate_state.get("active_sentence_id") != sentence_id:
                     last_pass_at = float(gate_state.get("last_pass_at") or 0)
                     pass_recent = bool(last_pass_at and (time.time() - last_pass_at) <= 8.0)
-                    keep_pass_for_sentence = bool(
-                        gate_state.get("allow_output")
-                        and pass_recent
-                    )
+                    keep_pass_for_sentence = bool(gate_state.get("allow_output") and pass_recent)
                     gate_state["active_sentence_id"] = sentence_id
                     gate_state["checking"] = False
                     gate_state["last_check_ms"] = 0
@@ -691,36 +767,39 @@ class ASRSessionManager:
                 # 关闭声纹门控检查，允许所有语音转文字输出
                 # if not gate_state.get("allow_output"):
                 #     return
-            speaker_id = payload.get("speaker_id") or payload.get("speakerId") or payload.get("speaker") or payload.get("spk")
+            speaker_id = (
+                payload.get("speaker_id")
+                or payload.get("speakerId")
+                or payload.get("speaker")
+                or payload.get("spk")
+            )
             display_username = username
-            if speaker_id and not REALTIME_ASR_VOICEPRINT_DISABLED and (ASR_SELF_VOICE_GATE_ENABLED or ASR_REQUIRE_VOICEPRINT_IDENTITY):
-                cached = self.speaker_identity_cache.get((int(meeting_id), username), {}).get(str(speaker_id))
+            if (
+                speaker_id
+                and not REALTIME_ASR_VOICEPRINT_DISABLED
+                and (ASR_SELF_VOICE_GATE_ENABLED or ASR_REQUIRE_VOICEPRINT_IDENTITY)
+            ):
+                cached = self.speaker_identity_cache.get((int(meeting_id), username), {}).get(
+                    str(speaker_id)
+                )
                 if cached:
                     display_username = cached
                 else:
                     # 首次出现的 speaker_id 先等 SentenceEnd 做声纹确认，
                     # 避免把中间结果短暂显示到麦克风持有人名下。
                     return
-            msg = {
-                "type": "asr_partial",
-                "username": display_username,
-                "text": text
-            }
+            msg = {"type": "asr_partial", "username": display_username, "text": text}
             if sentence_index is not None:
                 msg["asr_sentence_id"] = f"{int(meeting_id)}:{username}:{sentence_index}"
                 msg["asr_index"] = sentence_index
             if speaker_id:
                 msg["speaker_id"] = str(speaker_id)
-            asyncio.run_coroutine_threadsafe(
-                self._broadcast_to_meeting(meeting_id, msg),
-                loop
-            )
+            asyncio.run_coroutine_threadsafe(self._broadcast_to_meeting(meeting_id, msg), loop)
 
         def on_final(text, payload=None):
             """阿里云回调线程 → 异步广播最终结果"""
             asyncio.run_coroutine_threadsafe(
-                self._handle_final_result(meeting_id, username, text, payload or {}),
-                loop
+                self._handle_final_result(meeting_id, username, text, payload or {}), loop
             )
 
         def on_error(msg):
@@ -739,14 +818,12 @@ class ASRSessionManager:
                 on_final=on_final,
                 on_error=on_error,
                 enable_speaker_diarization=True,
-                username=username
+                username=username,
             )
         else:
             # 标准方案
             transcriber = RealtimeTranscriber(
-                on_partial=on_partial,
-                on_final=on_final,
-                on_error=on_error
+                on_partial=on_partial, on_final=on_final, on_error=on_error
             )
 
         # transcriber.start() 是同步方法，会阻塞事件循环，需要在线程池中执行
@@ -763,8 +840,10 @@ class ASRSessionManager:
             self.sessions[key] = transcriber
             self.session_websockets[key] = client_ws
             print(f"[ASR] 实时会话已启动: {username}@meeting{meeting_id}")
-        else:
-            print(f"[ASR ERROR] 会话启动失败: {username}@meeting{meeting_id}")
+            return True, ""
+        error = getattr(transcriber, "last_error", "") or "阿里云实时转写会话启动失败"
+        print(f"[ASR ERROR] 会话启动失败: {username}@meeting{meeting_id}: {error}")
+        return False, error
 
         return success
 
@@ -778,7 +857,9 @@ class ASRSessionManager:
     async def stop_session(self, username, meeting_id, client_ws=None):
         """停止并清理用户的 ASR 会话"""
         key = (meeting_id, username)
-        current_ws = self.session_websockets.get(key) or self.meeting_connections.get(meeting_id, {}).get(username)
+        current_ws = self.session_websockets.get(key) or self.meeting_connections.get(
+            meeting_id, {}
+        ).get(username)
         if client_ws is not None and current_ws is not None and current_ws is not client_ws:
             print(f"[ASR] 忽略旧WebSocket清理: {username}@meeting{meeting_id}")
             return

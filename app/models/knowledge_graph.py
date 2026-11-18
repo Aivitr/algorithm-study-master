@@ -2,14 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Float
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-from sqlalchemy import JSON
-from sqlalchemy import String
-from sqlalchemy import Text
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text
 
 from app.models.base import Base
 
@@ -23,6 +16,7 @@ class KnowledgeGraph(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+
 class GraphNode(Base):
     __tablename__ = "graph_nodes"
     id = Column(Integer, primary_key=True, index=True)
@@ -32,6 +26,7 @@ class GraphNode(Base):
     frequency = Column(Integer, default=1)
     speakers = Column(JSON)  # [EMOJI]
     meta_info = Column(JSON)  # [EMOJI]([EMOJI])
+
 
 class GraphEdge(Base):
     __tablename__ = "graph_edges"

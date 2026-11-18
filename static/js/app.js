@@ -39,6 +39,13 @@ axios.interceptors.response.use(
         } else if (error.response) {
             console.error('响应状态:', error.response.status);
             console.error('响应数据:', error.response.data);
+            if (error.response.status === 401) {
+                const app = document.getElementById('app');
+                const vm = app && app.__vue__;
+                if (vm && vm.sessionToken) {
+                    vm.invalidateSession('登录已失效，请重新登录');
+                }
+            }
         } else {
             console.error('网络连接失败，请检查服务器是否启动');
         }
@@ -71,6 +78,9 @@ Vue.component('landing-page', {
     template: '#landing-page-tpl',
 });
 
+const SESSION_TOKEN_KEY = 'smartclass:session-token';
+const SESSION_USER_KEY = 'smartclass:session-user';
+
 new Vue({
     el: '#app',
     data: {
@@ -82,8 +92,23 @@ new Vue({
         activeTab: 'home',
         // 课堂标签页: 'chat' | 'history' | 'summary' | 'ai'
         classroomTab: 'chat',
+        classroomPanelCollapsed: false,
         // 用户信息
         currentUser: null,
+        // 跨标签页会话锁：同一浏览器配置同时只允许一个账号在线
+        sessionId: null,
+        sessionChannel: null,
+        sessionInvalidated: false,
+        sessionClaimedAt: null,
+        tabId: null,
+        deviceId: null,
+        sessionToken: null,
+        sessionHeartbeatTimer: null,
+        // 课堂锁：同一课堂只允许一个标签页进入（Web Locks，失败时降级 localStorage）
+        classroomLockRelease: null,
+        classroomLockMeetingId: null,
+        classroomLockFallbackKey: null,
+        classroomLockHeartbeat: null,
         // 声纹身份绑定
         voiceprintStatus: 'idle', // idle | loading | registered | unregistered | error
         voiceprintRecorder: null,
@@ -140,6 +165,7 @@ new Vue({
         registerForm: { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' },
         // 课堂表单
         classForm: { class_code: '', topic: '', materialUrl: '', templateId: '' },
+        classFormErrors: { class_code: '', topic: '' },
         // 上传的文件
         uploadedFile: null,
         // 弹窗状态
@@ -155,12 +181,15 @@ new Vue({
         classroomAILoading: false,
         // 课堂状态
         joined: false, loading: false, isPaused: false, errorMsg: '', form: {username:'', class_code:'', topic:'', role:'student'},
-        currentTopic: '', goals: [], msgs: [], currentRelevance: 0, hint: null,
+        currentTopic: '', goals: [], msgs: [], currentRelevance: null, hint: null,
         ws: null, wsHeartbeatTimer: null, recorder: null, audioCtx: null, analyser: null, dataArray: null, volumeLevel: 0, silenceStart: null, isSpeaking: false, speakingStartTime: null, statusText: 'Listening...', recordingStartTime: null,
         localMediaStream: null,
+        mediaMode: 'none',           // camera / screen / none
+        mediaSwitching: false,
         // ===== 声网 Agora SDK (替代 WebRTC Mesh) =====
         agoraAppId: 'd3144900be6843d8a8c14271f1da8cdb',
         agoraClient: null,           // AgoraRTCClient 实例
+        localAgoraUid: null,         // 本地用户实际使用的 ASCII UID
         agoraLocalAudioTrack: null,  // 本地音频轨道
         agoraLocalVideoTrack: null,  // 本地视频轨道
         agoraRemoteUsers: {},        // {uid: {videoTrack, audioTrack}} 远端用户轨道
@@ -171,6 +200,7 @@ new Vue({
         realtimeSubtitle: null, realtimeSubtitleTimer: null, realtimeSubtitleLastAt: 0,
         asrWs: null, audioProcessor: null, audioSource: null,
         asrWsSeq: 0,
+        asrUnavailable: false,
         asrReconnectTimer: null,
         asrDroppedFrames: 0,
         asrHealthTimer: null,
@@ -181,6 +211,7 @@ new Vue({
         browserAsrLastFinal: '',
         browserAsrLastFinalAt: 0,
         showKnowledgeGraph: false, knowledgeGraphData: null, chartInstance: null,
+        knowledgeGraphLoading: false, knowledgeGraphError: '', knowledgeGraphGenerating: false,
         classStartTime: null, timerInterval: null, meetingId: null,
         meetingStatus: null, meetingStartedAt: null, meetingEndedAt: null,
         // 新增: 观点聚类投票
@@ -258,7 +289,7 @@ new Vue({
         recommendedMaterials: [],
         showMaterialsPanel: false,
         // 教师端专属数据
-        teacherStats: { totalClasses: 0, totalStudents: 0, avgScore: 0, riskGroups: 0 },
+        teacherStats: { totalClasses: 0, totalStudents: 0, avgScore: null, riskGroups: 0 },
         teacherClasses: [],
         // 新增: 教师查看小组报告
         viewingGroupReports: false,
@@ -326,6 +357,15 @@ new Vue({
             }
         }
     },
+    created() {
+        this.initSessionGuards();
+        this.restoreSession();
+        this._onWindowResize = () => {
+            clearTimeout(this._resizeTimer);
+            this._resizeTimer = setTimeout(() => this.resizeStatsCharts(), 120);
+        };
+        window.addEventListener('resize', this._onWindowResize);
+    },
     computed: {
         currentQuizQ() {
             return (this.quizQuestions && this.quizQuestions[this.quizCurrentIndex]) || {};
@@ -375,17 +415,27 @@ new Vue({
             });
             return votedSet.size;
         },
+        hasKnowledgeGraphData() {
+            return !!(this.knowledgeGraphData
+                && Array.isArray(this.knowledgeGraphData.nodes)
+                && this.knowledgeGraphData.nodes.length);
+        },
+        effectiveLocalAgoraUid() {
+            if (!this.currentUser) return '';
+            return String(this.localAgoraUid || this.agoraSafeUid(
+                this.currentUser.student_id || this.currentUser.username || this.currentUser.id
+            ));
+        },
         videoMembers() {
             // 只显示实际加入 Agora 的用户（有视频流的用户）
             const members = [];
+            const localUid = this.effectiveLocalAgoraUid;
             // 添加自己
-            if (this.currentUser && this.currentUser.student_id) {
-                members.push(String(this.currentUser.student_id));
-            }
+            if (localUid) members.push(localUid);
             // 添加远端用户（按 UID 排序保证顺序稳定）
             const remoteUids = Object.keys(this.agoraRemoteUsers || {}).sort();
             remoteUids.forEach(uid => {
-                if (uid && uid !== String(this.currentUser.student_id)) {
+                if (uid && uid !== localUid) {
                     members.push(uid);
                 }
             });
@@ -502,6 +552,11 @@ new Vue({
             }
             return reports;
         },
+        // 历史记录只展示已结束课堂；进行中/待开始留在课堂管理
+        endedClassHistory() {
+            const history = Array.isArray(this.classHistory) ? this.classHistory : [];
+            return history.filter(h => h.status === 'ended');
+        },
         // 学生首页统计（基于历史课堂）
         studentHomeStats() {
             if (this.studentHomeSummary) {
@@ -594,6 +649,16 @@ new Vue({
                 }, 100);
             });
         },
+        // 窄屏折叠/展开右侧面板；展开时补渲染和 resize，避免隐藏期间尺寸为 0
+        toggleClassroomPanel() {
+            this.classroomPanelCollapsed = !this.classroomPanelCollapsed;
+            if (this.classroomPanelCollapsed) return;
+            this.$nextTick(() => {
+                this.renderStatsCharts();
+                this.renderEmotionCharts();
+                this.resizeStatsCharts();
+            });
+        },
         // === 通用弹窗方法 ===
         showAlert(message, icon = 'info', title = '') {
             return new Promise(resolve => {
@@ -647,9 +712,12 @@ new Vue({
             }, 10000);
             return true;
         },
-        showConfirm(message, title = '确认操作') {
+        showConfirm(message, title = '确认操作', confirmText = '确定', cancelText = '取消') {
             return new Promise(resolve => {
-                this.globalModal = { show: true, type: 'confirm', icon: 'warning', title, message, _resolve: resolve };
+                this.globalModal = {
+                    show: true, type: 'confirm', icon: 'warning', title, message,
+                    confirmText, cancelText, _resolve: resolve
+                };
             });
         },
         resolveModal(value) {
@@ -894,9 +962,17 @@ new Vue({
         
         // ===下面是原有方法===
         // 切换到注册页
-        showRegister() { this.pageState = 'register'; },
+        showRegister() {
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.pageState = 'register';
+        },
         // 切换到登录页
-        showLogin() { this.pageState = 'login'; },
+        showLogin() {
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.pageState = 'login';
+        },
         // 用户登录
         async login() {
             if(!this.loginForm.student_id || !this.loginForm.password) return this.showAlert('请填写完整信息', 'warning', '提示');
@@ -905,9 +981,16 @@ new Vue({
                 let d = new FormData();
                 d.append('student_id', this.loginForm.student_id);
                 d.append('password', this.loginForm.password);
+                d.append('device_id', this.deviceId || '');
                 let res = await axios.post('/api/login', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.currentUser = res.data.user;
+                this.claimSession(this.currentUser);
+                this.sessionToken = res.data.session_token || null;
+                this.applySessionToken();
+                this.startSessionHeartbeat();
+                this.loginForm = { student_id: '', password: '' };
+                this.closeClassModal();
                 this.studentHomeSummary = null;
                 this.classHistory = [];
                 this.myReports = [];
@@ -917,27 +1000,17 @@ new Vue({
                 this.studentReportsLoaded = false;
                 this.pageState = 'lobby';
                 this.loading = false;
-                this.hydrateLobbyCache();
-                // 检查声纹状态
-                this.loadVoiceprintStatus();
-                if (this.currentUser.role === 'student') {
-                    this.loadStudentHomeStats().catch(e => console.warn('加载首页统计失败:', e));
-                    this.ensureClassHistory().catch(e => console.warn('加载历史失败:', e));
-                    this.ensureMyReports().catch(e => console.warn('加载报告失败:', e));
-                }
-                if (this.currentUser.role === 'teacher') {
-                    this.loadActiveGroups();
-                    this.loadTeacherStats();
-                    this.loadTeacherClasses();
-                    this.ensureAllStudentReports();
-                    this.loadTeacherTemplates();  // 加载模板
-                }
+                this.persistSession();
+                this.loadLobbyData();
             } catch(e) { this.showAlert('登录失败: ' + (e.response?.data?.message || e.message), 'error', '错误'); this.loading = false; }
         },
         // 用户注册
         async register() {
             if(!this.registerForm.student_id || !this.registerForm.username || !this.registerForm.password) {
                 return this.showAlert('请填写完整信息', 'warning', '提示');
+            }
+            if (!/^\d+$/.test(this.registerForm.student_id)) {
+                return this.showAlert('学号/工号只能包含数字', 'warning', '提示');
             }
             // 密码强度校验：至少10位，包含大写、小写字母和数字
             const pwd = this.registerForm.password;
@@ -966,12 +1039,22 @@ new Vue({
                 let res = await axios.post('/api/register', d);
                 if(res.data.status === 'error') { this.showAlert(res.data.message, 'error', '提示'); this.loading = false; return; }
                 this.showAlert('注册成功，请登录', 'success', '注册成功');
+                this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+                this.loginForm = { student_id: '', password: '' };
                 this.pageState = 'login';
                 this.loading = false;
             } catch(e) { this.showAlert('注册失败: ' + (e.response?.data?.message || e.message), 'error', '错误'); this.loading = false; }
         },
         // 退出登录
         logout() {
+            if (this.pageState === 'classroom') this._cleanupClassroom();
+            this.stopSessionHeartbeat();
+            this.revokeServerSession();
+            this.sessionToken = null;
+            this.applySessionToken();
+            this.clearPersistedSession();
+            this.releaseClassroomLock();
+            this.releaseSession();
             this.cleanupVoiceprintRecorder();
             this.resetVoiceprintSample();
             this.voiceprintStatus = 'idle';
@@ -985,9 +1068,373 @@ new Vue({
             this.studentReportsLoaded = false;
             this.pageState = 'login';
             this.activeTab = 'home';
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.closeClassModal();
+            this.sessionInvalidated = false;
             this.stopBrowserSpeechRecognition();
             if(this.ws) this.ws.close();
             if(this.recorder) this.recorder.stop();
+        },
+        // ===== 跨标签页会话锁 =====
+        initSessionGuards() {
+            this.sessionId = this.newSessionId();
+            this.tabId = this.newSessionId();
+            try {
+                let deviceId = localStorage.getItem('smartclass:device-id');
+                if (!deviceId) {
+                    deviceId = this.newSessionId();
+                    localStorage.setItem('smartclass:device-id', deviceId);
+                }
+                this.deviceId = deviceId;
+            } catch (e) {
+                this.deviceId = this.newSessionId();
+            }
+            if (window.BroadcastChannel) {
+                try {
+                    this.sessionChannel = new BroadcastChannel('smartclass-session');
+                    this.sessionChannel.onmessage = (event) => this.handleSessionEvent(event.data);
+                } catch (e) {
+                    console.warn('BroadcastChannel 不可用，降级 storage 事件:', e);
+                }
+            }
+            window.addEventListener('storage', this.handleStorageEvent);
+            window.addEventListener('pagehide', this.handlePageHide);
+        },
+        handlePageHide() {
+            // 刷新/关闭页面只释放课堂锁；登录会话保留，刷新后由 sessionStorage 恢复
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+        },
+        applySessionToken() {
+            if (this.sessionToken) {
+                axios.defaults.headers.common['Authorization'] = `Bearer ${this.sessionToken}`;
+            } else {
+                delete axios.defaults.headers.common['Authorization'];
+            }
+        },
+        startSessionHeartbeat() {
+            this.stopSessionHeartbeat();
+            if (!this.sessionToken) return;
+            this.sessionHeartbeatTimer = setInterval(async () => {
+                if (!this.sessionToken) return;
+                try {
+                    const res = await axios.get('/api/session/validate');
+                    if (!res.data || res.data.status !== 'success') {
+                        this.invalidateSession('登录已在其他设备失效，请重新登录');
+                    }
+                } catch (e) {
+                    if (e.response && [401, 403].includes(e.response.status)) {
+                        this.invalidateSession('登录已在其他设备失效，请重新登录');
+                    }
+                }
+            }, 15000);
+        },
+        stopSessionHeartbeat() {
+            if (this.sessionHeartbeatTimer) {
+                clearInterval(this.sessionHeartbeatTimer);
+                this.sessionHeartbeatTimer = null;
+            }
+        },
+        revokeServerSession() {
+            const token = this.sessionToken;
+            if (!token) return;
+            fetch('/api/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                keepalive: true
+            }).catch(() => {});
+        },
+        async claimServerClassroom(meetingId) {
+            if (!this.sessionToken) {
+                this.showAlert('登录状态无效，请重新登录', 'error', '无法进入课堂');
+                return false;
+            }
+            try {
+                await axios.post(
+                    '/api/classroom/enter',
+                    { meeting_id: Number(meetingId) },
+                    { headers: { 'Content-Type': 'application/json' } }
+                );
+                return true;
+            } catch (e) {
+                const status = e.response && e.response.status;
+                const message = (e.response && e.response.data && e.response.data.detail)
+                    || '无法进入课堂';
+                if (status === 401) {
+                    this.invalidateSession('登录已失效，请重新登录');
+                } else {
+                    this.showAlert(message, 'warning', '无法进入课堂');
+                }
+                return false;
+            }
+        },
+        releaseServerClassroom(meetingId) {
+            const token = this.sessionToken;
+            if (!token || !meetingId) return;
+            fetch('/api/classroom/leave', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ meeting_id: Number(meetingId) }),
+                keepalive: true
+            }).catch(() => {});
+        },
+        newSessionId() {
+            if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+            return 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        },
+        readActiveSession() {
+            try {
+                return JSON.parse(localStorage.getItem('smartclass:session') || 'null');
+            } catch (e) {
+                return null;
+            }
+        },
+        persistSession() {
+            if (!this.sessionToken || !this.currentUser) return;
+            try {
+                sessionStorage.setItem(SESSION_TOKEN_KEY, this.sessionToken);
+                sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(this.currentUser));
+            } catch (e) {
+                console.warn('写入登录态失败:', e);
+            }
+        },
+        readStoredSession() {
+            try {
+                const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+                const raw = sessionStorage.getItem(SESSION_USER_KEY);
+                if (!token || !raw) return null;
+                return { token, user: JSON.parse(raw) };
+            } catch (e) {
+                return null;
+            }
+        },
+        clearPersistedSession() {
+            try {
+                sessionStorage.removeItem(SESSION_TOKEN_KEY);
+                sessionStorage.removeItem(SESSION_USER_KEY);
+            } catch (e) {}
+        },
+        async restoreSession() {
+            const stored = this.readStoredSession();
+            if (!stored) return false;
+            this.sessionToken = stored.token;
+            this.applySessionToken();
+            try {
+                const res = await axios.get('/api/session/validate');
+                if (!res.data || res.data.status !== 'success') {
+                    throw new Error('会话已失效');
+                }
+                // 用户在恢复期间已开始登录/注册，不要强行拉回大厅
+                if (this.pageState !== 'landing') {
+                    this.clearPersistedSession();
+                    this.sessionToken = null;
+                    this.applySessionToken();
+                    return false;
+                }
+                this.currentUser = res.data.user;
+                this.claimSession(this.currentUser);
+                this.startSessionHeartbeat();
+                this.pageState = 'lobby';
+                this.persistSession();
+                this.loadLobbyData();
+                return true;
+            } catch (e) {
+                this.clearPersistedSession();
+                this.sessionToken = null;
+                this.currentUser = null;
+                this.applySessionToken();
+                return false;
+            }
+        },
+        loadLobbyData() {
+            if (!this.currentUser) return;
+            this.hydrateLobbyCache();
+            this.loadVoiceprintStatus();
+            if (this.currentUser.role === 'student') {
+                this.loadStudentHomeStats().catch(e => console.warn('加载首页统计失败:', e));
+                this.ensureClassHistory().catch(e => console.warn('加载历史失败:', e));
+                this.ensureMyReports().catch(e => console.warn('加载报告失败:', e));
+            }
+            if (this.currentUser.role === 'teacher') {
+                this.loadActiveGroups();
+                this.loadTeacherStats();
+                this.loadTeacherClasses();
+                this.ensureAllStudentReports();
+                this.loadTeacherTemplates();
+            }
+        },
+        claimSession(user) {
+            const active = this.readActiveSession();
+            if (active && String(active.userId) === String(user.id)) {
+                // 同一账号允许多标签；只有切换账号才让旧标签退出
+                this.sessionId = active.sessionId;
+                this.sessionClaimedAt = active.ts || Date.now();
+                const reused = { ...active, ts: Date.now() };
+                try {
+                    localStorage.setItem('smartclass:session', JSON.stringify(reused));
+                } catch (e) {}
+                this.sessionClaimedAt = reused.ts;
+                this.sessionInvalidated = false;
+                this.broadcastSession({ type: 'session-claimed', ...reused });
+                return;
+            }
+            this.sessionId = this.newSessionId();
+            this.sessionClaimedAt = Date.now();
+            const payload = {
+                sessionId: this.sessionId,
+                userId: user.id,
+                username: user.username,
+                ts: this.sessionClaimedAt
+            };
+            try {
+                localStorage.setItem('smartclass:session', JSON.stringify(payload));
+            } catch (e) {
+                console.warn('写入会话锁失败:', e);
+            }
+            this.sessionInvalidated = false;
+            this.broadcastSession({ type: 'session-claimed', ...payload });
+        },
+        broadcastSession(message) {
+            if (!this.sessionChannel) return;
+            try {
+                this.sessionChannel.postMessage(message);
+            } catch (e) {
+                console.warn('广播会话事件失败:', e);
+            }
+        },
+        handleSessionEvent(message) {
+            if (!message || !this.currentUser || this.sessionInvalidated) return;
+            if (message.type === 'session-claimed' && message.sessionId !== this.sessionId) {
+                if (message.ts && this.sessionClaimedAt && message.ts < this.sessionClaimedAt) return;
+                this.invalidateSession('该账号已在另一个窗口登录，本窗口已退出');
+            }
+        },
+        handleStorageEvent(event) {
+            if (event.key !== 'smartclass:session' || !this.currentUser || this.sessionInvalidated) return;
+            let active = null;
+            try {
+                active = JSON.parse(event.newValue || 'null');
+            } catch (e) {
+                return;
+            }
+            if (active && active.sessionId !== this.sessionId) {
+                if (active.ts && this.sessionClaimedAt && active.ts < this.sessionClaimedAt) return;
+                this.invalidateSession('该账号已在另一个窗口登录，本窗口已退出');
+            }
+        },
+        invalidateSession(message) {
+            if (this.sessionInvalidated) return;
+            this.sessionInvalidated = true;
+            // 先切页再清 currentUser；大厅模板会直接读 currentUser.role，
+            // 反过来会在某些渲染时机里读到 null。
+            const wasClassroom = this.pageState === 'classroom';
+            this.pageState = 'login';
+            this.stopSessionHeartbeat();
+            this.sessionToken = null;
+            this.applySessionToken();
+            this.clearPersistedSession();
+            this.releaseClassroomLock();
+            if (wasClassroom) {
+                this._cleanupClassroom();
+            }
+            this.currentUser = null;
+            this.loginForm = { student_id: '', password: '' };
+            this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
+            this.closeClassModal();
+            this.showAlert(message, 'warning', '登录状态已失效');
+        },
+        releaseSession() {
+            if (this.sessionInvalidated) return;
+            const active = this.readActiveSession();
+            if (active && active.sessionId === this.sessionId) {
+                try {
+                    localStorage.removeItem('smartclass:session');
+                } catch (e) {}
+                this.broadcastSession({ type: 'session-released', sessionId: this.sessionId });
+            }
+        },
+        // ===== 课堂单标签页锁 =====
+        async acquireClassroomLock(meetingId) {
+            const id = Number(meetingId);
+            if (this.classroomLockMeetingId === id && this.classroomLockRelease) return true;
+            this.releaseClassroomLock();
+            const key = 'smartclass:classroom:' + id;
+
+            if (navigator.locks && navigator.locks.request) {
+                try {
+                    let release;
+                    const held = new Promise((resolve) => { release = resolve; });
+                    const acquired = await new Promise((resolve) => {
+                        navigator.locks.request(key, { ifAvailable: true }, (lock) => {
+                            if (!lock) {
+                                resolve(false);
+                                return;
+                            }
+                            this.classroomLockRelease = release;
+                            this.classroomLockMeetingId = id;
+                            resolve(true);
+                            return held;
+                        }).catch(() => resolve(false));
+                    });
+                    if (!acquired) {
+                        this.classroomLockRelease = null;
+                        this.classroomLockMeetingId = null;
+                    }
+                    return acquired;
+                } catch (e) {
+                    console.warn('Web Locks 不可用，降级 localStorage:', e);
+                }
+            }
+
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data.tabId !== this.tabId && Date.now() - (data.ts || 0) < 15000) {
+                        return false;
+                    }
+                }
+                localStorage.setItem(key, JSON.stringify({ tabId: this.tabId, ts: Date.now() }));
+                this.classroomLockFallbackKey = key;
+                this.classroomLockMeetingId = id;
+                this.classroomLockHeartbeat = setInterval(() => {
+                    if (!this.classroomLockFallbackKey) return;
+                    try {
+                        localStorage.setItem(this.classroomLockFallbackKey, JSON.stringify({
+                            tabId: this.tabId,
+                            ts: Date.now()
+                        }));
+                    } catch (e) {}
+                }, 5000);
+                return true;
+            } catch (e) {
+                console.warn('课堂锁获取失败:', e);
+                return false;
+            }
+        },
+        releaseClassroomLock() {
+            if (this.classroomLockRelease) {
+                const release = this.classroomLockRelease;
+                this.classroomLockRelease = null;
+                try { release(); } catch (e) {}
+            }
+            if (this.classroomLockHeartbeat) {
+                clearInterval(this.classroomLockHeartbeat);
+                this.classroomLockHeartbeat = null;
+            }
+            if (this.classroomLockFallbackKey) {
+                try {
+                    const raw = localStorage.getItem(this.classroomLockFallbackKey);
+                    if (raw && JSON.parse(raw).tabId === this.tabId) {
+                        localStorage.removeItem(this.classroomLockFallbackKey);
+                    }
+                } catch (e) {}
+                this.classroomLockFallbackKey = null;
+            }
+            this.classroomLockMeetingId = null;
         },
         // 处理文件上传
         handleFileUpload(event) {
@@ -1045,10 +1492,25 @@ new Vue({
                 console.error('加载课堂历史对话失败:', e);
             }
         },
+        // 关闭课堂弹窗并清掉上一轮输入
+        closeClassModal() {
+            this.showClassModal = false;
+            this.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
+            this.classFormErrors = { class_code: '', topic: '' };
+            this.uploadedFile = null;
+            if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+        },
         // 进入/创建课堂
         async enterClass() {
-            if(!this.classForm.class_code) return this.showAlert('请输入课堂号', 'warning', '提示');
-            if(this.currentUser.role === 'teacher' && !this.classForm.topic) return this.showAlert('教师创建课堂需要填写主题', 'warning', '提示');
+            this.classFormErrors = { class_code: '', topic: '' };
+            if(!this.classForm.class_code) {
+                this.classFormErrors.class_code = '请输入课堂号';
+                return;
+            }
+            if(this.currentUser.role === 'teacher' && !this.classForm.topic) {
+                this.classFormErrors.topic = '教师创建课堂需要填写主题';
+                return;
+            }
             this.loading = true;
             let d = new FormData();
             d.append('username', this.currentUser.username);
@@ -1097,7 +1559,23 @@ new Vue({
                     if (this.currentUser.role === 'teacher') this.loadTeacherClasses();
                     return;
                 }
-                this.joined = true; 
+                if (!(await this.claimServerClassroom(res.data.meeting_id))) {
+                    this.meetingId = null;
+                    this.joined = false;
+                    this.loading = false;
+                    this.showClassModal = false;
+                    return;
+                }
+                if (!(await this.acquireClassroomLock(res.data.meeting_id))) {
+                    this.releaseServerClassroom(res.data.meeting_id);
+                    this.meetingId = null;
+                    this.joined = false;
+                    this.loading = false;
+                    this.showClassModal = false;
+                    this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                    return;
+                }
+                this.joined = true;
                 this.pageState = 'classroom';
                 this.showClassModal = false;
                 this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
@@ -1123,15 +1601,17 @@ new Vue({
             } catch(e) { this.showAlert('进入课堂失败', 'error', '错误'); this.loading = false; }
         },
         // 可靠绑定本地视频流（使用 getElementById 避免 Vue ref 在 v-for 内的数组问题）
-        _bindLocalVideo() {
+        _bindLocalVideo(force = false) {
             if (!this.localMediaStream) return;
             const tryBind = (attempt) => {
                 const videoEl = document.getElementById('localVideo');
                 if (videoEl) {
-                    if (videoEl.srcObject !== this.localMediaStream) {
+                    if (force || videoEl.srcObject !== this.localMediaStream) {
                         videoEl.srcObject = this.localMediaStream;
                         console.log('✅ 本地视频已绑定 (attempt ' + attempt + ')');
                     }
+                    const playResult = videoEl.play();
+                    if (playResult && playResult.catch) playResult.catch(() => {});
                 } else if (attempt < 20) {
                     setTimeout(() => tryBind(attempt + 1), 300);
                 } else {
@@ -1150,12 +1630,14 @@ new Vue({
             try {
             // 教师:选择摄像头或屏幕共享
             let stream;
+            let screenSharing = false;
             if (this.currentUser.role === 'teacher') {
-                const choice = await this.showConfirm('点击”确定”共享屏幕，”取消”使用摄像头', '选择媒体方式');
+                const choice = await this.showConfirm('请选择进入课堂的媒体方式', '选择媒体方式', '共享屏幕', '使用摄像头');
                 if (choice) {
                     // 屏幕共享
                     try {
                         stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true});
+                        screenSharing = true;
                         this.statusText = 'Screen Sharing...';
                     } catch(e) {
                         console.warn('屏幕共享取消或失败，使用摄像头:', e);
@@ -1167,45 +1649,32 @@ new Vue({
             } else {
                 stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
             }
-            
+
+            // 屏幕共享的系统音频不能替代人声；始终补一路麦克风用于 ASR/录音
+            if (screenSharing || !stream.getAudioTracks().length) {
+                try {
+                    const micStream = await navigator.mediaDevices.getUserMedia({audio: true});
+                    if (screenSharing) {
+                        stream.getAudioTracks().forEach(track => {
+                            stream.removeTrack(track);
+                            track.stop();
+                        });
+                    }
+                    micStream.getAudioTracks().forEach(track => stream.addTrack(track));
+                    console.log('🎤 已接入麦克风音轨');
+                } catch (micErr) {
+                    console.warn('⚠️ 未获取到麦克风音轨:', micErr);
+                    this.showClassroomHint('⚠️ 麦克风未授权，语音识别与录音将不可用', 8000, { force: true });
+                }
+            }
             this.localMediaStream = stream;
+            this.mediaMode = screenSharing ? 'screen' : (stream.getVideoTracks().length ? 'camera' : 'none');
+            this._watchVideoTrack(stream.getVideoTracks()[0]);
             // 使用 getElementById 绑定（更可靠）
             this._bindLocalVideo();
             // 启动本地麦克风活跃检测
             this.startLocalAudioAnalysis();
-            // 降低视频帧率录制，减少CPU开销（5fps足够做表情识别）
-            const lowFpsStream = new MediaStream([
-                ...stream.getAudioTracks(),
-                ...stream.getVideoTracks()
-            ]);
-            this.recorder = new MediaRecorder(lowFpsStream, {
-                mimeType: 'video/webm',
-                videoBitsPerSecond: 500000
-            });
-            this.recorder.ondataavailable = e => {
-                console.log('🎤 ondataavailable 触发:', {
-                    size: e.data.size,
-                    isPaused: this.isPaused,
-                    wsExists: !!this.ws,
-                    wsState: this.ws?.readyState
-                });
-
-                if(this.isPaused) {
-                    console.warn('⏸️ 当前已暂停，忽略录音片段');
-                    return;
-                }
-                if(e.data.size > 0 && this.ws && this.ws.readyState==1) {
-                    this.ws.send(e.data);
-                    console.log("📤 发送切片:", e.data.size);
-                } else {
-                    console.warn('⚠️ 音频数据未发送:', {
-                        isPaused: this.isPaused,
-                        dataSize: e.data.size,
-                        wsExists: !!this.ws,
-                        wsState: this.ws?.readyState
-                    });
-                }
-            };
+            if (stream.getAudioTracks().length) {
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = this.audioCtx.createMediaStreamSource(stream); this.analyser = this.audioCtx.createAnalyser(); this.analyser.fftSize = 512; source.connect(this.analyser); this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
@@ -1220,7 +1689,7 @@ new Vue({
                 this.audioProcessor.connect(this.audioCtx.destination);
 
                 this.audioProcessor.port.onmessage = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
                         const MAX_BUFFERED_BYTES = 256 * 1024;
                         if ((this.asrWs.bufferedAmount || 0) > MAX_BUFFERED_BYTES) {
@@ -1242,7 +1711,7 @@ new Vue({
                 this.audioSource.connect(this.audioProcessor);
                 this.audioProcessor.connect(this.audioCtx.destination);
                 this.audioProcessor.onaudioprocess = (e) => {
-                    if (this.isPaused) return;
+                    if (this.isPaused || this.asrUnavailable) return;
                     const inputData = e.inputBuffer.getChannelData(0);
                     const sampleRate = this.audioCtx.sampleRate;
                     const targetRate = 16000;
@@ -1268,11 +1737,203 @@ new Vue({
                     }
                 };
             }
+            } else {
+                console.warn('⚠️ 无音轨，跳过音频分析与 ASR 采集');
+            }
             // --- 结束新增 ---
 
-            this.recorder.start(); this.recordingStartTime = Date.now(); this.detectVolume();
+            this._startRecorder(stream); this.detectVolume();
+            } catch (e) {
+                const name = (e && e.name) || '';
+                let message = '无法开启摄像头/麦克风';
+                if (name === 'NotAllowedError') {
+                    message = '摄像头/麦克风权限被拒绝。请在浏览器地址栏允许权限后重试。';
+                } else if (name === 'NotFoundError') {
+                    message = '没有找到摄像头或麦克风，请检查设备连接。';
+                } else if (name === 'NotReadableError') {
+                    message = '摄像头/麦克风被其他程序占用，请关闭占用程序后重试。';
+                } else if (name === 'OverconstrainedError') {
+                    message = '当前摄像头/麦克风不满足请求参数，请更换设备。';
+                } else if (e && e.message) {
+                    message += '：' + e.message;
+                }
+                console.warn('⚠️ 开启音视频失败:', e);
+                // 失败发生在拿到流之后时，必须释放设备，否则摄像头/麦克风会一直被占用
+                if (this.localMediaStream) {
+                    this.localMediaStream.getTracks().forEach(t => t.stop());
+                    this.localMediaStream = null;
+                }
+                if (this.recorder && this.recorder.state !== 'inactive') {
+                    try { this.recorder.stop(); } catch (err) {}
+                    this.recorder = null;
+                }
+                if (this.audioCtx) {
+                    try { this.audioCtx.close(); } catch (err) {}
+                    this.audioCtx = null;
+                }
+                this.mediaMode = 'none';
+                this.showAlert(message, 'error', '无法开启音视频');
             } finally {
                 this._startingMedia = false;
+            }
+        },
+        _startRecorder(stream) {
+            if (this.recorder && this.recorder.state !== 'inactive') {
+                try { this.recorder.stop(); } catch (e) {}
+            }
+            this.recorder = null;
+            if (!stream) return;
+            const tracks = [...stream.getAudioTracks(), ...stream.getVideoTracks()];
+            if (!tracks.length) return;
+            try {
+                this.recorder = new MediaRecorder(new MediaStream(tracks), {
+                    mimeType: 'video/webm',
+                    videoBitsPerSecond: 500000
+                });
+                this.recorder.ondataavailable = e => {
+                    console.log('🎤 ondataavailable 触发:', {
+                        size: e.data.size,
+                        isPaused: this.isPaused,
+                        wsExists: !!this.ws,
+                        wsState: this.ws?.readyState
+                    });
+
+                    if(this.isPaused) {
+                        console.warn('⏸️ 当前已暂停，忽略录音片段');
+                        return;
+                    }
+                    if(e.data.size > 0 && this.ws && this.ws.readyState==1) {
+                        this.ws.send(e.data);
+                        console.log("📤 发送切片:", e.data.size);
+                    } else {
+                        console.warn('⚠️ 音频数据未发送:', {
+                            isPaused: this.isPaused,
+                            dataSize: e.data.size,
+                            wsExists: !!this.ws,
+                            wsState: this.ws?.readyState
+                        });
+                    }
+                };
+                this.recorder.start();
+                if (this.isPaused) {
+                    try { this.recorder.pause(); } catch (e) {}
+                }
+                this.recordingStartTime = Date.now();
+            } catch (e) {
+                console.warn('⚠️ 录音初始化失败:', e);
+                this.recorder = null;
+                if (!this._recorderWarned) {
+                    this._recorderWarned = true;
+                    this.showClassroomHint('⚠️ 录制初始化失败，分享可继续但不会保存录像', 8000, { force: true });
+                }
+            }
+        },
+        async startScreenShare() {
+            return this._applyMediaMode('screen');
+        },
+        async startCameraShare() {
+            return this._applyMediaMode('camera');
+        },
+        async switchVideoSource() {
+            if (this.mediaSwitching || this.mediaMode === 'none') return;
+            return this._applyMediaMode(this.mediaMode === 'screen' ? 'camera' : 'screen');
+        },
+        async stopVideoShare() {
+            if (this.mediaSwitching || this.mediaMode === 'none') return;
+            await this._dropLocalVideo(false);
+        },
+        async _applyMediaMode(mode) {
+            if (!['screen', 'camera'].includes(mode)) return;
+            if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+            if (this.mediaSwitching || mode === this.mediaMode) return;
+            if (!this.localMediaStream) {
+                this.showAlert('媒体尚未初始化，请重新进入课堂', 'warning', '无法切换');
+                return;
+            }
+            this.mediaSwitching = true;
+            let acquired = null;
+            try {
+                acquired = mode === 'screen'
+                    ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+                    : await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const track = acquired.getVideoTracks()[0];
+                if (!track) throw new Error('未获取到视频轨道');
+                await this._replaceLocalVideoTrack(track, mode);
+            } catch (e) {
+                if (acquired) acquired.getTracks().forEach(t => t.stop());
+                if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) {
+                    if (mode === 'camera') {
+                        this.showAlert('摄像头权限被拒绝，请在浏览器地址栏允许后重试。', 'warning', '无法打开摄像头');
+                    }
+                    return;
+                }
+                this.showAlert('切换分享失败：' + ((e && e.message) || e), 'error', '切换分享');
+            } finally {
+                this.mediaSwitching = false;
+            }
+        },
+        async _replaceLocalVideoTrack(track, mode) {
+            const oldTrack = this.localMediaStream.getVideoTracks()[0];
+            if (oldTrack && oldTrack !== track) {
+                oldTrack.removeEventListener('ended', this._onLocalVideoEnded);
+                this.localMediaStream.removeTrack(oldTrack);
+                oldTrack.stop();
+            }
+            this._watchVideoTrack(track);
+            if (!this.localMediaStream.getVideoTracks().includes(track)) {
+                this.localMediaStream.addTrack(track);
+            }
+            this.mediaMode = mode;
+            this.statusText = mode === 'screen' ? 'Screen Sharing...' : 'Listening...';
+            this._bindLocalVideo(true);
+            this._startRecorder(this.localMediaStream);
+            await this._replaceAgoraVideoTrack(track);
+            this.showClassroomHint(mode === 'screen' ? '已切换为屏幕共享' : '已切换为摄像头', 3000);
+        },
+        async _dropLocalVideo(silent) {
+            const track = this.localMediaStream && this.localMediaStream.getVideoTracks()[0];
+            if (track) {
+                track.removeEventListener('ended', this._onLocalVideoEnded);
+                this.localMediaStream.removeTrack(track);
+                track.stop();
+            }
+            this.mediaMode = 'none';
+            if (!this.isPaused) this.statusText = 'Listening...';
+            this._bindLocalVideo(false);
+            if (this.localMediaStream) this._startRecorder(this.localMediaStream);
+            await this._replaceAgoraVideoTrack(null);
+            if (!silent) this.showClassroomHint('已停止视频分享', 3000);
+        },
+        _watchVideoTrack(track) {
+            if (!track) return;
+            track.removeEventListener('ended', this._onLocalVideoEnded);
+            track.addEventListener('ended', this._onLocalVideoEnded);
+        },
+        _onLocalVideoEnded() {
+            if (this.mediaMode === 'none') return;
+            this._dropLocalVideo(true);
+            this.showClassroomHint('分享已结束，可重新共享屏幕或打开摄像头', 7000, { force: true });
+        },
+        async _replaceAgoraVideoTrack(mediaStreamTrack) {
+            if (this.agoraLocalVideoTrack) {
+                try {
+                    if (this.agoraClient) await this.agoraClient.unpublish(this.agoraLocalVideoTrack);
+                } catch (e) {
+                    console.warn('Agora 取消发布本地视频失败:', e);
+                }
+                try { this.agoraLocalVideoTrack.close(); } catch (e) {}
+                this.agoraLocalVideoTrack = null;
+            }
+            if (!mediaStreamTrack || !this.agoraClient) return;
+            try {
+                this.agoraLocalVideoTrack = AgoraRTC.createCustomVideoTrack({
+                    mediaStreamTrack
+                });
+                await this.agoraClient.publish(this.agoraLocalVideoTrack);
+                console.log('✅ Agora: 本地视频已切换');
+            } catch (e) {
+                console.warn('Agora 发布本地视频失败:', e);
+                this.agoraLocalVideoTrack = null;
             }
         },
         detectVolume() {
@@ -1347,12 +2008,19 @@ new Vue({
         },
         // endClass 已移至下方统一版本
         _cleanupClassroom() {
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+            this.releaseClassroomLock();
             // 停止录制和媒体
             if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop();
             if (this.localMediaStream) {
+                const videoTrack = this.localMediaStream.getVideoTracks()[0];
+                if (videoTrack) videoTrack.removeEventListener('ended', this._onLocalVideoEnded);
                 this.localMediaStream.getTracks().forEach(t => t.stop());
                 this.localMediaStream = null;
             }
+            this.mediaMode = 'none';
+            this.mediaSwitching = false;
+            this.asrUnavailable = false;
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
                 this.agoraLocalVideoTrack.stop();
@@ -1382,6 +2050,7 @@ new Vue({
             // 返回主页
             this.currentView = 'main';
             this.meetingId = null;
+            this.viewingGroupId = null;
             this.meetingStatus = null;
             this.meetingStartedAt = null;
             this.meetingEndedAt = null;
@@ -1532,6 +2201,10 @@ new Vue({
             }
         },
         connectAsrWs() {
+            if (!this.localMediaStream || !this.localMediaStream.getAudioTracks().length) {
+                console.warn('⚠️ 无音轨，跳过 ASR 连接');
+                return;
+            }
             let protocol = location.protocol === 'https:' ? 'wss' : 'ws';
             if (this.asrWs) {
                 this.asrWs._manualClose = true;
@@ -1540,13 +2213,14 @@ new Vue({
             }
             const seq = (this.asrWsSeq || 0) + 1;
             this.asrWsSeq = seq;
-            const ws = new WebSocket(`${protocol}://${location.host}/ws-asr/${this.currentUser.username}/${this.meetingId}`);
+            const ws = new WebSocket(`${protocol}://${location.host}/ws-asr/${this.currentUser.username}/${this.meetingId}?token=${encodeURIComponent(this.sessionToken || '')}`);
             this.asrWs = ws;
 
             ws.onopen = () => {
                 if (this.asrWs !== ws || this.asrWsSeq !== seq) return;
                 console.log('✅ 实时ASR WebSocket已连接');
                 this._asrErrorShown = false;
+                this.asrUnavailable = false;
                 this.asrLastMessageAt = 0;
                 if (this.asrHealthTimer) clearTimeout(this.asrHealthTimer);
                 this.asrHealthTimer = setTimeout(() => {
@@ -1563,12 +2237,14 @@ new Vue({
                 let d = JSON.parse(e.data);
                 if (d.type === 'asr_partial') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, false);
                     this.upsertAsrPartialToChat(d.username, d.text, d.asr_sentence_id);
                     return;
                 } else if (d.type === 'asr_final') {
                     this.asrLastMessageAt = Date.now();
+                    this.asrUnavailable = false;
                     this.stopBrowserSpeechRecognition();
                     this.updateRealtimeSubtitle(d.username, d.text, true);
                     this.appendAsrFinalToChat(d.username, d.text, d.asr_sentence_id);
@@ -1580,11 +2256,13 @@ new Vue({
                 } else if (d.type === 'asr_error') {
                     console.error('❌ 实时ASR不可用:', d.message || d);
                     this.asrLastMessageAt = 0;
+                    this.asrUnavailable = true;
                     if (!this._asrErrorShown) {
                         this._asrErrorShown = true;
                         this.showAlert(d.message || '实时语音转文字暂时不可用', 'warning', 'ASR连接异常');
                     }
                 } else if (d.type === 'asr_status') {
+                    this.asrUnavailable = false;
                     console.log('ℹ️ 实时ASR状态:', d.message || d);
                 } else if (d.type === 'asr_gate_status') {
                     if (d.status === 'passed') {
@@ -1689,11 +2367,30 @@ new Vue({
             });
             console.log('✅ Agora Client 初始化完成');
         },
+        // Agora 字符串 UID 只接受 1-255 位 ASCII；中文/空格/空值用稳定哈希兜底
+        agoraSafeUid(value) {
+            const raw = String(value ?? '').trim();
+            if (/^[A-Za-z0-9_.-]{1,255}$/.test(raw)) return raw;
+            let hash = 5381;
+            for (let i = 0; i < raw.length; i++) {
+                hash = ((hash << 5) + hash + raw.charCodeAt(i)) >>> 0;
+            }
+            return 'u' + hash.toString(36);
+        },
+        agoraMemberLabel(uid) {
+            if (uid === this.effectiveLocalAgoraUid && this.currentUser) {
+                return this.currentUser.student_id || this.currentUser.username || '我';
+            }
+            return String(uid);
+        },
         async _joinAgoraChannel() {
             if (this.meetingStatus !== 'running' || !this.meetingId || !this.currentUser || !this.localMediaStream) return;
             try {
                 const channel = String(this.meetingId);
-                const uid = String(this.currentUser.student_id);
+                const uid = this.agoraSafeUid(
+                    this.currentUser.student_id || this.currentUser.username || this.currentUser.id
+                );
+                this.localAgoraUid = uid;
                 // 从服务端获取 RTC 配置，避免前后端鉴权模式不一致
                 const tokenRes = await axios.get('/api/agora-token', {
                     params: { channel, uid, meeting_id: this.meetingId, _: Date.now() },
@@ -1796,6 +2493,7 @@ new Vue({
                     if (container) container.innerHTML = '';
                 });
                 this.agoraRemoteUsers = {};
+                this.localAgoraUid = null;
                 this.remoteStreams = {};
                 this.speakingMembers = {};
                 this.pinnedMember = null;
@@ -1811,7 +2509,7 @@ new Vue({
         },
         // 保留本地音频活跃检测（自己的麦克风，用于本地 speaking 状态）
         startLocalAudioAnalysis() {
-            if (!this.localMediaStream) return;
+            if (!this.localMediaStream || !this.localMediaStream.getAudioTracks().length) return;
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = ctx.createMediaStreamSource(this.localMediaStream);
@@ -1820,7 +2518,7 @@ new Vue({
                 analyser.smoothingTimeConstant = 0.3;
                 source.connect(analyser);
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                const me = this.currentUser.student_id;
+                const me = this.effectiveLocalAgoraUid;
                 this._localAudioAnalysis = setInterval(() => {
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0;
@@ -2446,7 +3144,7 @@ new Vue({
         },
         connectWs() {
             let protocol = location.protocol==="https:"?"wss":"ws";
-            this.ws = new WebSocket(`${protocol}://${location.host}/ws/${this.currentUser.username}/${this.meetingId}`);
+            this.ws = new WebSocket(`${protocol}://${location.host}/ws/${this.currentUser.username}/${this.meetingId}?token=${encodeURIComponent(this.sessionToken || '')}`);
 
             // 清除旧的心跳定时器
             if (this.wsHeartbeatTimer) {
@@ -2903,14 +3601,53 @@ new Vue({
             }, 5000);
         },
         async loadKnowledgeGraph() {
+            if (!this.meetingId) return;
+            this.disposeKnowledgeGraphChart();
+            this.knowledgeGraphLoading = true;
+            this.knowledgeGraphError = '';
             try {
-                let res = await axios.get(`/api/knowledge-graph/${this.meetingId}`);
-                if (res.data.status === 'success') {
+                const res = await axios.get(`/api/knowledge-graph/${this.meetingId}`);
+                if (res.data.status === 'success' && res.data.data && res.data.data.nodes && res.data.data.nodes.length) {
                     this.knowledgeGraphData = res.data.data;
                     this.renderKnowledgeGraph();
+                } else {
+                    this.knowledgeGraphData = null;
+                    this.disposeKnowledgeGraphChart();
+                    if (res.data.status === 'error') {
+                        this.knowledgeGraphError = res.data.message || '加载知识图谱失败';
+                    }
                 }
             } catch(e) {
+                this.knowledgeGraphData = null;
+                this.disposeKnowledgeGraphChart();
+                this.knowledgeGraphError = '加载知识图谱失败：' + (e.response?.data?.message || e.message);
                 console.error('加载知识图谱失败:', e);
+            } finally {
+                this.knowledgeGraphLoading = false;
+            }
+        },
+        async generateKnowledgeGraph() {
+            if (!this.meetingId || this.knowledgeGraphGenerating) return;
+            this.knowledgeGraphGenerating = true;
+            this.knowledgeGraphError = '';
+            try {
+                const res = await axios.post(`/api/knowledge-graph/${this.meetingId}/generate`);
+                if (res.data.status === 'success' && res.data.data) {
+                    this.knowledgeGraphData = res.data.data;
+                    this.renderKnowledgeGraph();
+                } else {
+                    this.knowledgeGraphError = res.data.message || '生成知识图谱失败';
+                }
+            } catch(e) {
+                this.knowledgeGraphError = '生成知识图谱失败：' + (e.response?.data?.message || e.message);
+            } finally {
+                this.knowledgeGraphGenerating = false;
+            }
+        },
+        disposeKnowledgeGraphChart() {
+            if (this.chartInstance) {
+                this.chartInstance.dispose();
+                this.chartInstance = null;
             }
         },
         async loadClassroomData(meetingId) {
@@ -2932,8 +3669,11 @@ new Vue({
             }
         },
         renderKnowledgeGraph() {
-            if (!this.knowledgeGraphData || !this.knowledgeGraphData.nodes) return;
-            
+            if (!this.hasKnowledgeGraphData) {
+                this.disposeKnowledgeGraphChart();
+                return;
+            }
+
             this.$nextTick(() => {
                 const chartDom = document.getElementById('knowledgeGraphChart');
                 if (!chartDom) return;
@@ -2981,9 +3721,10 @@ new Vue({
                     }],
                     series: [{
                         type: 'graph',
-                        layout: 'force',
+                        // 单节点/无边时 force 布局可能不出图，改用环形布局
+                        layout: (this.knowledgeGraphData.links || []).length ? 'force' : 'circular',
                         data: this.knowledgeGraphData.nodes,
-                        links: this.knowledgeGraphData.links,
+                        links: this.knowledgeGraphData.links || [],
                         categories: this.knowledgeGraphData.categories,
                         roam: true,
                         label: {
@@ -3022,6 +3763,7 @@ new Vue({
                 };
                 
                 this.chartInstance.setOption(option);
+                this.$nextTick(() => this.chartInstance && this.chartInstance.resize());
             });
         },
         async summary() { let res = await axios.get(`/summary?meeting_id=${this.meetingId}`); this.showAlert(JSON.stringify(res.data, null, 2), 'info', '会议总结'); },
@@ -3479,6 +4221,8 @@ new Vue({
         },
         // 返回主界面
         backToLobby() {
+            if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+            this.releaseClassroomLock();
             // 清理定时器
             if (this.emotionRefreshTimer) {
                 clearInterval(this.emotionRefreshTimer);
@@ -3522,7 +4266,14 @@ new Vue({
                 videoEl.srcObject.getTracks().forEach(track => track.stop());
                 videoEl.srcObject = null;
             }
+            if (this.localMediaStream) {
+                const videoTrack = this.localMediaStream.getVideoTracks()[0];
+                if (videoTrack) videoTrack.removeEventListener('ended', this._onLocalVideoEnded);
+            }
             this.localMediaStream = null;
+            this.mediaMode = 'none';
+            this.mediaSwitching = false;
+            this.asrUnavailable = false;
 
             // 停止 Agora 本地轨道（关闭摄像头/麦克风）
             if (this.agoraLocalVideoTrack) {
@@ -3565,6 +4316,7 @@ new Vue({
             // 重置课堂状态
             this.pageState = 'lobby';
             this.meetingId = null;
+            this.viewingGroupId = null;
             this.meetingStatus = null;
             this.meetingStartedAt = null;
             this.meetingEndedAt = null;
@@ -3572,7 +4324,8 @@ new Vue({
             this.joined = false;
             this.msgs = [];
             this.goals = [];
-            this.currentRelevance = 0;
+            this.closeClassModal();
+            this.currentRelevance = null;
             this.hint = null;
             this.topicSuggestion.show = false;
             this.classroomAIMessages = [];
@@ -4473,6 +5226,7 @@ new Vue({
         // 渲染群体情绪图（多条折线，每个成员一条）
         renderGroupEmotionChart() {
             try {
+                if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
                 const el = document.getElementById('groupEmotionChart');
                 if (!el) return;
 
@@ -4551,7 +5305,16 @@ new Vue({
 
                 // 如果没有数据
                 if (!this.allIndividualEmotions || Object.keys(this.allIndividualEmotions).length === 0) {
-                    chart.setOption({ series: [], legend: { data: [] } }, false);
+                    chart.setOption({
+                        title: {
+                            text: '暂无群体情绪数据',
+                            left: 'center',
+                            top: 'middle',
+                            textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
+                        },
+                        series: [],
+                        legend: { data: [] }
+                    }, false);
                     return;
                 }
 
@@ -4592,7 +5355,15 @@ new Vue({
                 });
 
                 // 只更新数据部分，不覆盖用户的 dataZoom 位置
-                chart.setOption({ series: series, legend: { data: legendData } }, false);
+                chart.setOption({
+                    title: {
+                        text: '群体情绪波动',
+                        left: 'center',
+                        textStyle: { fontSize: 16, color: '#065f46', fontWeight: 'bold' }
+                    },
+                    series,
+                    legend: { data: legendData }
+                }, false);
                 // 确保图表尺寸正确（v-show 切换后可能需要重新计算）
                 this.$nextTick(() => chart.resize());
 
@@ -4603,6 +5374,7 @@ new Vue({
         // 渲染个体情绪图
         renderIndividualEmotionChart() {
             try {
+                if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
                 const el = document.getElementById('individualEmotionChart');
                 if (!el) {
                     console.log('⚠️ 个体情绪图表元素不存在');
@@ -4765,6 +5537,7 @@ new Vue({
         },
         // 渲染统计图表
         renderStatsCharts() {
+            if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
             console.log('🎨 开始渲染统计图表...');
             console.log('  - pieChartData:', this.pieChartData);
             console.log('  - interactionData:', this.interactionData);
@@ -4801,17 +5574,17 @@ new Vue({
                         label: { show: true, formatter: '{b}\n{d}%', fontSize: 10 },
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
                     }],
-                    // 数据为空时显示提示
-                    graphic: chartData.length === 0 ? [{
+                    // 常驻空态文字：有数据时置空，避免合并更新后旧文字残留
+                    graphic: [{
                         type: 'text',
                         left: 'center',
                         top: 'middle',
                         style: {
-                            text: '暂无数据',
+                            text: chartData.length === 0 ? '暂无数据' : '',
                             fontSize: 14,
                             fill: '#999'
                         }
-                    }] : []
+                    }]
                 }, false);  // notMerge: false
             }
             
@@ -4854,17 +5627,17 @@ new Vue({
                         },
                         label: { show: true, position: 'top', fontSize: 10, color: '#333' }
                     }],
-                    // 数据为空时显示提示
-                    graphic: chartData.length === 0 ? [{
+                    // 常驻空态文字：有数据时置空，避免合并更新后旧文字残留
+                    graphic: [{
                         type: 'text',
                         left: 'center',
                         top: 'middle',
                         style: {
-                            text: '暂无数据',
+                            text: chartData.length === 0 ? '暂无数据' : '',
                             fontSize: 14,
                             fill: '#999'
                         }
-                    }] : []
+                    }]
                 }, false);
             }
 
@@ -4988,6 +5761,12 @@ new Vue({
                         top: 6,
                         textStyle: { fontSize: 13, color: '#4b5563', fontWeight: 'bold' }
                     },
+                    graphic: members.length ? [] : [{
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: '暂无互动数据', fontSize: 13, fill: '#9ca3af' }
+                    }],
                     tooltip: {
                         trigger: 'item',
                         formatter: params => {
@@ -5022,15 +5801,29 @@ new Vue({
                     
             // ✅ 关键修复：渲染完成后调用resize()确保图表占据全宽
             this.$nextTick(() => {
-                if (this.chartInstances.pieChart) this.chartInstances.pieChart.resize();
-                if (this.chartInstances.barChart) this.chartInstances.barChart.resize();
-                if (this.chartInstances.avgLearningChart) this.chartInstances.avgLearningChart.resize();
-                if (this.chartInstances.graphChart) this.chartInstances.graphChart.resize();
+                this.resizeStatsCharts();
                 console.log('✅ 所有图表已resize');
             });
-                    
+
             // 旧的情绪波动图（已废弃，不再渲染）
             // 情绪相关的图表现在由独立的方法处理
+        },
+        resizeStatsCharts() {
+            Object.values(this.chartInstances || {}).forEach(chart => {
+                if (chart && !chart.isDisposed()) chart.resize();
+            });
+        },
+        setChartEmpty(chart, text) {
+            if (!chart || chart.isDisposed()) return;
+            chart.setOption({
+                title: {
+                    text,
+                    left: 'center',
+                    top: 'middle',
+                    textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
+                },
+                series: []
+            }, true);
         },
         // ===== 教师数据看板方法 =====
         // 打开数据看板
@@ -5177,6 +5970,7 @@ new Vue({
                     this.tdChartInstances.pieChart = echarts.init(pieEl);
                 }
                 this.tdChartInstances.pieChart.setOption({
+                    title: { text: '' },
                     tooltip: { trigger: 'item', formatter: '{b}: {c}次 ({d}%)' },
                     color: ['#3E8E91', '#2D6A6D', '#5FA8AB', '#4BA3B0', '#E88C5D', '#6B9396'],
                     series: [{
@@ -5188,6 +5982,11 @@ new Vue({
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
                     }]
                 }, false);
+            } else if (pieEl) {
+                if (!this.tdChartInstances.pieChart || this.tdChartInstances.pieChart.isDisposed()) {
+                    this.tdChartInstances.pieChart = echarts.init(pieEl);
+                }
+                this.setChartEmpty(this.tdChartInstances.pieChart, '暂无发言数据');
             }
 
             // 柱状图
@@ -5199,6 +5998,7 @@ new Vue({
                 const names = this.tdPieData.map(d => d.name);
                 const values = this.tdPieData.map(d => d.value);
                 this.tdChartInstances.barChart.setOption({
+                    title: { text: '' },
                     tooltip: { trigger: 'axis', formatter: '{b}: {c}次' },
                     xAxis: {
                         type: 'category',
@@ -5225,6 +6025,11 @@ new Vue({
                         label: { show: true, position: 'top', fontSize: 11, color: '#333' }
                     }]
                 }, false);
+            } else if (barEl) {
+                if (!this.tdChartInstances.barChart || this.tdChartInstances.barChart.isDisposed()) {
+                    this.tdChartInstances.barChart = echarts.init(barEl);
+                }
+                this.setChartEmpty(this.tdChartInstances.barChart, '暂无发言数据');
             }
 
             // 小组成员平均学习状态曲线
@@ -5346,6 +6151,12 @@ new Vue({
                         top: 10,
                         textStyle: { fontSize: 15, color: '#4b5563', fontWeight: 'bold' }
                     },
+                    graphic: members.length ? [] : [{
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: '暂无互动数据', fontSize: 13, fill: '#9ca3af' }
+                    }],
                     tooltip: {
                         trigger: 'item',
                         formatter: params => {
@@ -5748,8 +6559,20 @@ new Vue({
             }
         },
         // 下载习题
-        downloadExercises(reportId) {
-            window.open(`/api/download-exercises/${reportId}`, '_blank');
+        async downloadExercises(reportId) {
+            try {
+                const res = await axios.get(`/api/download-exercises/${reportId}`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(res.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `exercises_${reportId}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                this.showAlert('下载习题失败: ' + (e.message || e), 'error', '下载失败');
+            }
         },
         // 格式化日期
         formatDate(isoStr) {
@@ -5816,6 +6639,14 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(group.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.claimServerClassroom(group.meeting_id))) {
+                return;
+            }
+            if (!(await this.acquireClassroomLock(group.meeting_id))) {
+                this.releaseServerClassroom(group.meeting_id);
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                return;
+            }
             this.viewingGroupId = group.meeting_id;
             this.meetingId = group.meeting_id;
             this.meetingStatus = 'running';
@@ -5837,6 +6668,14 @@ new Vue({
                 this.showAlert(this.meetingStatusLabel(classItem.status), 'info', '当前课堂不可进入');
                 return;
             }
+            if (!(await this.claimServerClassroom(classItem.meeting_id))) {
+                return;
+            }
+            if (!(await this.acquireClassroomLock(classItem.meeting_id))) {
+                this.releaseServerClassroom(classItem.meeting_id);
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
+                return;
+            }
             this.meetingId = classItem.meeting_id;
             this.meetingStatus = classItem.status;
             this.meetingStartedAt = classItem.started_at || classItem.start_time || null;
@@ -5855,6 +6694,14 @@ new Vue({
         async enterClassAsTeacher(cls) {
             if (cls.status !== 'running') {
                 this.showAlert(this.meetingStatusLabel(cls.status), 'info', '当前课堂不可进入');
+                return;
+            }
+            if (!(await this.claimServerClassroom(cls.meeting_id))) {
+                return;
+            }
+            if (!(await this.acquireClassroomLock(cls.meeting_id))) {
+                this.releaseServerClassroom(cls.meeting_id);
+                this.showAlert('该课堂已在另一个窗口打开，请先关闭原窗口', 'warning', '无法进入课堂');
                 return;
             }
             this.meetingId = cls.meeting_id;
@@ -6071,6 +6918,23 @@ new Vue({
         }
     },
     beforeDestroy() {
+        this.stopSessionHeartbeat();
+        if (this.meetingId) this.releaseServerClassroom(this.meetingId);
+        this.revokeServerSession();
+        this.releaseClassroomLock();
+        window.removeEventListener('storage', this.handleStorageEvent);
+        window.removeEventListener('pagehide', this.handlePageHide);
+        if (this._onWindowResize) {
+            window.removeEventListener('resize', this._onWindowResize);
+        }
+        if (this._resizeTimer) {
+            clearTimeout(this._resizeTimer);
+        }
+        if (this.sessionChannel) {
+            this.sessionChannel.close();
+            this.sessionChannel = null;
+        }
+        this.releaseSession();
         this.cleanupVoiceprintRecorder();
         this.resetVoiceprintSample();
         this.stopBrowserSpeechRecognition();
@@ -6103,6 +6967,8 @@ new Vue({
                 this.loadKnowledgeGraph();
             } else if (newVal && this.knowledgeGraphData) {
                 this.renderKnowledgeGraph();
+            } else if (!newVal) {
+                this.disposeKnowledgeGraphChart();
             }
         }
     }

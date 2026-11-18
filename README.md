@@ -44,16 +44,16 @@ docker compose up --build
 ### 远程库结构不会自愈
 
 `DB_AUTO_MIGRATE=0` 意味着**库结构落后时应用不会自动补列**，接口会直接报
-`Invalid column name`。已有库升级要显式跑迁移；全新的空库仍用 `db/schema.sql`。
+`Invalid column name`。已有库升级用统一 runner；全新的空库仍用 `db/schema.sql`。
 
 ```bash
-# 课堂三阶段生命周期：补 started_at，旧 active/paused 映射为 running
-sqlcmd -S <host> -U <user> -P <password> -d <db> -C -b \
-  -i db/migrations/20261024_meeting_lifecycle.sql
+APP_ENV=prod python tools/apply_migrations.py --dry-run
+APP_ENV=prod python tools/apply_migrations.py
 ```
 
-脚本可重复执行，缺列的旧库也能直接跑。迁移后 `meetings.status` 只有
-`created` / `running` / `ended` 三态。
+`db/migrations/` 下的迁移按文件名顺序执行，记录在 `schema_migrations`，重复执行是
+no-op，checksum 变化会拒绝。当前包含课堂三阶段生命周期与会话/课堂占用锁两份迁移。
+生产部署脚本会在确认 RDS 备份后自动跑这两步。
 
 ### 本地开发怎么干活
 
@@ -91,29 +91,32 @@ docker compose exec app python -m pytest   # 容器里跑
 
 只有 `tests_safe/` 会被收集，它是**唯一**的测试套件：其中相当一部分是重构期间钉住行为
 等价性的守卫（路由契约、模块搬家、路径锚点、容器资产），不只是功能测试。
-容器内跑法下按 `deploy/docker.md` 有 1 条既知基线失败，**不要重录基线**。
-细节见 `tests_safe/README.md`。
+容器内没有 Node/jsdom 时前端探针会 **skip**，完整结果以宿主上的运行为准；
+**不要为了让它变绿而重录基线**。细节见 `tests_safe/README.md`。
 
-## 可选依赖
-- 阿里本地语音识别 `requirements_funasr.txt`
-- 性能优化/GPU加速 `requirements_enhanced_runtime.txt`
+## 可选依赖（pyproject extras）
 
-## 增强版：把 GPU 直通给容器
+依赖的唯一来源是 `pyproject.toml` + `uv.lock`；`requirements*.txt` 仅保留为旧入口 shim，
+新环境不要再直接 `pip install -r`。
+
+- 阿里本地语音识别：`uv sync --extra funasr`
+- 性能优化/增强运行时：`uv sync --extra enhanced`
+- 开发/测试工具：`uv sync --group dev`
+
+## 增强版：GPU 直通
 
 增强版要 GPU，而主编排**故意不带**设备预留——那在 compose 里是硬要求，写进去会让
-没有 NVIDIA 运行时的机器连标准版都起不来。所以另有一份叠加文件：
+没有 NVIDIA 运行时的机器连标准版都起不来。
 
-```bash
-# 直通设备 + 把镜像里的 torch 换成 CUDA 版（镜像会大出好几 GB）
-TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
-  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
-```
+> ⚠️ **GPU 构建尚未迁移到 uv**：当前 `uv.lock` 冻结的是 CPU torch，
+> `TORCH_INDEX_URL` 是 pip 时代的 build arg，uv 镜像不会读取它。
+> `docker-compose.gpu.yml` 里的旧命令不能把镜像换成 CUDA 版；需要 GPU 时
+> 必须单独增加 lock/index（已在 Dockerfile 标注 `shortcut`）。
+> CPU 版 `torch.cuda.is_available()` 永远是 `False`。
 
-镜像默认装的是 **CPU 版 torch**，它的 `torch.cuda.is_available()` 永远是 `False`
-——设备直通了也看不见，所以上面那条命令要把 `TORCH_INDEX_URL` 一起给（只想直通设备、
-不换索引的话，去掉那个变量即可）。六个模型槽位与增强依赖由宿主上的
-`setup_enhanced_runtime.ps1` / `download_enhanced_open_models.py` 准备，
-核实用仓库根的 `check_enhanced_runtime.ps1`。细节见 `docs/安装及使用.md` 3.2。
+六个模型槽位与增强依赖由宿主上的 `setup_enhanced_runtime.ps1` /
+`download_enhanced_open_models.py` 准备，核实用仓库根的
+`check_enhanced_runtime.ps1`。细节见 `docs/安装及使用.md` 3.2。
 
 ## 核心功能
 
@@ -176,10 +179,16 @@ TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
 | 数据库 | **SQL Server**（开发/比赛与线上都连远程实例，实测为 2019；可选本地 profile 是 2022），经 `pymssql` 走 **TDS** 协议 |
 | ORM | SQLAlchemy 2.x，模型在 `app/models/` |
 | 大模型 | DeepSeek API（走 `openai` SDK 的兼容接口） |
-| 语音识别 | 阿里云 NLS 实时转写，Token 的签发与刷新在 `app/services/ai_core.py`；另有浏览器端 Web Speech 兜底，见 `POST /api/browser-asr-final` |
+| 语音识别 | 阿里云 NLS 实时转写，Token 的签发与刷新在 `app/services/ai_core.py`；`/api/browser-asr-final` 回写接口保留，但前端默认不启用 Web Speech，实际以 NLS 为主 |
 | 视觉处理 | OpenCV（Haar 级联），模型文件 `haarcascade_frontalface_default.xml` 在仓库根 |
 | 音视频处理 | FFmpeg —— **装在容器镜像里**（`apt-get install ffmpeg`），不是宿主的前置依赖 |
 | 运行环境 | Python **3.12**（`Dockerfile` 写死 `python:3.12-slim`，与开发机 venv 同大版本） |
+
+### 认证与会话
+
+- 密码用 scrypt 哈希存储；旧明文账号首次登录成功后自动升级
+- 服务端登录会话 + 课堂占用锁：同账号新登录会撤销旧会话，同一课堂只允许一个标签页
+- 登录/注册有滑动窗口限流；写接口与敏感读接口要求会话，前端遇到 401 统一回登录页
 
 ### 前端
 
@@ -207,7 +216,7 @@ algorithm-study-master/
 ├── conftest.py / pytest.ini       # 测试隔离闸门，只收集 tests_safe/
 ├── .env.example                   # 共享密钥模板（.env / .env.dev / .env.prod 都由它派生）
 ├── Dockerfile / docker-compose.yml / .dockerignore
-├── requirements*.txt              # 基础 / dev / lock / 两套可选运行时
+├── pyproject.toml / uv.lock     # 依赖唯一来源（uv）；requirements*.txt 为旧入口 shim
 ├── app/                           # 应用代码
 │   ├── agents/                    # 小组分析 Agent：工具、状态门、结构化输出
 │   ├── core/                      # 配置、数据库、路径锚点
@@ -260,12 +269,16 @@ algorithm-study-master/
 旧库升级段是手工追加的；模型改了它不会自动跟着改。重新导出用
 `python tools/export_prod_schema.py --yes`。
 
+登录会话与课堂占用锁需要额外执行
+`db/migrations/20261111_session_locks.sql`；在 `DB_AUTO_MIGRATE=0` 下不会自动建表。
+
 ## 文档在哪
 
 | 想看什么 | 去哪 |
 |---|---|
 | 为什么这么搭、怎么跑起来 | `deploy/docker.md` |
-| 上线部署 | `deploy/README.md` |
+| 上线部署/回滚/告警 | `deploy/RUNBOOK.md` |
+| 视觉规范（色板/字体/间距） | `docs/style-guide.md` |
 | 接口清单 + 测试基线覆盖 | `docs/route-inventory.md` |
 | 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
 | 功能层面（面向使用者） | `docs/功能介绍文档.md` |
@@ -277,20 +290,23 @@ algorithm-study-master/
 
 ## 部署指南
 
-### 生产环境部署要点
-1. 使用Nginx反向代理
-2. 配置SSL证书(Let's Encrypt)
-3. 使用Systemd管理服务
-4. 配置日志轮转
-5. 设置防火墙规则
-6. 数据库定期备份
+### 生产环境（当前）
 
-具体步骤见 `deploy/README.md`（`nginx-smartclass1.conf`、`smartclass1.service`、
-`smartclass1.env.example` 三个模板也在那里）。建库用同一份 `db/schema.sql`：
+- 服务器目录 `/opt/smartclass`，用非 root `deploy` 用户 + Docker Compose
+- GitHub Actions `deploy.yml` 触发，`production` 环境人工审批
+- 部署脚本依次做：git checkout → RDS 迁移 → `docker compose build` → `up -d` →
+  `/healthz` 健康检查（失败回滚上一版镜像/commit）
+- 生产编排是 `deploy/docker-compose.prod.yml`（只加载 `.env` / `.env.prod`）
+- 日志与回滚步骤见 `deploy/RUNBOOK.md`；部署日志在 `/var/log/smartclass-deploy.log`
+- Nginx 反向代理 + HTTPS（当前自签证书，需浏览器信任）
+
+发布前先确认 RDS 备份；数据库迁移不会自动回滚。建库仍用 `db/schema.sql`：
 
 ```bash
-sqlcmd -S <host> -U <user> -P <password> -d cscl_db -i db/schema.sql
+sqlcmd -S <host> -U <user> -P <password> -d cscl_db -C -b -i db/schema.sql
 ```
+
+`deploy/README.md` 里的 systemd 步骤是历史参考，不再是当前生产路径。
 
 ## 许可证
 

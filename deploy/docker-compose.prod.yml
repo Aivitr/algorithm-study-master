@@ -1,0 +1,46 @@
+name: algorithm-study-master
+
+# 生产编排：独立文件，不与 docker-compose.yml 合并。
+# 合并会把 base 的 .env.dev 注入容器环境，而环境变量优先级高于 .env.prod，
+# 迁移和应用就会连到 dev/SQLite 而不是 RDS。
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+      args:
+        DEBIAN_MIRROR: https://mirrors.aliyun.com/debian
+    image: algorithm-study-master:dev
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.prod
+        required: true
+    environment:
+      APP_ENV: prod
+      DB_AUTO_MIGRATE: "0"
+      PYTHONIOENCODING: utf-8
+      WATCHFILES_FORCE_POLLING: "false"
+    volumes:
+      - .:/app
+      - container-venv-shadow:/app/venv
+    command:
+      - uvicorn
+      - server:app
+      - --host=0.0.0.0
+      - --port=8000
+      - --workers=1
+      - --proxy-headers
+      - --forwarded-allow-ips=127.0.0.1
+
+volumes:
+  container-venv-shadow:

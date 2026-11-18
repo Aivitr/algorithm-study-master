@@ -18,29 +18,29 @@
 
 import wave
 
+import cv2
 import numpy as np
 
 analyzer = None
+
 
 def get_analyzer():
     """🔊 analyzer🔊"""
     global analyzer
     if analyzer is None:
         from app.services.video_processor import VideoEmotionAnalyzer
+
         analyzer = VideoEmotionAnalyzer()
     return analyzer
 
 
 # 再导出 app/services/user_lookup.py 的 resolve_user_by_identifier（调用点保持不变）。
 # 它被实时链路、情绪统计、快照三块共用，不能只跟着其中一块走。
-from app.services.user_lookup import resolve_user_by_identifier
 
 
 # 再导出 app/core/emotions.py 的 normalize_emotion_label（调用点保持不变）。
 # 它横跨实时链路、报告生成、情绪统计多个域，必须只有一份实现。
 from app.core.emotions import normalize_emotion_label
-
-
 
 
 def map_silent_emotion(face_emotion: str) -> str:
@@ -83,10 +83,11 @@ def map_speaking_emotion(face_emotion: str, tone: str) -> str:
 # 🎙 ?80
 def is_speaking(audio_path, threshold=20):  #  ?🎙 ?0🎙 ?0🎙 ?
     try:
-        with wave.open(audio_path, 'rb') as wf:
+        with wave.open(audio_path, "rb") as wf:
             frames = wf.readframes(wf.getnframes())
             data = np.frombuffer(frames, dtype=np.int16)
-            if len(data) == 0: return False
+            if len(data) == 0:
+                return False
             rms = np.sqrt(np.mean(data.astype(np.float64) ** 2))
             is_speech = rms > threshold
             result_text = "🎤" if is_speech else "😶"
@@ -99,15 +100,19 @@ def is_speaking(audio_path, threshold=20):  #  ?🎙 ?0🎙 ?0🎙 ?
 
 def analyze_audio_tone(audio_path):
     try:
-        with wave.open(audio_path, 'rb') as wf:
+        with wave.open(audio_path, "rb") as wf:
             data = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
-            if len(data) == 0: return False, "silent"
+            if len(data) == 0:
+                return False, "silent"
             rms = np.sqrt(np.mean(data.astype(np.float64) ** 2))
-            if rms > 2000: return True, "loud"
-            if rms > 500: return True, "normal"
-            if rms > 20: return True, "quiet"
+            if rms > 2000:
+                return True, "loud"
+            if rms > 500:
+                return True, "normal"
+            if rms > 20:
+                return True, "quiet"
             return False, "silent"
-    except:
+    except Exception:
         return False, "silent"
 
 
@@ -164,11 +169,15 @@ def _detect_visual_state_from_video(video_path: str, max_samples: int = 3):
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         frames = []
         if frame_count > 3:
-            sample_indices = sorted(set([
-                max(0, min(frame_count - 1, int(frame_count * 0.15))),
-                max(0, min(frame_count - 1, int(frame_count * 0.50))),
-                max(0, min(frame_count - 1, int(frame_count * 0.85))),
-            ]))[:max_samples]
+            sample_indices = sorted(
+                set(
+                    [
+                        max(0, min(frame_count - 1, int(frame_count * 0.15))),
+                        max(0, min(frame_count - 1, int(frame_count * 0.50))),
+                        max(0, min(frame_count - 1, int(frame_count * 0.85))),
+                    ]
+                )
+            )[:max_samples]
             for idx in sample_indices:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
                 ret, frame = cap.read()
@@ -221,23 +230,28 @@ def _detect_visual_state_from_video(video_path: str, max_samples: int = 3):
         if best_emotion in ("neutral", "calm") and best_frame is not None:
             try:
                 # 直接调用 MediaPipe 复核
-                import cv2
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                face_cascade = cv2.CascadeClassifier(
+                    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+                )
                 gray = cv2.cvtColor(best_frame, cv2.COLOR_BGR2GRAY)
                 faces = face_cascade.detectMultiScale(gray, 1.1, 4)
                 if len(faces) > 0:
                     x, y, w, h = faces[0]
-                    face_rgb = cv2.cvtColor(best_frame[y:y+h, x:x+w], cv2.COLOR_BGR2RGB)
+                    face_rgb = cv2.cvtColor(best_frame[y : y + h, x : x + w], cv2.COLOR_BGR2RGB)
                     refined_emotion, refined_conf = analyzer_ref._mediapipe_refine(face_rgb)
                     if refined_emotion:
-                        print(f"[EmotionState] MediaPipe 复核覆盖: {best_emotion} -> {refined_emotion} ({refined_conf:.2f})")
+                        print(
+                            f"[EmotionState] MediaPipe 复核覆盖: {best_emotion} -> {refined_emotion} ({refined_conf:.2f})"
+                        )
                         best_emotion = refined_emotion
                         best_confidence = refined_conf
             except Exception as e:
                 print(f"[EmotionState] MediaPipe 复核失败: {e}")
 
         if sampled:
-            print(f"[EmotionState] sampled={sampled}, emotion={best_emotion}, confidence={best_confidence:.2f}, action={best_action}")
+            print(
+                f"[EmotionState] sampled={sampled}, emotion={best_emotion}, confidence={best_confidence:.2f}, action={best_action}"
+            )
         return best_frame is not None, best_frame, best_emotion, best_confidence, best_action
     finally:
         cap.release()

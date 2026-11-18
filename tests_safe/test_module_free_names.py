@@ -91,12 +91,10 @@ def test_no_star_imports_silently_disable_the_guard():
 
 # ------------------------------------------------------------------ 阳性对照
 
+
 def test_detector_finds_the_re_incident(tmp_path):
     """复现事故 1：搬走的函数丢了 `import re`。"""
-    src = (
-        'def normalize(label):\n'
-        '    return re.split(r"[/,;]+", label)[0]\n'
-    )
+    src = 'def normalize(label):\n    return re.split(r"[/,;]+", label)[0]\n'
     assert free_globals(src) == {"re"}
 
 

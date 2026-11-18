@@ -156,10 +156,7 @@ def _mirror_url(url: str) -> str | None:
     match = _JSDELIVR_RE.match(url)
     if not match:
         return None
-    return (
-        f"https://registry.npmmirror.com/{match['pkg']}/{match['version']}"
-        f"/files/{match['path']}"
-    )
+    return f"https://registry.npmmirror.com/{match['pkg']}/{match['version']}/files/{match['path']}"
 
 
 def _fetch(url: str, *, timeout: int = 60, attempts: int = 6) -> tuple[bytes, str]:
@@ -194,9 +191,7 @@ def _fetch(url: str, *, timeout: int = 60, attempts: int = 6) -> tuple[bytes, st
 
     tried = "\n  ".join(candidates)
     hint = "" if mirror else "\n该资源没有登记镜像，只能等它恢复。"
-    raise RuntimeError(
-        f"抓取失败（每条各试了 {attempts} 次）：\n  {tried}{hint}"
-    ) from last_error
+    raise RuntimeError(f"抓取失败（每条各试了 {attempts} 次）：\n  {tried}{hint}") from last_error
 
 
 def _sha256(raw: bytes) -> str:
@@ -218,8 +213,11 @@ def _entry(relpath: str, url: str, actual_url: str, version: str, raw: bytes) ->
     是为了让清单在没有本脚本的地方也能单独读懂。
     """
     entry = {
-        "path": relpath, "url": url, "version": version,
-        "sha256": _sha256(raw), "bytes": len(raw),
+        "path": relpath,
+        "url": url,
+        "version": version,
+        "sha256": _sha256(raw),
+        "bytes": len(raw),
     }
     if actual_url != url:
         entry["fetched_from"] = actual_url

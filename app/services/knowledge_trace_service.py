@@ -23,11 +23,7 @@ class KnowledgeTraceService:
         self.db = db
 
     def get_graph_data(self, meeting_id: int) -> Optional[Dict[str, Any]]:
-        row = (
-            self.db.query(KnowledgeGraph)
-            .filter(KnowledgeGraph.meeting_id == meeting_id)
-            .first()
-        )
+        row = self.db.query(KnowledgeGraph).filter(KnowledgeGraph.meeting_id == meeting_id).first()
         return row.graph_data if row else None
 
     def visualize(self, meeting_id: int) -> Dict[str, Any]:
@@ -45,9 +41,7 @@ class KnowledgeTraceService:
         """按 `status == "done"` 划分已覆盖 / 未覆盖的学习目标。"""
         goals = goals or []
         covered = [g for g in goals if isinstance(g, dict) and g.get("status") == "done"]
-        uncovered = [
-            g for g in goals if not (isinstance(g, dict) and g.get("status") == "done")
-        ]
+        uncovered = [g for g in goals if not (isinstance(g, dict) and g.get("status") == "done")]
         return {
             "total": len(goals),
             "covered_count": len(covered),
@@ -62,9 +56,7 @@ class KnowledgeTraceService:
             return None
         return self.goal_coverage(meeting.knowledge_points)
 
-    def build_from_transcripts(
-        self, meeting_id: int, limit: int = 10
-    ) -> Optional[Dict[str, Any]]:
+    def build_from_transcripts(self, meeting_id: int, limit: int = 10) -> Optional[Dict[str, Any]]:
         """图谱缺失时现场构建：复用 kg_service，不写入数据库。
 
         返回 None 表示课堂不存在或没有可用的发言。
@@ -73,15 +65,12 @@ class KnowledgeTraceService:
         if not meeting:
             return None
 
-        transcripts = TranscriptQueryService(self.db).recent_for_meeting(
-            meeting_id, limit=limit
-        )
+        transcripts = TranscriptQueryService(self.db).recent_for_meeting(meeting_id, limit=limit)
         if not transcripts:
             return None
 
         conversations = [
-            {"username": t.user.username, "content": t.content}
-            for t in reversed(transcripts)
+            {"username": t.user.username, "content": t.content} for t in reversed(transcripts)
         ]
         return kg_service.extract_concepts_from_conversation(
             topic=meeting.topic,

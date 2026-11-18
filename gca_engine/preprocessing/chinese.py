@@ -97,6 +97,7 @@ def tokenize(
         return []
     try:
         import jieba
+
         words = [w for w in jieba.cut(cleaned) if w.strip()]
     except ImportError:
         # jieba 不可用时降级：按空格切，中文句子会变成一整个词

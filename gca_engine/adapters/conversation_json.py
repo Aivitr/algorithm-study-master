@@ -42,14 +42,16 @@ def records_to_utterances(records: list[dict]) -> list[Utterance]:
         missing = [k for k in _REQUIRED_KEYS if k not in r]
         if missing:
             raise ValueError(f"第 {i} 条记录缺少字段: {missing}")
-        utterances.append(Utterance(
-            meeting_id=str(r["meeting"]),
-            speaker_id=str(r["speaker"]),
-            text=str(r["message"]),
-            timestamp=float(r["start"]),
-            utterance_id=f"{r['meeting']}:{i:04d}",
-            end_time=float(r["end"]) if r.get("end") is not None else None,
-        ))
+        utterances.append(
+            Utterance(
+                meeting_id=str(r["meeting"]),
+                speaker_id=str(r["speaker"]),
+                text=str(r["message"]),
+                timestamp=float(r["start"]),
+                utterance_id=f"{r['meeting']}:{i:04d}",
+                end_time=float(r["end"]) if r.get("end") is not None else None,
+            )
+        )
     return utterances
 
 

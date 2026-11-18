@@ -25,9 +25,9 @@ from gca_engine.config import EngineConfig
 from gca_engine.core.config import GCAConfig
 from gca_engine.core.lsa import clean_text
 from gca_engine.core.lsa import tokenize as legacy_tokenize
-from gca_engine.preprocessing.chinese import tokenize as chinese_tokenize
 from gca_engine.core.lsa.config import LSAConfig
 from gca_engine.core.metrics import compute_gca_metrics
+from gca_engine.preprocessing.chinese import tokenize as chinese_tokenize
 from gca_engine.schemas import (
     AnalysisStatus,
     GroupAnalysisResult,
@@ -108,9 +108,7 @@ def analyze_utterances(
 
     n = len(utterances)
     if n == 0:
-        return _error_result(
-            meeting_id, AnalysisStatus.EMPTY_TRANSCRIPT, "没有任何发言记录"
-        )
+        return _error_result(meeting_id, AnalysisStatus.EMPTY_TRANSCRIPT, "没有任何发言记录")
 
     # 按发言时间排序（引擎不假设输入已排序）
     ordered = sorted(utterances, key=lambda u: (u.timestamp, u.utterance_id))
@@ -158,13 +156,12 @@ def analyze_utterances(
 
     # --- LSA 语义空间 ----------------------------------------------------
     try:
-        model = fit_lsa_space(
-            lsa_texts, config=LSAConfig(n_components=config.lsa_components)
-        )
+        model = fit_lsa_space(lsa_texts, config=LSAConfig(n_components=config.lsa_components))
         vectors = project_texts(model, lsa_texts)
     except ValueError as e:
         return _error_result(
-            meeting_id, AnalysisStatus.INSUFFICIENT_DATA,
+            meeting_id,
+            AnalysisStatus.INSUFFICIENT_DATA,
             f"LSA 无法在本次发言上拟合：{e}",
         )
     if model.actual_dimensions != model.requested_dimensions:
@@ -181,9 +178,7 @@ def analyze_utterances(
     student_metrics = _student_metrics_from(gca)
 
     if len(gca.speakers) == 1:
-        warnings.append(
-            "只有一名学生发言：overall_responsivity 和 social_impact 恒为 0"
-        )
+        warnings.append("只有一名学生发言：overall_responsivity 和 social_impact 恒为 0")
         status = AnalysisStatus.SINGLE_SPEAKER
     else:
         status = AnalysisStatus.SUCCESS

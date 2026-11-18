@@ -31,9 +31,7 @@ class ClassStatsService:
     def activity_map(
         self, meeting_ids: List[int], *, exclude_teacher: bool = True
     ) -> Dict[int, Dict[str, int]]:
-        return _build_meeting_activity_map(
-            self.db, meeting_ids, exclude_teacher=exclude_teacher
-        )
+        return _build_meeting_activity_map(self.db, meeting_ids, exclude_teacher=exclude_teacher)
 
     def window_map(self, meeting_ids: List[int]) -> Dict[int, Dict]:
         return _build_meeting_window_map(self.db, meeting_ids)

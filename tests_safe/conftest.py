@@ -104,8 +104,9 @@ def local_app():
 @pytest.fixture(scope="session")
 def seeded_ids(local_app):
     """写入合成数据，返回固定 ID 表。"""
-    from app.core import database
     from fixtures import seed_all
+
+    from app.core import database
 
     db = database.SessionLocal()
     try:
@@ -121,3 +122,25 @@ def client(local_app):
 
     with TestClient(local_app) as c:
         yield c
+
+
+def _auth_headers(user_id: int, device_id: str) -> dict:
+    from app.core import database
+    from app.services.session_service import create_session
+
+    db = database.SessionLocal()
+    try:
+        token, _ = create_session(db, user_id, device_id=device_id)
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def teacher_headers(seeded_ids):
+    return _auth_headers(seeded_ids["teacher_id"], "pytest-teacher")
+
+
+@pytest.fixture
+def student_headers(seeded_ids):
+    return _auth_headers(seeded_ids["student_id"], "pytest-student")

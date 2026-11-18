@@ -38,9 +38,7 @@ class ClassroomAgentService:
         limit = max(1, min(int(limit), 1000))
         rows = [
             row
-            for row in TranscriptQueryService(db).list_for_meeting(
-                meeting_id, limit=limit
-            )
+            for row in TranscriptQueryService(db).list_for_meeting(meeting_id, limit=limit)
             if getattr(row.user, "role", None) != "teacher"
         ]
         items = [
@@ -65,9 +63,7 @@ class ClassroomAgentService:
         transcripts = self.get_transcripts(db, meeting_id, limit=1000)["items"]
         speech_counts = Counter(item["speaker"] for item in transcripts)
         qualities = [
-            item["quality_score"]
-            for item in transcripts
-            if item["quality_score"] is not None
+            item["quality_score"] for item in transcripts if item["quality_score"] is not None
         ]
         interactions = Counter(
             (left["speaker"], right["speaker"])

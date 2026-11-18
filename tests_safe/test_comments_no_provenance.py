@@ -18,6 +18,7 @@
 `pcm-processor.js`。不含 `tests_safe/`（本文件在其中）、`archive/`（刻意留档的旧物）、
 `static/vendor/`（第三方压缩产物）。
 """
+
 import ast
 import io
 import re
@@ -28,11 +29,24 @@ _ROOT = Path(__file__).resolve().parent.parent
 
 _WALK_DIRS = ("app", "tools")
 _EXPLICIT_FILES = ("server.py", "conftest.py", "static/js/app.js", "pcm-processor.js")
-_EXCLUDED_DIRS = frozenset({
-    ".git", ".github", "archive", "node_modules", "venv", ".venv", "env",
-    "static", "storage", "__pycache__", ".pytest_cache", ".codegraph",
-    "tests_safe", "docs",
-})
+_EXCLUDED_DIRS = frozenset(
+    {
+        ".git",
+        ".github",
+        "archive",
+        "node_modules",
+        "venv",
+        ".venv",
+        "env",
+        "static",
+        "storage",
+        "__pycache__",
+        ".pytest_cache",
+        ".codegraph",
+        "tests_safe",
+        "docs",
+    }
+)
 
 # 只保留在本仓库中**只可能属于开发过程叙述**的形状。
 _PROVENANCE = (
@@ -73,15 +87,17 @@ def _blocks_of(path):
             if tok.type == tokenize.COMMENT:
                 blocks.append((tok.start[0], tok.string))
         for node in ast.walk(ast.parse(src)):
-            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
-                                 ast.AsyncFunctionDef)):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
                 doc = ast.get_docstring(node, clean=False)
                 if doc:
                     blocks.append((getattr(node, "lineno", 1), doc))
         return blocks
     # JS：只认「整行即注释」的行，免得把字符串里的 // 当成注释（如 https://…）。
-    return [(i, line.strip()) for i, line in enumerate(src.splitlines(), 1)
-            if line.strip().startswith(("//", "/*", "*", "*/"))]
+    return [
+        (i, line.strip())
+        for i, line in enumerate(src.splitlines(), 1)
+        if line.strip().startswith(("//", "/*", "*", "*/"))
+    ]
 
 
 def _provenance_in(text):
@@ -106,9 +122,15 @@ def test_no_live_source_keeps_the_refactor_notes():
 def test_the_scanner_reaches_the_files_it_is_supposed_to_guard():
     files = _iter_source_files()
     rels = {p.relative_to(_ROOT).as_posix() for p in files}
-    for required in ("server.py", "conftest.py", "app/routers/auth.py",
-                     "app/services/llm_service.py", "app/realtime/state.py",
-                     "tools/move_block.py", "static/js/app.js"):
+    for required in (
+        "server.py",
+        "conftest.py",
+        "app/routers/auth.py",
+        "app/services/llm_service.py",
+        "app/realtime/state.py",
+        "tools/move_block.py",
+        "static/js/app.js",
+    ):
         assert required in rels, f"扫描范围漏了 {required}"
     assert len(files) >= 40, f"只扫到 {len(files)} 个文件，范围明显不对"
 
@@ -116,8 +138,7 @@ def test_the_scanner_reaches_the_files_it_is_supposed_to_guard():
     assert total >= 500, f"只取到 {total} 块注释/文档字符串，提取逻辑可能坏了"
 
     # 反向：第三方产物与刻意留档的旧物不该进来。
-    assert not any(r.startswith("static/vendor/") for r in rels), \
-        "static/vendor 不该在扫描范围内"
+    assert not any(r.startswith("static/vendor/") for r in rels), "static/vendor 不该在扫描范围内"
     assert not any(r.startswith(("archive/", "tests_safe/")) for r in rels)
 
 

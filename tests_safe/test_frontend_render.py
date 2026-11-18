@@ -87,7 +87,7 @@ EXIT_MISSING_JSDOM = 5
 # 这两个下限是**跟着基线一起长**的：加了覆盖面就把它抬上去，否则新加的用例
 # 被悄悄删掉时这里不会响——下限停在旧数字上，测的就不是"覆盖面还在不在"了。
 MIN_STATES = 13
-MIN_CLICKS = 18
+MIN_CLICKS = 31
 
 TIMEOUT_SECONDS = 180
 
@@ -102,7 +102,10 @@ def _run_probe(tz: str | None = None) -> dict:
 
     proc = subprocess.run(
         [node, str(PROBE), "--json"],
-        capture_output=True, text=True, encoding="utf-8", timeout=TIMEOUT_SECONDS,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=TIMEOUT_SECONDS,
         cwd=str(REPO_ROOT),
         # `env=None` 表示继承当前环境（即"本机时区"那一侧）。
         env=None if tz is None else {**os.environ, "TZ": tz},
@@ -110,8 +113,7 @@ def _run_probe(tz: str | None = None) -> dict:
 
     if proc.returncode == EXIT_MISSING_JSDOM:
         pytest.skip(
-            "环境里没有 jsdom，前端渲染探针跳过。要跑它：npm i -g jsdom\n"
-            + proc.stderr.strip()
+            "环境里没有 jsdom，前端渲染探针跳过。要跑它：npm i -g jsdom\n" + proc.stderr.strip()
         )
 
     assert proc.returncode == 0, (
@@ -168,8 +170,12 @@ def _node_timezone_offset(tz: str) -> int:
         pytest.skip("PATH 里没有 node，前端渲染探针跳过")
     proc = subprocess.run(
         [node, "-e", "process.stdout.write(String(new Date(0).getTimezoneOffset()))"],
-        capture_output=True, text=True, encoding="utf-8", timeout=60,
-        cwd=str(REPO_ROOT), env={**os.environ, "TZ": tz},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=60,
+        cwd=str(REPO_ROOT),
+        env={**os.environ, "TZ": tz},
     )
     assert proc.returncode == 0, f"node 求时区偏移失败：{proc.stderr[-500:]}"
     return int(proc.stdout.strip())
@@ -177,8 +183,7 @@ def _node_timezone_offset(tz: str) -> int:
 
 def _baseline() -> dict:
     assert BASELINE.is_file(), (
-        f"找不到渲染基线 {BASELINE}。\n"
-        f"重新录制：node tools/frontend_probe.js --write-baseline"
+        f"找不到渲染基线 {BASELINE}。\n重新录制：node tools/frontend_probe.js --write-baseline"
     )
     return json.loads(BASELINE.read_text(encoding="utf-8"))
 
@@ -261,8 +266,8 @@ class TestRenderedStructureIsUnchanged:
             "以下状态的渲染结果与基线不符：\n  "
             + "\n  ".join(problems)
             + "\n\n若这是**有意**的界面改动，重录基线："
-              "node tools/frontend_probe.js --write-baseline\n"
-              "若是组件拆分，逐字节相同才是目标——变了就说明改坏了。"
+            "node tools/frontend_probe.js --write-baseline\n"
+            "若是组件拆分，逐字节相同才是目标——变了就说明改坏了。"
         )
 
     def test_page_emits_no_new_warnings(self):
@@ -317,12 +322,8 @@ class TestSnapshotsAreTimezoneIndependent:
     def test_state_hashes_survive_a_timezone_change(self):
         """在两个相差 26 小时的时区下各跑一次，13 个状态的哈希必须逐一相同。"""
         first, second = _TZ_CHALLENGERS
-        expected = {
-            k: v["hash"] for k, v in _probe_result_in_tz(first)["states"].items()
-        }
-        actual = {
-            k: v["hash"] for k, v in _probe_result_in_tz(second)["states"].items()
-        }
+        expected = {k: v["hash"] for k, v in _probe_result_in_tz(first)["states"].items()}
+        actual = {k: v["hash"] for k, v in _probe_result_in_tz(second)["states"].items()}
 
         drifted = sorted(k for k in expected if expected[k] != actual.get(k))
         assert not drifted, (

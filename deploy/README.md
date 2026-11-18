@@ -1,5 +1,9 @@
 # 智能协作学习系统 - 服务器部署指南
 
+> **注意**：当前生产部署已改为 Docker + GitHub Actions。`deploy/deploy.sh` 现在是
+> CD 脚本（git checkout → 迁移 → compose build/up → 健康检查/回滚），不再是一键
+> systemd 安装脚本；下面的 systemd 指南保留作历史参考。
+
 > **本地开发请走容器**：[`docker.md`](docker.md)（阶段 5）。
 > 本文件描述的是 **systemd + nginx 的线上部署路线**，仍然有效、未被取代；
 > 容器化的线上部署方案尚未定案，见 `docker.md` 文末代办。

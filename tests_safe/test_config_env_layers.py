@@ -45,8 +45,8 @@ import pytest
 from app.core import config
 from app.core.paths import PROJECT_ROOT
 
-
 # ---------------------------------------------------------------- 读文件
+
 
 def test_read_env_file_parses_and_skips_noise(tmp_path):
     """基本解析：取 KEY=VALUE，跳过空行与注释，剥掉包裹的引号。"""
@@ -80,6 +80,7 @@ def test_read_env_file_missing_returns_empty(tmp_path):
 
 # ---------------------------------------------------------------- 写环境
 
+
 def test_apply_env_file_does_not_override_existing(tmp_path):
     """既有环境变量优先——这是本仓库既有的 `setdefault` 语义，必须保持。
 
@@ -98,6 +99,7 @@ def test_apply_env_file_does_not_override_existing(tmp_path):
 
 
 # ---------------------------------------------------------------- APP_ENV 的选择
+
 
 def test_resolve_app_env_prefers_process_env(tmp_path):
     """进程环境里的 APP_ENV 优先于 `.env` 里的。"""
@@ -120,6 +122,7 @@ def test_resolve_app_env_falls_back_to_base_file_then_default(tmp_path):
 
 
 # ---------------------------------------------------------------- 分层加载
+
 
 def _write(root: Path, name: str, body: str) -> Path:
     p = root / name
@@ -172,6 +175,7 @@ def test_no_overlay_is_bit_identical(tmp_path):
 
 # ---------------------------------------------------------------- 活动文件（读与写必须同一个）
 
+
 def test_active_file_is_overlay_when_present(tmp_path):
     """有覆盖层时，「活动文件」是覆盖层。"""
     _write(tmp_path, ".env", "A=1\n")
@@ -217,6 +221,7 @@ def test_writer_targets_the_active_file_not_always_dot_env(tmp_path):
 
 # ---------------------------------------------------------------- 现状核对
 
+
 def test_repo_has_exactly_the_expected_overlay_files():
     """登记现状：本仓库**有了**覆盖层，且就是这几份，没有多出来的。
 
@@ -233,10 +238,10 @@ def test_repo_has_exactly_the_expected_overlay_files():
     from app.core.paths import PROJECT_ROOT
 
     expected = {
-        ".env.dev.example",    # 开发库指向（模板，入库）
-        ".env.prod.example",   # 线上库指向（模板，含占位符，入库）
-        ".env.dev",            # 开发层实体（gitignore）
-        ".env.prod",           # 线上层实体（含生产凭据，gitignore）
+        ".env.dev.example",  # 开发库指向（模板，入库）
+        ".env.prod.example",  # 线上库指向（模板，含占位符，入库）
+        ".env.dev",  # 开发层实体（gitignore）
+        ".env.prod",  # 线上层实体（含生产凭据，gitignore）
     }
     found = {p.name for p in PROJECT_ROOT.glob(".env.*") if p.name != ".env.example"}
 
@@ -258,6 +263,7 @@ def test_repo_has_exactly_the_expected_overlay_files():
 # 这属于同一类问题：不是"现在错了"，而是
 # **"将来错了却不出声"**。所以这里用 `git check-ignore` 把规则本身钉住。
 
+
 @pytest.mark.parametrize(
     "name",
     [".env.prod", ".env.dev", ".env.staging", ".env.local", ".env.production"],
@@ -266,7 +272,8 @@ def test_env_overlay_files_are_gitignored(name):
     """任何 `.env.<环境>` 覆盖层都必须被 git 忽略——它们装的是凭据。"""
     result = subprocess.run(
         ["git", "check-ignore", "-q", name],
-        cwd=str(PROJECT_ROOT), capture_output=True,
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
     )
     assert result.returncode == 0, (
         f"{name} 没有被 .gitignore 忽略——它含有凭据，提交出去就是泄露。\n"
@@ -287,7 +294,8 @@ def test_env_examples_are_not_gitignored():
     for name in (".env.example", ".env.dev.example", ".env.prod.example"):
         result = subprocess.run(
             ["git", "check-ignore", "-q", name],
-            cwd=str(PROJECT_ROOT), capture_output=True,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
         )
         assert result.returncode != 0, (
             f"{name} 被 .gitignore 忽略了，但它应当进仓库。\n"

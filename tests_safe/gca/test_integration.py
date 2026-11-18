@@ -77,12 +77,8 @@ class TestEndToEndChain(unittest.TestCase):
         # 10.28 起 timeline 已实现：470 秒的课堂 = 2 个固定 5 分钟窗口
         self.assertIsNotNone(result.timeline)
         self.assertEqual(len(result.timeline["fixed_5min"]), 2)
-        self.assertEqual(
-            result.timeline["fixed_5min"][0]["start_second"], 0
-        )
-        self.assertEqual(
-            result.timeline["fixed_5min"][1]["start_second"], 300
-        )
+        self.assertEqual(result.timeline["fixed_5min"][0]["start_second"], 0)
+        self.assertEqual(result.timeline["fixed_5min"][1]["start_second"], 300)
         self.assertTrue(result.timeline["sliding_5min"])
         self.assertEqual(result.metadata["n_utterances"], 6)
         self.assertEqual(result.metadata["n_speakers"], 3)
@@ -99,10 +95,7 @@ class TestEndToEndChain(unittest.TestCase):
             ("u003", "I will handle the data part", 210.0),
             ("u002", "I will write the tests", 280.0),
         ]
-        us = [
-            Utterance("det-1", s, t, ts, f"t{i}")
-            for i, (s, t, ts) in enumerate(lines)
-        ]
+        us = [Utterance("det-1", s, t, ts, f"t{i}") for i, (s, t, ts) in enumerate(lines)]
         register_meeting("det-1", us)
         runs = [analyze_group("det-1").to_dict() for _ in range(3)]
         for key in ("status", "student_metrics", "group_metrics", "warnings"):
@@ -224,7 +217,7 @@ class TestWindowsContract(unittest.TestCase):
         ]
         fixed = build_fixed_windows(us, analyzer=analyzer)
         sliding = build_sliding_windows(us, analyzer=analyzer)
-        self.assertEqual(len(fixed), 3)          # 0-300 / 300-600 / 600-900
+        self.assertEqual(len(fixed), 3)  # 0-300 / 300-600 / 600-900
         self.assertTrue(sliding)
         self.assertEqual(sliding[0]["center_second"], 30)
         # 中间那个窗口没人发言，group_metrics 必须是空字典而不是 None
@@ -244,9 +237,7 @@ class TestWindowsContract(unittest.TestCase):
         def analyzer(subset):  # 空子集不会被调用
             raise AssertionError("空子集不应调用 analyzer")
 
-        self.assertEqual(
-            build_fixed_windows([], analyzer=analyzer)[0]["group_metrics"], {}
-        )
+        self.assertEqual(build_fixed_windows([], analyzer=analyzer)[0]["group_metrics"], {})
         self.assertEqual(build_sliding_windows([], analyzer=analyzer), [])
 
 

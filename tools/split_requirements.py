@@ -90,9 +90,7 @@ def _expand(source: str, base_dir: Path, seen: set[Path]) -> list[str]:
     return lines
 
 
-def split_requirements(
-    source: str, base_dir: Path | None = None
-) -> tuple[list[str], list[str]]:
+def split_requirements(source: str, base_dir: Path | None = None) -> tuple[list[str], list[str]]:
     """切成 `(heavy, light)`。
 
     `source` 可以含 `-r` 引用，会先展开（见 `expand_requirements`）。

@@ -1,12 +1,11 @@
 """Classroom Group Analysis Agent 执行入口。"""
 
-from agents import Runner, RunConfig
+from agents import RunConfig, Runner
 from sqlalchemy.orm import Session
 
 from app.agents.group_analysis_agent import GroupAnalysisOutput, group_analysis_agent
 from app.agents.tools import ClassroomToolContext
 from app.agents.trace import LocalTraceHooks
-
 
 RUN_CONFIG = RunConfig(
     workflow_name="classroom-group-analysis",
@@ -33,9 +32,7 @@ async def run_group_analysis(
             hooks=trace,
             run_config=RUN_CONFIG,
         )
-        output = result.final_output_as(
-            GroupAnalysisOutput, raise_if_incorrect_type=True
-        )
+        output = result.final_output_as(GroupAnalysisOutput, raise_if_incorrect_type=True)
         trace.finish("success")
         return output
     except Exception as exc:

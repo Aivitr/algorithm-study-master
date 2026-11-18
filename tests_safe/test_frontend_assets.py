@@ -72,12 +72,12 @@ MANIFEST = STATIC_DIR / "vendor" / "SOURCES.json"
 # 当时恰好给出这 5 个（外加 15 张图同属 unsplash）。多写一个无害，
 # 少写一个就可能漏掉某条真实引用。
 _FORBIDDEN_HOSTS = (
-    "cdn.jsdelivr.net",          # vue / axios / echarts / marked / tailwind
-    "cdnjs.cloudflare.com",      # font-awesome
-    "fonts.googleapis.com",      # Inter 的 CSS
-    "fonts.gstatic.com",         # Inter 的 woff2（CSS 内部指向它）
-    "download.agora.io",         # AgoraRTC
-    "images.unsplash.com",       # 15 张落地页配图
+    "cdn.jsdelivr.net",  # vue / axios / echarts / marked / tailwind
+    "cdnjs.cloudflare.com",  # font-awesome
+    "fonts.googleapis.com",  # Inter 的 CSS
+    "fonts.gstatic.com",  # Inter 的 woff2（CSS 内部指向它）
+    "download.agora.io",  # AgoraRTC
+    "images.unsplash.com",  # 15 张落地页配图
 )
 
 # `static/` 下从此也有了**第一方**源码（不是下载来的第三方件）。
@@ -90,7 +90,7 @@ _FORBIDDEN_HOSTS = (
 # "新增了一个第一方文件却忘了登记"在评审里看得见。
 _FIRST_PARTY = {
     "css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
-    "js/app.js",    # index.html 原 <script> 块（阶段 7 外移）
+    "js/app.js",  # index.html 原 <script> 块（阶段 7 外移）
 }
 
 _ABSOLUTE_URL_RE = re.compile(r"https?://([^/\"'\s)>]+)")
@@ -127,9 +127,9 @@ def _index_html() -> str:
 #
 # 新增一个页面会拉的第一方文件时，**必须**登记到这里——否则外部引用扫描看不见它。
 _PAGE_LOADED_FIRST_PARTY = (
-    "static/css/app.css",   # index.html 原 <style> 块（阶段 7 外移）
-    "static/js/app.js",     # index.html 原 <script> 块（阶段 7 外移）
-    "pcm-processor.js",     # 音频工作线程（app.js:1220 加载）
+    "static/css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
+    "static/js/app.js",  # index.html 原 <script> 块（阶段 7 外移）
+    "pcm-processor.js",  # 音频工作线程（app.js:1220 加载）
 )
 
 
@@ -170,8 +170,7 @@ def _first_party_sources() -> dict[str, str]:
 def _absolute_hosts() -> dict[str, set[str]]:
     """{来源文件: 其中的绝对 URL 主机名}。任何一处非空都算失败。"""
     return {
-        name: set(_ABSOLUTE_URL_RE.findall(text))
-        for name, text in _first_party_sources().items()
+        name: set(_ABSOLUTE_URL_RE.findall(text)) for name, text in _first_party_sources().items()
     }
 
 
@@ -188,7 +187,7 @@ def _index_local_refs() -> set[str]:
 
 def _ref_to_relpath(ref: str) -> str:
     """`/static/vendor/vue.js` → `vendor/vue.js`（相对 `static/`）。"""
-    return ref[len(URL_PREFIX) + 1:]
+    return ref[len(URL_PREFIX) + 1 :]
 
 
 def _sha256(path: Path) -> str:
@@ -201,8 +200,7 @@ def _sha256(path: Path) -> str:
 
 def _manifest() -> dict:
     assert MANIFEST.is_file(), (
-        f"找不到 {MANIFEST}。它是本地化清单的唯一一处定义"
-        f"（来源 URL、版本、SHA256 都在里面）。"
+        f"找不到 {MANIFEST}。它是本地化清单的唯一一处定义（来源 URL、版本、SHA256 都在里面）。"
     )
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
@@ -227,11 +225,7 @@ class TestNoExternalReferences:
         用相对路径），所以"绝对 URL 集合为空"是个干净、无例外的判据。
         真需要留一个例外时，请在此显式登记——不要放宽成 `startswith('https://api')`。
         """
-        offenders = {
-            name: sorted(hosts)
-            for name, hosts in _absolute_hosts().items()
-            if hosts
-        }
+        offenders = {name: sorted(hosts) for name, hosts in _absolute_hosts().items() if hosts}
         assert not offenders, (
             "以下第一方文件里仍有绝对 URL 指向外部主机：\n  "
             + "\n  ".join(f"{name}: {hosts}" for name, hosts in offenders.items())
@@ -246,12 +240,8 @@ class TestNoExternalReferences:
         与上一条的区别：上一条给的是"还剩哪些主机"的集合，
         本参数化直接指出"`images.unsplash.com` 还在"——定位成本差很多。
         """
-        offenders = sorted(
-            name for name, hosts in _absolute_hosts().items() if host in hosts
-        )
-        assert not offenders, (
-            f"第一方文件仍在引用 {host}：{offenders}。"
-        )
+        offenders = sorted(name for name, hosts in _absolute_hosts().items() if host in hosts)
+        assert not offenders, f"第一方文件仍在引用 {host}：{offenders}。"
 
     def test_scan_covers_the_sources_phase_7_moved_out(self):
         """正向对照：扫描面必须**真的**含阶段 7 外移的那两个文件，以及 `pcm-processor.js`。
@@ -270,8 +260,7 @@ class TestNoExternalReferences:
         scanned = set(_first_party_sources())
         missing = {INDEX_HTML.name, *_PAGE_LOADED_FIRST_PARTY} - scanned
         assert not missing, (
-            f"扫描面漏掉了这些页面会拉的第一方文件：{sorted(missing)}。"
-            f"当前只扫 {sorted(scanned)}。"
+            f"扫描面漏掉了这些页面会拉的第一方文件：{sorted(missing)}。当前只扫 {sorted(scanned)}。"
         )
 
     def test_both_first_party_lists_agree_on_their_overlap(self):
@@ -285,7 +274,8 @@ class TestNoExternalReferences:
         在扫描面上、不在 `_FIRST_PARTY` 里（它没有下载来源）。
         """
         not_scanned = [
-            name for name in sorted(_FIRST_PARTY)
+            name
+            for name in sorted(_FIRST_PARTY)
             if f"static/{name}" not in _PAGE_LOADED_FIRST_PARTY
         ]
         assert not not_scanned, (
@@ -324,7 +314,7 @@ class TestVendoredFilesMatchManifest:
         raw = MANIFEST.read_bytes()
         assert b"\r" not in raw, (
             f"{MANIFEST.name} 里出现了 CR（{raw.count(b'\\r')} 个）。"
-            f"生成脚本的 write_manifest 需要 newline=\"\\n\"。"
+            f'生成脚本的 write_manifest 需要 newline="\\n"。'
         )
 
     def test_every_entry_has_provenance(self):
@@ -417,9 +407,7 @@ def _reachable_assets() -> dict[str, str]:
             continue  # 缺失由"必须存在"那条断言报，这里不重复报
 
         base = posixpath.dirname(relpath)
-        for match in _CSS_URL_RE.finditer(
-            css_path.read_text(encoding="utf-8", errors="replace")
-        ):
+        for match in _CSS_URL_RE.finditer(css_path.read_text(encoding="utf-8", errors="replace")):
             ref = match.group(2)
             if ref.startswith(("data:", "http://", "https://", "#")):
                 continue
@@ -446,12 +434,10 @@ class TestReachability:
         这条挡的是**路径笔误**：404 是静默的，页面会出来，只是白屏或缺图。
         """
         missing = [
-            path for path in sorted(_reachable_assets())
-            if not (STATIC_DIR / path).is_file()
+            path for path in sorted(_reachable_assets()) if not (STATIC_DIR / path).is_file()
         ]
         assert not missing, (
-            f"这些被引用到的本地文件不存在：{missing}。\n"
-            f"（相对 {STATIC_DIR} 解析。）"
+            f"这些被引用到的本地文件不存在：{missing}。\n（相对 {STATIC_DIR} 解析。）"
         )
 
     def test_every_reachable_asset_is_declared(self):
@@ -484,7 +470,8 @@ class TestReachability:
         """
         reachable = set(_reachable_assets())
         unreferenced = sorted(
-            entry["path"] for entry in _entries()
+            entry["path"]
+            for entry in _entries()
             if entry["path"] not in reachable and not entry.get("unused")
         )
         assert not unreferenced, (
@@ -536,6 +523,5 @@ class TestServedByApp:
         response = client.get("/")
         assert response.status_code == 200
         assert b"/static/" in response.content, (
-            "`GET /` 返回的内容里找不到任何 /static/ 引用。"
-            "要么它是另一份文件，要么本地化没接上。"
+            "`GET /` 返回的内容里找不到任何 /static/ 引用。要么它是另一份文件，要么本地化没接上。"
         )

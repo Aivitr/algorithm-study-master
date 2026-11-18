@@ -1,9 +1,10 @@
-import cv2
-import numpy as np
+import threading
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 from app.core.paths import PROJECT_ROOT
-import threading
 
 
 def _extract_face_features_from_mediapipe(face_rgb, face_mesh_result):
@@ -44,7 +45,9 @@ def _extract_face_features_from_mediapipe(face_rgb, face_mesh_result):
     right_brow = pt(295)
     left_eye_upper = pt(159)
     right_eye_upper = pt(386)
-    brow_raise = ((left_eye_upper[1] - left_brow[1]) + (right_eye_upper[1] - right_brow[1])) / max(1.0, h)
+    brow_raise = ((left_eye_upper[1] - left_brow[1]) + (right_eye_upper[1] - right_brow[1])) / max(
+        1.0, h
+    )
 
     # 眼睛特征
     left_eye_top = pt(160)
@@ -61,7 +64,7 @@ def _extract_face_features_from_mediapipe(face_rgb, face_mesh_result):
         "mouth_open": min(1.0, max(0.0, mouth_open * 2)),  # 0-1
         "smile_lift": max(-1.0, min(1.0, smile_lift * 50)),  # -1 to 1
         "brow_raise": max(0.0, min(1.0, brow_raise * 30)),  # 0-1
-        "eye_open": max(0.0, min(1.0, eye_open * 3))  # 0-1
+        "eye_open": max(0.0, min(1.0, eye_open * 3)),  # 0-1
     }
 
     return features
@@ -83,21 +86,27 @@ def _extract_simple_face_features(face_roi_bgr, face_roi_gray):
 
     try:
         # 转换为灰度和 HSV
-        gray = face_roi_gray if face_roi_gray is not None else cv2.cvtColor(face_roi_bgr, cv2.COLOR_BGR2GRAY)
-        hsv = cv2.cvtColor(face_roi_bgr, cv2.COLOR_BGR2HSV)
+        gray = (
+            face_roi_gray
+            if face_roi_gray is not None
+            else cv2.cvtColor(face_roi_bgr, cv2.COLOR_BGR2GRAY)
+        )
+        cv2.cvtColor(face_roi_bgr, cv2.COLOR_BGR2HSV)
 
         # 分割人脸区域（粗略估算）
         # 眼睛区域：上部 1/4
         # 嘴巴区域：下部 1/4
 
-        eye_region = gray[0:h//3, :]
-        mouth_region = gray[2*h//3:, :]
-        upper_region = gray[0:h//2, :]
-        lower_region = gray[h//2:, :]
+        eye_region = gray[0 : h // 3, :]
+        mouth_region = gray[2 * h // 3 :, :]
+        upper_region = gray[0 : h // 2, :]
+        lower_region = gray[h // 2 :, :]
 
         # 计算嘴巴张开程度（使用下1/3区域的亮度变化）
         mouth_edges = cv2.Canny(mouth_region, 50, 150)
-        mouth_edge_ratio = np.sum(mouth_edges) / (max(1, mouth_region.shape[0] * mouth_region.shape[1]) * 255)
+        mouth_edge_ratio = np.sum(mouth_edges) / (
+            max(1, mouth_region.shape[0] * mouth_region.shape[1]) * 255
+        )
 
         # 简单嘴巴张开估算
         mouth_open = min(1.0, mouth_edge_ratio * 10)
@@ -109,11 +118,13 @@ def _extract_simple_face_features(face_roi_bgr, face_roi_gray):
 
         # 眉毛抬高（使用上1/3区域的边缘密度）
         brow_edges = cv2.Canny(eye_region, 50, 150)
-        brow_edge_ratio = np.sum(brow_edges) / (max(1, eye_region.shape[0] * eye_region.shape[1]) * 255)
+        brow_edge_ratio = np.sum(brow_edges) / (
+            max(1, eye_region.shape[0] * eye_region.shape[1]) * 255
+        )
         brow_raise = min(1.0, brow_edge_ratio * 15)
 
         # 眼睛睁开程度（使用中1/3区域）
-        eye_mid_region = gray[h//4:2*h//4, :]
+        eye_mid_region = gray[h // 4 : 2 * h // 4, :]
         eye_brightness = np.mean(eye_mid_region) / 255.0
         eye_open = eye_brightness * 1.5  # 归一化
 
@@ -121,7 +132,7 @@ def _extract_simple_face_features(face_roi_bgr, face_roi_gray):
             "mouth_open": max(0.0, min(1.0, mouth_open)),
             "smile_lift": max(-1.0, min(1.0, smile_lift)),
             "brow_raise": max(0.0, min(1.0, brow_raise)),
-            "eye_open": max(0.0, min(1.0, eye_open))
+            "eye_open": max(0.0, min(1.0, eye_open)),
         }
 
         return features
@@ -151,7 +162,9 @@ class VideoEmotionAnalyzer:
         try:
             cv2_file = Path(cv2.__file__).resolve()
             candidates.append(cv2_file.parent / "data" / "haarcascade_frontalface_default.xml")
-            candidates.append(cv2_file.parent / "data" / "haarcascades" / "haarcascade_frontalface_default.xml")
+            candidates.append(
+                cv2_file.parent / "data" / "haarcascades" / "haarcascade_frontalface_default.xml"
+            )
         except Exception:
             pass
 
@@ -195,6 +208,7 @@ class VideoEmotionAnalyzer:
 
             try:
                 from app.services.gemma_emotion_client import get_gemma_client
+
                 self._gemma_client = get_gemma_client()
                 if self._gemma_client is not None:
                     self._gemma_enabled = True
@@ -209,9 +223,13 @@ class VideoEmotionAnalyzer:
     def _load_ai_pipeline(self):
         try:
             from modelscope.pipelines import pipeline as ms_pipeline
+
             try:
                 from modelscope.utils.constant import Tasks
-                task = getattr(Tasks, "facial_expression_recognition", "facial-expression-recognition")
+
+                task = getattr(
+                    Tasks, "facial_expression_recognition", "facial-expression-recognition"
+                )
             except Exception:
                 task = "facial-expression-recognition"
             p = ms_pipeline(task=task, model="damo/cv_vgg19_facial-expression-recognition_fer")
@@ -227,6 +245,7 @@ class VideoEmotionAnalyzer:
             return
         try:
             import mediapipe as mp
+
             print("[DEBUG] MediaPipe 模块已导入，正在初始化 FaceMesh...")
             self._mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
                 static_image_mode=True,
@@ -302,7 +321,9 @@ class VideoEmotionAnalyzer:
                     pairs = list(zip(labels, scores))
                     pairs.sort(key=lambda x: float(x[1] or 0), reverse=True)
                     return pairs[0][0], float(pairs[0][1] or 0)
-                return labels[0], float(scores[0] or 0) if isinstance(scores, list) and scores else 0.0
+                return labels[0], float(scores[0] or 0) if isinstance(
+                    scores, list
+                ) and scores else 0.0
             if isinstance(labels, str):
                 try:
                     return labels, float(scores or 0)
@@ -338,12 +359,20 @@ class VideoEmotionAnalyzer:
         edge_ratio = np.sum(edges) / (max(1, w) * max(1, h))
         brightness = float(np.mean(face_roi_gray)) if face_roi_gray.size else 0.0
 
-        upper_half = face_roi_gray[0:h // 2, :]
-        lower_half = face_roi_gray[h // 2:, :]
+        upper_half = face_roi_gray[0 : h // 2, :]
+        lower_half = face_roi_gray[h // 2 :, :]
         upper_edges = cv2.Canny(upper_half, 100, 200) if upper_half.size else np.array([])
         lower_edges = cv2.Canny(lower_half, 100, 200) if lower_half.size else np.array([])
-        upper_ratio = np.sum(upper_edges) / max(1, upper_half.shape[0] * upper_half.shape[1]) if upper_half.size else 0.0
-        lower_ratio = np.sum(lower_edges) / max(1, lower_half.shape[0] * lower_half.shape[1]) if lower_half.size else 0.0
+        upper_ratio = (
+            np.sum(upper_edges) / max(1, upper_half.shape[0] * upper_half.shape[1])
+            if upper_half.size
+            else 0.0
+        )
+        lower_ratio = (
+            np.sum(lower_edges) / max(1, lower_half.shape[0] * lower_half.shape[1])
+            if lower_half.size
+            else 0.0
+        )
 
         emotion = "neutral"
         score = 0.5
@@ -414,17 +443,24 @@ class VideoEmotionAnalyzer:
         mouth_bottom = pt(14)
         mouth_left = pt(61)
         mouth_right = pt(291)
-        mouth_center = ((mouth_left[0] + mouth_right[0]) / 2.0, (mouth_left[1] + mouth_right[1]) / 2.0)
+        mouth_center = (
+            (mouth_left[0] + mouth_right[0]) / 2.0,
+            (mouth_left[1] + mouth_right[1]) / 2.0,
+        )
 
         mouth_width = max(1e-6, dist(mouth_left, mouth_right))
         mouth_open = dist(mouth_top, mouth_bottom) / mouth_width
-        smile_lift = (mouth_center[1] - mouth_left[1] + mouth_center[1] - mouth_right[1]) / max(1.0, h)
+        smile_lift = (mouth_center[1] - mouth_left[1] + mouth_center[1] - mouth_right[1]) / max(
+            1.0, h
+        )
 
         left_brow = pt(65)
         right_brow = pt(295)
         left_eye_upper = pt(159)
         right_eye_upper = pt(386)
-        brow_to_eye = ((left_eye_upper[1] - left_brow[1]) + (right_eye_upper[1] - right_brow[1])) / max(1.0, h)
+        brow_to_eye = (
+            (left_eye_upper[1] - left_brow[1]) + (right_eye_upper[1] - right_brow[1])
+        ) / max(1.0, h)
 
         # 阈值偏低，使检测更敏感
         if smile_lift > 0.01 and mouth_open < 0.18:  # 笑脸：嘴角上扬且嘴巴不太张开
@@ -439,15 +475,17 @@ class VideoEmotionAnalyzer:
 
     def detect_emotion(self, frame):
         """[EMOJI] 情绪识别 - Gemma 4 优先方案"""
-        if frame is None: return None, 0.0, None
+        if frame is None:
+            return None, 0.0, None
         if self.face_cascade is None or self.face_cascade.empty():
             return None, 0.0, None
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-        if len(faces) == 0: return None, 0.0, None
+        if len(faces) == 0:
+            return None, 0.0, None
 
         (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
-        face_roi_gray = gray[y:y + h, x:x + w]
+        face_roi_gray = gray[y : y + h, x : x + w]
 
         pad = int(max(w, h) * 0.18)
         x1 = max(0, x - pad)
@@ -479,6 +517,7 @@ class VideoEmotionAnalyzer:
                 except Exception:
                     try:
                         from PIL import Image
+
                         out = ai_pipeline(Image.fromarray(face_rgb))
                     except Exception:
                         out = ai_pipeline(face_roi_bgr)
@@ -574,6 +613,7 @@ class VideoEmotionAnalyzer:
         except Exception as e:
             print(f"[GemmaEmotion] 分析失败: {e}")
             import traceback
+
             traceback.print_exc()
 
         return None
@@ -585,7 +625,7 @@ class VideoEmotionAnalyzer:
         """
         if frame is None or frame.size == 0:
             return 0.0, "static"
-            
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
@@ -598,7 +638,7 @@ class VideoEmotionAnalyzer:
                 # [EMOJI],[EMOJI]
                 self.prev_gray = gray
                 return 0.0, "static"
-            
+
             # [EMOJI]
             delta_frame = cv2.absdiff(self.prev_gray, gray)
             thresh = cv2.threshold(delta_frame, 25, 255, cv2.THRESH_BINARY)[1]

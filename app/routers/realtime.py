@@ -49,6 +49,11 @@ from app.realtime.state import (
 )
 from app.realtime.stream import process_user_stream_generator
 from app.services.llm_service import llm
+from app.services.session_service import (
+    SessionContext,
+    require_session,
+    websocket_context,
+)
 
 router = APIRouter()
 
@@ -61,16 +66,55 @@ def _meeting_is_running(meeting_id: int) -> bool:
     finally:
         db.close()
 
+
+def _ws_authorized(websocket: WebSocket, username: str, meeting_id: int) -> bool:
+    """校验 token、用户身份与课堂占用锁；失败时不 accept。"""
+    token = websocket.query_params.get("token")
+    db = SessionLocal()
+    try:
+        ctx = websocket_context(db, token, meeting_id)
+        if ctx is None:
+            return False
+        return username in {ctx.user.username, ctx.user.student_id}
+    finally:
+        db.close()
+
+
+async def _watch_ws_session(websocket: WebSocket, token: str | None, meeting_id: int) -> None:
+    """会话被撤销/课堂锁被释放后，主动关闭已建立的 WS。"""
+    while True:
+        await asyncio.sleep(15)
+        db = SessionLocal()
+        try:
+            ok = websocket_context(db, token, meeting_id) is not None
+        except Exception:
+            ok = False
+        finally:
+            db.close()
+        if not ok:
+            try:
+                await websocket.close(code=1008, reason="登录已失效或课堂已在其他设备打开")
+            except Exception:
+                pass
+            return
+
+
 @router.websocket("/ws-signal/{username}/{meeting_id}")
 async def websocket_signal_endpoint(websocket: WebSocket, username: str, meeting_id: int):
     """
     WebRTC 信令通道：转发 webrtc_offer / webrtc_answer / webrtc_ice / webrtc_hangup。
     from 字段强制为连接身份，防止伪造。
     """
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await signal_manager.register(websocket, meeting_id, username)
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[SIGNAL] WebSocket: {username} -> meeting{meeting_id}")
     try:
         while True:
@@ -88,6 +132,7 @@ async def websocket_signal_endpoint(websocket: WebSocket, username: str, meeting
     except Exception as e:
         print(f"[SIGNAL] 断开: {username} - {type(e).__name__}: {e}")
     finally:
+        watcher.cancel()
         signal_manager.unregister(meeting_id, username)
 
 
@@ -99,10 +144,16 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
     将中间/最终识别结果广播给课堂所有成员。
     延迟启动：收到第一个音频包后才创建阿里云 NLS 会话。
     """
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await websocket.accept()
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[ASR] WebSocket连接: {username} -> meeting{meeting_id}")
 
     # 记录连接但不立即启动阿里云会话
@@ -121,14 +172,19 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                 # 阿里云会话收到音频后立即启动；实时转文字不使用声纹门控。
                 if not session_started:
                     print(f"[ASR] 启动阿里云实时会话，声纹门控已关闭: {username}")
-                    success = await asr_manager.start_session(username, meeting_id, websocket)
+                    success, asr_error = await asr_manager.start_session(
+                        username, meeting_id, websocket
+                    )
                     if not success:
-                        print(f"[ASR] 阿里云会话启动失败，继续接收但不转发")
+                        print("[ASR] 阿里云会话启动失败，继续接收但不转发")
                         try:
-                            await websocket.send_json({
-                                "type": "asr_error",
-                                "message": "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置"
-                            })
+                            await websocket.send_json(
+                                {
+                                    "type": "asr_error",
+                                    "message": asr_error
+                                    or "阿里云实时转写会话启动失败，请检查服务器网络或 ASR 配置",
+                                }
+                            )
                         except Exception:
                             pass
                         session_started = True
@@ -136,10 +192,7 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                     session_started = True
                     try:
                         status_message = "Aliyun realtime ASR started"
-                        await websocket.send_json({
-                            "type": "asr_status",
-                            "message": status_message
-                        })
+                        await websocket.send_json({"type": "asr_status", "message": status_message})
                     except Exception:
                         pass
 
@@ -148,13 +201,16 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                 asr_manager.feed_audio(username, meeting_id, data)
 
                 if ASR_SELF_VOICE_GATE_ENABLED and not REALTIME_ASR_VOICEPRINT_DISABLED:
-                    state = asr_manager.self_voice_gate_state.setdefault(key, {
-                        "last_check_ms": 0,
-                        "last_voice_ms": 0,
-                        "allow_output": False,
-                        "checking": False,
-                        "check_token": 0,
-                    })
+                    state = asr_manager.self_voice_gate_state.setdefault(
+                        key,
+                        {
+                            "last_check_ms": 0,
+                            "last_voice_ms": 0,
+                            "allow_output": False,
+                            "checking": False,
+                            "check_token": 0,
+                        },
+                    )
                     total_ms = asr_manager.pcm_total_ms.get(key, 0)
                     rms = asr_manager._pcm_rms(data)
                     if rms >= ASR_SELF_VOICE_GATE_RMS_THRESHOLD:
@@ -168,7 +224,9 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                         and state.get("last_voice_ms")
                         and (total_ms - state["last_voice_ms"]) >= ASR_SELF_VOICE_GATE_SILENCE_MS
                     ):
-                        print(f"[ASR] {username}@meeting{meeting_id} silence, close legacy self voice gate")
+                        print(
+                            f"[ASR] {username}@meeting{meeting_id} silence, close legacy self voice gate"
+                        )
                         state["allow_output"] = False
                         state["sentence_locked"] = False
                         continue
@@ -177,7 +235,9 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
                         available_ms = min(total_ms, ASR_SELF_VOICE_GATE_WINDOW_MS)
                         if available_ms < ASR_SELF_VOICE_GATE_MIN_MS:
                             continue
-                        if (total_ms - int(state.get("last_check_ms") or 0)) < ASR_SELF_VOICE_GATE_CHECK_INTERVAL_MS:
+                        if (
+                            total_ms - int(state.get("last_check_ms") or 0)
+                        ) < ASR_SELF_VOICE_GATE_CHECK_INTERVAL_MS:
                             continue
                         if state.get("checking"):
                             continue
@@ -198,25 +258,35 @@ async def websocket_asr_endpoint(websocket: WebSocket, username: str, meeting_id
     except Exception as e:
         print(f"[ASR] WebSocket断开: {username} - {type(e).__name__}")
     finally:
+        watcher.cancel()
         await asr_manager.stop_session(username, meeting_id, websocket)
 
 
 @router.websocket("/ws/{username}/{meeting_id}")
 async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: int):
+    if not _ws_authorized(websocket, username, meeting_id):
+        await websocket.close(code=1008, reason="登录已失效或未进入课堂")
+        return
     if not _meeting_is_running(meeting_id):
         await websocket.close(code=1008, reason="课堂尚未开始或已经结束")
         return
     await manager.connect(websocket, meeting_id, username)
+    watcher = asyncio.create_task(
+        _watch_ws_session(websocket, websocket.query_params.get("token"), meeting_id)
+    )
     print(f"[OK] WebSocket连接成功: {username} -> 课堂{meeting_id}")
 
     # 广播成员加入
     online_members = manager.get_online_members(meeting_id)
-    await manager.broadcast_to_meeting(meeting_id, {
-        "type": "member_update",
-        "action": "join",
-        "username": username,
-        "online_members": online_members
-    })
+    await manager.broadcast_to_meeting(
+        meeting_id,
+        {
+            "type": "member_update",
+            "action": "join",
+            "username": username,
+            "online_members": online_members,
+        },
+    )
 
     try:
         while True:
@@ -237,8 +307,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
 
                 if len(data) > 0:
                     # 处理音视频流
-                    print(f"[PROCESS] 处理中...")
-                    import asyncio
+                    print("[PROCESS] 处理中...")
                     import queue
 
                     result_queue = queue.Queue()
@@ -246,7 +315,9 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
                     def run_generator():
                         """在线程池中运行同步generator，逐个放入队列"""
                         try:
-                            for result in process_user_stream_generator(username, data, int(meeting_id)):
+                            for result in process_user_stream_generator(
+                                username, data, int(meeting_id)
+                            ):
                                 result_queue.put(result)
                         except Exception as e:
                             print(f"[ERROR] generator异常: {e}")
@@ -278,16 +349,21 @@ async def websocket_endpoint(websocket: WebSocket, username: str, meeting_id: in
         manager.disconnect(websocket, meeting_id, username)
         # 广播成员离开
         online_members = manager.get_online_members(meeting_id)
-        await manager.broadcast_to_meeting(meeting_id, {
-            "type": "member_update",
-            "action": "leave",
-            "username": username,
-            "online_members": online_members
-        })
+        await manager.broadcast_to_meeting(
+            meeting_id,
+            {
+                "type": "member_update",
+                "action": "leave",
+                "username": username,
+                "online_members": online_members,
+            },
+        )
+    finally:
+        watcher.cancel()
 
 
 @router.post("/api/ai-tutor")
-async def ai_tutor(question: str = Form(...)):
+async def ai_tutor(question: str = Form(...), ctx: SessionContext = Depends(require_session)):
     """
     AI导师接口
     学生提问，返回AI解答
@@ -311,16 +387,21 @@ async def ai_tutor(question: str = Form(...)):
     except Exception as e:
         print(f"[ERROR] AI导师失败: {e}")
         import traceback
+
         traceback.print_exc()
         return {"status": "error", "answer": f"抱歉，AI导师暂时无法回答: {str(e)}"}
+
 
 @router.post("/api/browser-asr-final")
 async def browser_asr_final(
     meeting_id: int = Form(...),
     username: str = Form(...),
     text: str = Form(...),
+    ctx: SessionContext = Depends(require_session),
 ):
     """浏览器原生语音识别兜底：将最终句子回写到课堂流和报告链路"""
+    if username not in {ctx.user.student_id, ctx.user.username}:
+        return {"status": "error", "message": "只能回写自己的识别结果"}
     clean_text = str(text or "").strip()
     if not clean_text:
         return {"status": "ignored", "message": "empty text"}
@@ -348,10 +429,16 @@ async def browser_asr_final(
 @router.post("/api/check-silence")
 async def check_silence(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """检查课堂是否沉默超过2分钟，如果是则生成话题建议"""
     try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if not meeting:
+            return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以触发检查"}
         if not manager.is_group_silent(meeting_id, silence_seconds=120):
             return {"status": "ok", "silent": False}
 
@@ -366,9 +453,13 @@ async def check_silence(
             return {"status": "error", "message": state_error}
 
         # 获取最近讨论上下文
-        recents = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.id.desc()).limit(5).all()
+        recents = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.id.desc())
+            .limit(5)
+            .all()
+        )
         ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
 
         suggestion = llm.generate_topic_suggestion(
@@ -376,12 +467,15 @@ async def check_silence(
         )
 
         # 广播给所有在线成员
-        await manager.broadcast_to_meeting(meeting_id, {
-            "type": "topic_suggestion",
-            "target": "all",
-            "suggestion": suggestion,
-            "reason": "group_silence"
-        })
+        await manager.broadcast_to_meeting(
+            meeting_id,
+            {
+                "type": "topic_suggestion",
+                "target": "all",
+                "suggestion": suggestion,
+                "reason": "group_silence",
+            },
+        )
         manager.silence_notified[meeting_id] = True
 
         return {"status": "success", "silent": True, "suggestion": suggestion}
@@ -393,13 +487,16 @@ async def check_silence(
 @router.post("/api/check-quiet-members")
 async def check_quiet_members(
     meeting_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """检查发言少的成员并推送个性化话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
+        if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+            return {"status": "error", "message": "只有本课堂教师可以触发检查"}
         state_error = meeting_status_error(meeting.status, {RUNNING})
         if state_error:
             return {"status": "error", "message": state_error}
@@ -409,9 +506,13 @@ async def check_quiet_members(
             return {"status": "ok", "quiet_members": []}
 
         # 获取讨论上下文
-        recents = db.query(Transcript).filter(
-            Transcript.meeting_id == meeting_id
-        ).order_by(Transcript.id.desc()).limit(5).all()
+        recents = (
+            db.query(Transcript)
+            .filter(Transcript.meeting_id == meeting_id)
+            .order_by(Transcript.id.desc())
+            .limit(5)
+            .all()
+        )
         ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
 
         suggestion = llm.generate_topic_suggestion(
@@ -420,20 +521,29 @@ async def check_quiet_members(
 
         # 只推送给沉默的成员
         for member in quiet_members:
-            await manager.send_to_user(meeting_id, member, {
-                "type": "topic_suggestion",
-                "target": "personal",
-                "suggestion": suggestion,
-                "reason": "low_participation"
-            })
+            await manager.send_to_user(
+                meeting_id,
+                member,
+                {
+                    "type": "topic_suggestion",
+                    "target": "personal",
+                    "suggestion": suggestion,
+                    "reason": "low_participation",
+                },
+            )
 
         return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
     except Exception as e:
         print(f"[ERROR] check-quiet-members: {e}")
         return {"status": "error", "message": str(e)}
 
+
 @router.post("/api/ai-tutor-stream")
-async def ai_tutor_stream(question: str = Form(...), history: str = Form(default="[]")):
+async def ai_tutor_stream(
+    question: str = Form(...),
+    history: str = Form(default="[]"),
+    ctx: SessionContext = Depends(require_session),
+):
     """
     AI导师流式接口 - SSE
     """
@@ -443,7 +553,7 @@ async def ai_tutor_stream(question: str = Form(...), history: str = Form(default
         try:
             q = question.strip()
             if not q:
-                yield f"data: 问题不能为空\n\n"
+                yield "data: 问题不能为空\n\n"
                 yield "data: [DONE]\n\n"
                 return
 
@@ -458,7 +568,7 @@ async def ai_tutor_stream(question: str = Form(...), history: str = Form(default
                 # SSE 格式：每行 data: xxx，用双换行分隔
                 yield f"data: {_json.dumps(token, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-            print(f"[OK] AI导师流式回答完成")
+            print("[OK] AI导师流式回答完成")
         except Exception as e:
             print(f"[ERROR] AI导师流式失败: {e}")
             yield f"data: {_json.dumps('抱歉，系统出错，请重试。', ensure_ascii=False)}\n\n"

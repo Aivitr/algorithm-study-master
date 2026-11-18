@@ -24,7 +24,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from fixtures import BASE_TIME
 
 BASELINE_FILE = Path(__file__).resolve().parent / "baselines" / "routes.json"
@@ -54,9 +53,15 @@ READ_ONLY_ROUTES = [
     ("GET", "/api/emotion-details/1", {"minutes": 0}),
     # 以下三条需要必填参数，缺参数只会得到 422
     ("GET", "/api/snapshot/1", {"username": "李同学", "timestamp": _TS_MILLIS}),
-    ("GET", "/api/get-video-context", {
-        "meeting_id": 1, "timestamp": _TS_SECONDS, "user_id": 2,
-    }),
+    (
+        "GET",
+        "/api/get-video-context",
+        {
+            "meeting_id": 1,
+            "timestamp": _TS_SECONDS,
+            "user_id": 2,
+        },
+    ),
     # ⚠ 这一条**会写文件**，是 `READ_ONLY_ROUTES` 里唯一的例外。
     # 处理器每次调用都往 storage/exercises/ 落一个 `exercises_{id}_{时间戳}.txt`
     # 且从不清理（app/routers/quiz.py:50-55）。不写库 ⇒ 签名稳定 ⇒ 可进基线；
@@ -141,6 +146,18 @@ def _cleanup_new_exercise_files(before: set[Path]) -> None:
 _BASELINE_RUN: dict[str, set[str]] = {}
 
 
+def _route_baseline_headers(seeded_ids):
+    from app.core import database
+    from app.services.session_service import create_session
+
+    db = database.SessionLocal()
+    try:
+        token, _ = create_session(db, seeded_ids["teacher_id"], device_id="route-baseline-teacher")
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture(scope="session")
 def raw_responses(client, seeded_ids):
     """遍历只读路由，保留原始响应（签名与凭据检查都从它派生）。
@@ -149,9 +166,15 @@ def raw_responses(client, seeded_ids):
     """
     result = {}
     before = _exercise_files()
+    teacher_headers = _route_baseline_headers(seeded_ids)
     try:
         for method, path, params in READ_ONLY_ROUTES:
-            response = client.request(method, path, **({"params": params} if params else {}))
+            response = client.request(
+                method,
+                path,
+                headers=teacher_headers,
+                **({"params": params} if params else {}),
+            )
             result[f"{method} {path}"] = response
     finally:
         _cleanup_new_exercise_files(before)
@@ -257,10 +280,7 @@ def test_route_baseline(request, current_baseline):
         pytest.skip(f"已重新录制基线：{BASELINE_FILE}")
 
     if not BASELINE_FILE.exists():
-        pytest.fail(
-            f"基线文件不存在：{BASELINE_FILE}\n"
-            f"先以 `pytest --record-baseline` 录制一次。"
-        )
+        pytest.fail(f"基线文件不存在：{BASELINE_FILE}\n先以 `pytest --record-baseline` 录制一次。")
 
     recorded = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
 
@@ -274,9 +294,7 @@ def test_route_baseline(request, current_baseline):
         for key in recorded
         if recorded[key] != current_baseline[key]
     }
-    assert not diffs, "路由行为与基线不一致：\n" + json.dumps(
-        diffs, ensure_ascii=False, indent=2
-    )
+    assert not diffs, "路由行为与基线不一致：\n" + json.dumps(diffs, ensure_ascii=False, indent=2)
 
 
 def test_baseline_is_lf_only():
@@ -295,5 +313,5 @@ def test_baseline_is_lf_only():
     raw = BASELINE_FILE.read_bytes()
     assert b"\r" not in raw, (
         f"{BASELINE_FILE.name} 里出现了 CR（{raw.count(b'\\r')} 个）。"
-        f"录制处的 write_text 需要 newline=\"\\n\"。"
+        f'录制处的 write_text 需要 newline="\\n"。'
     )

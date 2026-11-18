@@ -88,8 +88,17 @@ ALGORITHM_SPECS: Dict[str, AlgorithmSpec] = {
         ],
         main_backbones=["clip_vit_b16"],
         original_datasets=["CUHK-PEDES", "ICFG-PEDES", "RSTPReid"],
-        classroom_inputs=["face crop sequence", "mouth ROI sequence", "student_id seed frame", "timestamp"],
-        classroom_outputs=["restored identity track", "state continuity score", "relinked visual fragments"],
+        classroom_inputs=[
+            "face crop sequence",
+            "mouth ROI sequence",
+            "student_id seed frame",
+            "timestamp",
+        ],
+        classroom_outputs=[
+            "restored identity track",
+            "state continuity score",
+            "relinked visual fragments",
+        ],
         current_status="runtime_adapted_optional",
         deployment_note=(
             "Implemented as an enhanced runtime hook in research_runtime.py. "
@@ -123,7 +132,12 @@ ALGORITHM_SPECS: Dict[str, AlgorithmSpec] = {
         ],
         main_backbones=["clip_vit_b16"],
         original_datasets=["CUHK-PEDES", "ICFG-PEDES", "RSTPReid"],
-        classroom_inputs=["speech semantics", "facial emotion", "body activity", "recent classroom context"],
+        classroom_inputs=[
+            "speech semantics",
+            "facial emotion",
+            "body activity",
+            "recent classroom context",
+        ],
         classroom_outputs=["cross-modal consistency score", "participation weight correction"],
         current_status="runtime_adapted_optional",
         deployment_note=(
@@ -140,7 +154,12 @@ ALGORITHM_SPECS: Dict[str, AlgorithmSpec] = {
         main_backbones=["clip_vit_b16", "bge_m3"],
         original_datasets=["CUHK-PEDES", "ICFG-PEDES", "RSTPReid"],
         classroom_inputs=["speech text", "topic", "current goals", "speaker list"],
-        classroom_outputs=["soft speech distributions", "viewpoint clusters", "refined pseudo labels", "supporter lists"],
+        classroom_outputs=[
+            "soft speech distributions",
+            "viewpoint clusters",
+            "refined pseudo labels",
+            "supporter lists",
+        ],
         current_status="runtime_adapted_optional",
         deployment_note=(
             "Implemented in two places: PDL soft scoring is applied to single-speech assessment, and CLPC-style "
@@ -155,8 +174,17 @@ ALGORITHM_SPECS: Dict[str, AlgorithmSpec] = {
         ],
         main_backbones=["bge_m3"],
         original_datasets=["classroom interaction logs", "student performance traces"],
-        classroom_inputs=["speech count", "quality trajectory", "viewpoint participation", "emotion summary"],
-        classroom_outputs=["student diagnosis profile", "diagnostic tags", "personalized suggestions"],
+        classroom_inputs=[
+            "speech count",
+            "quality trajectory",
+            "viewpoint participation",
+            "emotion summary",
+        ],
+        classroom_outputs=[
+            "student diagnosis profile",
+            "diagnostic tags",
+            "personalized suggestions",
+        ],
         current_status="runtime_adapted_optional",
         deployment_note=(
             "Implemented as a post-analysis report enrichment hook. "

@@ -92,8 +92,7 @@ def test_root_resolution_is_independent_of_cwd(session_tmp_dir):
     )
     assert result.returncode == 0, f"子进程解析失败：{result.stderr}"
     assert Path(result.stdout.strip()) == REPO_ROOT, (
-        f"从 {outside} 启动时解析出的根目录与仓库根不一致——"
-        f"解析结果仍在依赖 cwd 或文件位置"
+        f"从 {outside} 启动时解析出的根目录与仓库根不一致——解析结果仍在依赖 cwd 或文件位置"
     )
 
 
@@ -113,10 +112,9 @@ def test_root_resolution_fails_loudly_when_no_sentinels(tmp_path):
 
 def test_runtime_modules_agree_on_root():
     """运行期模块各自导出的根目录，必须与 paths 的解析结果一致。"""
-    from app.core.paths import PROJECT_ROOT
-
-    from app.core import config
     import server
+    from app.core import config
+    from app.core.paths import PROJECT_ROOT
 
     assert config.BASE_DIR == PROJECT_ROOT, "config.BASE_DIR 与 PROJECT_ROOT 不一致"
     assert Path(server.BASE_DIR) == PROJECT_ROOT, "server.BASE_DIR 与 PROJECT_ROOT 不一致"
@@ -194,6 +192,7 @@ def _module_file(bare: str) -> Path:
         f"若它又被搬到了别处，请把新位置加进 _module_file。"
     )
 
+
 # 项目内的路径必须由这里推导（阶段 0 建立的唯一锚点）
 def _path_file_uses(source: str) -> list[tuple[int, str]]:
     """返回源码里**实际代码中**出现 `Path(__file__)` 的位置 [(行号, 该行原文)]。
@@ -222,17 +221,27 @@ def _path_file_uses(source: str) -> list[tuple[int, str]]:
         # 让本函数的失败原因保持单一。
         return []
 
-    skip = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
-            tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING}
+    skip = {
+        tokenize.COMMENT,
+        tokenize.NL,
+        tokenize.NEWLINE,
+        tokenize.INDENT,
+        tokenize.DEDENT,
+        tokenize.ENCODING,
+    }
     code = [t for t in tokens if t.type not in skip]
 
     hits = []
     for i in range(len(code) - 3):
-        a, b, c, d = code[i:i + 4]
-        if (a.type == tokenize.NAME and a.string == "Path"
-                and b.string == "("
-                and c.type == tokenize.NAME and c.string == "__file__"
-                and d.string == ")"):
+        a, b, c, d = code[i : i + 4]
+        if (
+            a.type == tokenize.NAME
+            and a.string == "Path"
+            and b.string == "("
+            and c.type == tokenize.NAME
+            and c.string == "__file__"
+            and d.string == ")"
+        ):
             lineno = a.start[0]
             hits.append((lineno, source.splitlines()[lineno - 1].strip()))
     return hits
@@ -333,9 +342,7 @@ def test_server_syspath_additions_are_known_and_present():
     )
 
     missing = {
-        Path(p).name
-        for p in server._SERVER_SYSPATH_ADDITIONS
-        if not Path(p).is_dir()
+        Path(p).name for p in server._SERVER_SYSPATH_ADDITIONS if not Path(p).is_dir()
     } - _KNOWN_ABSENT_SYSPATH_DIRS
 
     assert not missing, (
@@ -359,8 +366,14 @@ _CWD_RELATIVE_SQLITE = "sqlite:///./"
 
 # 扫描时跳过的目录。`archive/` 是冻结的历史记录，改它反而失真（与 archive/README.md 的归档策略一致）。
 _ANCHOR_SKIP_DIRS = {
-    "venv", "archive", "__pycache__", ".git", ".codegraph", ".pytest_cache",
-    "_tmp_agora_token_builder", "node_modules",
+    "venv",
+    "archive",
+    "__pycache__",
+    ".git",
+    ".codegraph",
+    ".pytest_cache",
+    "_tmp_agora_token_builder",
+    "node_modules",
 }
 
 

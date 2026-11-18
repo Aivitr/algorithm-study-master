@@ -15,7 +15,6 @@ _HAS_JIEBA = importlib.util.find_spec("jieba") is not None
 
 
 class TestNormalizeText(unittest.TestCase):
-
     def test_none_returns_empty(self):
         self.assertEqual(normalize_text(None), "")
 
@@ -30,7 +29,6 @@ class TestNormalizeText(unittest.TestCase):
 
 
 class TestTokenize(unittest.TestCase):
-
     def test_none_and_blank_return_empty(self):
         self.assertEqual(tokenize(None), [])
         self.assertEqual(tokenize("   "), [])

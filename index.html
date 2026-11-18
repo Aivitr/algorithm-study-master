@@ -44,13 +44,13 @@
                 <div class="space-y-5">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.student_id"
+                        <input v-model="loginForm.student_id" autocomplete="username"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="loginForm.password" type="password"
+                        <input v-model="loginForm.password" type="password" autocomplete="current-password"
                                class="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入密码">
                     </div>
@@ -77,7 +77,7 @@
                 <div class="absolute inset-0 opacity-70" style="background: linear-gradient(to top, var(--primary-dark), transparent, transparent);"></div>
                 <div class="absolute bottom-10 left-10 right-10 text-white">
                     <h3 class="text-3xl font-bold mb-3">赋能协作学习</h3>
-                    <p class="text-white text-opacity-90">加入成千上万的学生和教师，一起体验未来教育</p>
+                    <p class="text-white text-opacity-90">连接学生与教师，一起体验未来教育</p>
                 </div>
             </div>
         </div>
@@ -104,26 +104,28 @@
                 <div class="space-y-4">
                     <div class="relative group">
                         <i class="fas fa-id-card absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.student_id"
+                        <input v-model="registerForm.student_id" autocomplete="username"
+                               inputmode="numeric" pattern="[0-9]*"
+                               @input="registerForm.student_id = registerForm.student_id.replace(/\D/g, '')"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
-                               placeholder="请输入学号/工号">
+                               placeholder="请输入纯数字学号/工号">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-user absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.username"
+                        <input v-model="registerForm.username" autocomplete="name"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请输入姓名">
                     </div>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.password" type="password"
+                        <input v-model="registerForm.password" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="至少10位，含大小写字母和数字">
                     </div>
                     <p class="text-xs text-gray-400 -mt-1 ml-1">密码需包含大写字母、小写字母和数字，不少于10位</p>
                     <div class="relative group">
                         <i class="fas fa-lock absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                        <input v-model="registerForm.confirmPassword" type="password"
+                        <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password"
                                class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none text-gray-800 font-medium transition-all"
                                placeholder="请再次输入密码">
                     </div>
@@ -258,19 +260,12 @@
                             <i class="fas fa-chart-line text-xl" :style="activeTab === 'report' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">学习报告</span>
                         </button>
-                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()" 
+                        <button @click="activeTab = 'profile'; loadVoiceprintStatus()"
                                 :class="activeTab === 'profile' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
                                 :style="activeTab === 'profile' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
                                 class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
                             <i class="fas fa-user-circle text-xl" :style="activeTab === 'profile' ? 'color: var(--primary);' : ''"></i>
                             <span class="text-base">个人中心</span>
-                        </button>
-                        <button @click="activeTab = 'settings'" 
-                                :class="activeTab === 'settings' ? 'border-2' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
-                                :style="activeTab === 'settings' ? 'background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary);' : ''"
-                                class="w-full py-4 px-5 rounded-xl font-bold transition-all flex items-center space-x-3">
-                            <i class="fas fa-cog text-xl" :style="activeTab === 'settings' ? 'color: var(--primary);' : ''"></i>
-                            <span class="text-base">设置</span>
                         </button>
                     </div>
                 </div>
@@ -284,7 +279,7 @@
                         <!-- 欢迎卡片 - 教师/学生区分 -->
                         <div v-if="currentUser.role === 'teacher'" class="p-8 rounded-2xl shadow-xl mb-8 text-white" style="background: var(--primary-gradient);">
                             <h2 class="text-3xl font-bold mb-2">
-                                <i class="fas fa-chalkboard-teacher mr-2"></i>欢迎回来，{{ currentUser.username }} 老师
+                                <i class="fas fa-chalkboard-teacher mr-2"></i>欢迎回来，{{ currentUser.username }}
                             </h2>
                             <p class="text-white text-opacity-90">今天有 {{ activeGroups.length }} 个小组正在学习</p>
                         </div>
@@ -323,7 +318,7 @@
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-gray-500 text-sm font-medium mb-1">平均评分</p>
-                                        <p class="text-4xl font-bold" :class="teacherStats.avgScore >= 70 ? 'text-green-600' : teacherStats.avgScore >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ teacherStats.avgScore || 0 }}</p>
+                                        <p class="text-4xl font-bold" :class="teacherStats.avgScore === null ? 'text-gray-400' : teacherStats.avgScore >= 70 ? 'text-green-600' : teacherStats.avgScore >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ teacherStats.avgScore === null ? '—' : teacherStats.avgScore }}</p>
                                     </div>
                                     <div class="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center">
                                         <i class="fas fa-star text-2xl text-yellow-600"></i>
@@ -415,14 +410,14 @@
                                 <div v-for="group in activeGroups" :key="group.meeting_id" 
                                      @click="enterGroupView(group)"
                                      class="p-5 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105"
-                                     :class="group.score < 60 ? 'bg-red-50 border-red-300 hover:shadow-red-200 hover:shadow-lg' : group.score < 80 ? 'bg-yellow-50 border-yellow-300 hover:shadow-yellow-200 hover:shadow-lg' : 'bg-green-50 border-green-300 hover:shadow-green-200 hover:shadow-lg'">
+                                     :class="group.score === null ? 'bg-gray-50 border-gray-300' : group.score < 60 ? 'bg-red-50 border-red-300 hover:shadow-red-200 hover:shadow-lg' : group.score < 80 ? 'bg-yellow-50 border-yellow-300 hover:shadow-yellow-200 hover:shadow-lg' : 'bg-green-50 border-green-300 hover:shadow-green-200 hover:shadow-lg'">
                                     <div class="flex justify-between items-start mb-3">
                                         <div>
                                             <span class="font-bold text-lg text-gray-800">{{ displayTopicText(group.topic, group.class_code) }}</span>
                                             <span class="ml-2 px-2 py-0.5 rounded text-xs font-bold" style="background: var(--primary-soft); color: var(--primary);">#{{ group.class_code }}</span>
                                         </div>
-                                        <div class="text-3xl font-black" :class="group.score < 60 ? 'text-red-500' : group.score < 80 ? 'text-yellow-500' : 'text-green-500'">
-                                            {{ group.score }}<span class="text-sm">分</span>
+                                        <div class="text-3xl font-black" :class="group.score === null ? 'text-gray-400' : group.score < 60 ? 'text-red-500' : group.score < 80 ? 'text-yellow-500' : 'text-green-500'">
+                                            {{ group.score === null ? '—' : group.score }}<span v-if="group.score !== null" class="text-sm">分</span>
                                         </div>
                                     </div>
                                     <div class="flex items-center justify-between text-sm">
@@ -441,7 +436,7 @@
                                             <i class="fas fa-chart-line mr-1"></i>数据看板
                                         </button>
                                     </div>
-                                    <div v-if="group.score < 60" class="mt-3 bg-red-100 p-2 rounded text-xs text-red-700">
+                                    <div v-if="group.score !== null && group.score < 60" class="mt-3 bg-red-100 p-2 rounded text-xs text-red-700">
                                         <i class="fas fa-exclamation-triangle mr-1"></i>该小组讨论不积极，建议查看
                                     </div>
                                 </div>
@@ -468,7 +463,7 @@
                             <i class="fas fa-spinner fa-spin text-4xl mb-4" style="color: var(--primary);"></i>
                             <p class="text-gray-500">加载中...</p>
                         </div>
-                        <div v-else-if="classHistory.length === 0" class="text-center py-12 text-gray-500">
+                        <div v-else-if="endedClassHistory.length === 0" class="text-center py-12 text-gray-500">
                             <i class="fas fa-inbox text-6xl mb-4 opacity-30"></i>
                             <p class="text-lg">暂无历史记录</p>
                             <button @click="loadClassHistory({force: true})" class="mt-4 text-white px-6 py-2 rounded-lg text-sm font-bold transition" style="background: var(--primary);">
@@ -476,7 +471,7 @@
                             </button>
                         </div>
                         <div v-else class="space-y-4" style="max-height: calc(100vh - 320px); overflow-y: auto;">
-                            <div v-for="h in classHistory" :key="h.meeting_id" class="p-5 rounded-xl border hover:shadow-lg transition" style="background: linear-gradient(to right, var(--primary-soft), #f0f9ff); border-color: var(--primary);">
+                            <div v-for="h in endedClassHistory" :key="h.meeting_id" class="p-5 rounded-xl border hover:shadow-lg transition" style="background: linear-gradient(to right, var(--primary-soft), #f0f9ff); border-color: var(--primary);">
                                 <div class="flex justify-between items-start mb-3">
                                     <div>
                                         <span class="font-bold text-base" style="color: var(--primary-dark);">{{ displayTopicText(h.topic, h.class_code) }}</span>
@@ -510,24 +505,10 @@
                                         <div class="text-xs text-gray-500">发言</div>
                                     </div>
                                 </div>
-                                <div class="mt-4 flex justify-end space-x-2">
-                                    <button v-if="h.status === 'running'" @click="currentUser.role === 'teacher' ? enterClassAsTeacher(h) : enterClassFromHistory(h)" class="px-4 py-2 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2" style="background: var(--primary-gradient);">
-                                        <i class="fas fa-sign-in-alt"></i>
-                                        <span>进入课堂</span>
-                                    </button>
-                                    <button v-if="currentUser.role === 'teacher' && h.status === 'created'" @click="startClassFromManage(h)" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2">
-                                        <i class="fas fa-play-circle"></i>
-                                        <span>开始课堂</span>
-                                    </button>
-                                    <button v-if="currentUser.role === 'teacher' && h.status === 'running'" @click="endClassFromManage(h)" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition flex items-center space-x-2">
-                                        <i class="fas fa-stop-circle"></i>
-                                        <span>结束课堂</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- 学习报告 -->
                     <div v-if="activeTab === 'report'" class="bg-white p-8 rounded-2xl shadow-lg">
                         <div class="flex justify-between items-center mb-6">
@@ -642,8 +623,8 @@
                                     </div>
                                     
                                     <!-- 4. 讨论亮点 -->
-                                    <div v-if="report.data.highlights" class="p-4 rounded-xl border-l-4" style="background: #edf7f5; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.highlights" class="p-4 rounded-xl border-l-4" style="background: #edf7f5; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-star mr-2"></i>讨论亮点
                                         </h4>
                                         <div class="grid grid-cols-1 gap-2 text-sm">
@@ -663,8 +644,8 @@
                                     </div>
                                     
                                     <!-- 5. 达成的共识 -->
-                                    <div v-if="report.data.consensus && report.data.consensus.length" class="p-4 rounded-xl border-l-4" style="background: #eef7f2; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.consensus && report.data.consensus.length" class="p-4 rounded-xl border-l-4" style="background: #eef7f2; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-check-circle mr-2"></i>达成的共识
                                         </h4>
                                         <ul class="space-y-1">
@@ -675,8 +656,8 @@
                                     </div>
                                     
                                     <!-- 6. 未解决问题 -->
-                                    <div v-if="report.data.unresolved" class="p-4 rounded-xl border-l-4" style="background: #f0f7f5; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.unresolved" class="p-4 rounded-xl border-l-4" style="background: #f0f7f5; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-exclamation-triangle mr-2"></i>未解决问题
                                         </h4>
                                         <div class="text-sm space-y-2">
@@ -734,8 +715,8 @@
                                     </div>
                                     
                                     <!-- 改进建议 -->
-                                    <div class="p-4 rounded-xl border-l-4" style="background: #eef5f3; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div class="p-4 rounded-xl border-l-4" style="background: #eef5f3; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-magic mr-2"></i>改进建议
                                         </h4>
                                         <div class="text-gray-700 text-sm ai-md-content" v-html="renderMarkdown(report.data.improvement_suggestions || '表现良好，继续保持！')"></div>
@@ -755,7 +736,7 @@
                                         <i class="fas fa-file-pdf text-lg"></i>
                                         <span>下载PDF报告</span>
                                     </button>
-                                    <button @click="startQuiz(report.report_id, displayTopicText(report.data.meeting_topic, report.class_code))" class="flex-1 text-white py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, #3E7C86 0%, #2F6670 100%);">
+                                    <button @click="startQuiz(report.report_id, displayTopicText(report.data.meeting_topic, report.class_code))" class="flex-1 text-white py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);">
                                         <i class="fas fa-pen-fancy text-lg"></i>
                                         <span>开始答题</span>
                                     </button>
@@ -795,7 +776,7 @@
                                 <div v-for="cls in teacherClasses" :key="cls.meeting_id" 
                                      @click="viewClassDetail(cls)"
                                      class="p-5 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg"
-                                     :class="cls.status === 'created' ? 'bg-blue-50 border-blue-200' : cls.score < 60 ? 'bg-red-50 border-red-300' : cls.score < 80 ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'">
+                                     :class="cls.status === 'created' ? 'bg-blue-50 border-blue-200' : cls.score === null ? 'bg-blue-50 border-blue-200' : cls.score < 60 ? 'bg-red-50 border-red-300' : cls.score < 80 ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'">
                                     <div class="flex justify-between items-start mb-3">
                                         <div>
                                             <span class="font-bold text-xl text-gray-800">{{ displayTopicText(cls.topic, cls.class_code) }}</span>
@@ -1235,7 +1216,7 @@
                                                     @click="tdSelectedMember = member; $nextTick(() => renderTdIndividualEmotionChart())"
                                                     class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition"
                                                     :class="tdSelectedMember === member ? 'text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                                                    :style="tdSelectedMember === member ? 'background: linear-gradient(135deg, #0f8b8d 0%, #3E7C86 100%);' : ''">
+                                                    :style="tdSelectedMember === member ? 'background: linear-gradient(135deg, var(--accent-teal) 0%, var(--primary) 100%);' : ''">
                                                 {{ member }}
                                             </button>
                                         </div>
@@ -1319,7 +1300,7 @@
                         <!-- 主内容区 -->
                         <div class="max-w-lg mx-auto px-4 py-6" v-if="!quizCompleted">
                             <!-- 标题 -->
-                            <h2 class="text-center text-xl font-bold mb-1" style="color: #3E7C86;">{{ quizTitle }}</h2>
+                            <h2 class="text-center text-xl font-bold mb-1" style="color: var(--primary);">{{ quizTitle }}</h2>
                             <p class="text-center text-sm text-gray-400 mb-5">点击选项立即查看结果，答错可查看正确答案</p>
 
                             <!-- 进度条 -->
@@ -1333,7 +1314,7 @@
                             <!-- 统计 -->
                             <div class="grid grid-cols-3 gap-3 mb-5">
                                 <div class="text-center p-2">
-                                    <div class="text-xl font-black" style="color: #3E7C86;">{{ quizCorrectCount }}</div>
+                                    <div class="text-xl font-black" style="color: var(--primary);">{{ quizCorrectCount }}</div>
                                     <div class="text-xs text-gray-500">答对题目</div>
                                 </div>
                                 <div class="text-center p-2">
@@ -1341,7 +1322,7 @@
                                     <div class="text-xs text-gray-500">连续答对</div>
                                 </div>
                                 <div class="text-center p-2">
-                                    <div class="text-xl font-black" style="color: #3E7C86;">{{ quizCurrentIndex + 1 }}/{{ quizQuestions.length }}</div>
+                                    <div class="text-xl font-black" style="color: var(--primary);">{{ quizCurrentIndex + 1 }}/{{ quizQuestions.length }}</div>
                                     <div class="text-xs text-gray-500">当前进度</div>
                                 </div>
                             </div>
@@ -1388,7 +1369,7 @@
                                     <div v-else class="space-y-3">
                                         <textarea v-model="quizShortAnswers[quizCurrentIndex]"
                                                   class="w-full border-2 rounded-xl p-4 text-sm resize-none focus:outline-none transition-colors"
-                                                  :style="{borderColor: quizShortAnswers[quizCurrentIndex] ? '#3E7C86' : '#e2e8f0'}"
+                                                  :style="{borderColor: quizShortAnswers[quizCurrentIndex] ? 'var(--primary)' : '#e2e8f0'}"
                                                   rows="4"
                                                   placeholder="请输入你的答案..."></textarea>
                                         <button v-if="!quizResults[quizCurrentIndex]"
@@ -1400,8 +1381,8 @@
                                     </div>
 
                                     <!-- 答案解析（答题后显示） -->
-                                    <div v-if="quizResults[quizCurrentIndex] && quizShowAnswer" class="mt-4 p-4 rounded-xl text-sm" style="background: #E7F2F3; border-left: 4px solid #3E7C86;">
-                                        <div class="font-bold mb-1" style="color: #2F6670;">
+                                    <div v-if="quizResults[quizCurrentIndex] && quizShowAnswer" class="mt-4 p-4 rounded-xl text-sm" style="background: var(--primary-soft); border-left: 4px solid var(--primary);">
+                                        <div class="font-bold mb-1" style="color: var(--primary-dark);">
                                             <i class="fas fa-lightbulb mr-1"></i>正确答案：{{ quizGetCorrectLabel() }}
                                         </div>
                                         <div class="ai-md-content text-gray-700" v-html="renderMarkdown(currentQuizQ.answer)"></div>
@@ -1444,7 +1425,7 @@
                                     <!-- 得分统计 -->
                                     <div class="grid grid-cols-3 gap-4 mb-6">
                                         <div class="text-center p-3 rounded-xl" style="background: rgba(62,124,134,0.08);">
-                                            <div class="text-3xl font-black" style="color: #3E7C86;">{{ quizCorrectCount }}</div>
+                                            <div class="text-3xl font-black" style="color: var(--primary);">{{ quizCorrectCount }}</div>
                                             <div class="text-xs text-gray-500 mt-1">答对</div>
                                         </div>
                                         <div class="text-center p-3 rounded-xl" style="background: rgba(239,68,68,0.08);">
@@ -1466,7 +1447,7 @@
                                              class="p-3 mb-2 rounded-xl border-l-4 border-red-400 bg-red-50">
                                             <div class="text-sm font-bold text-gray-800 mb-1">第{{ wq.index + 1 }}题</div>
                                             <div class="text-xs text-gray-600 ai-md-content" v-html="renderMarkdown(wq.question)"></div>
-                                            <div class="text-xs mt-1" style="color: #3E7C86;">
+                                            <div class="text-xs mt-1" style="color: var(--primary);">
                                                 <i class="fas fa-check mr-1"></i>正确答案：{{ wq.correctAnswer }}
                                             </div>
                                         </div>
@@ -1474,11 +1455,11 @@
 
                                     <!-- AI错题分析 -->
                                     <div v-if="quizErrorLoading" class="text-center py-6 text-gray-400">
-                                        <i class="fas fa-spinner fa-spin text-2xl mb-2" style="color: #3E7C86;"></i>
+                                        <i class="fas fa-spinner fa-spin text-2xl mb-2" style="color: var(--primary);"></i>
                                         <p class="text-sm">AI正在分析你的错题...</p>
                                     </div>
                                     <div v-if="quizErrorSummary" class="p-4 rounded-xl mb-6" style="background: rgba(62,124,134,0.06); border: 1px solid rgba(62,124,134,0.15);">
-                                        <h3 class="font-bold mb-2 flex items-center" style="color: #3E7C86;">
+                                        <h3 class="font-bold mb-2 flex items-center" style="color: var(--primary);">
                                             <i class="fas fa-robot mr-2"></i>AI学习建议
                                         </h3>
                                         <div class="ai-md-content text-sm text-gray-700" v-html="renderMarkdown(quizErrorSummary)"></div>
@@ -1633,7 +1614,7 @@
                                     </div>
                                     <div>
                                         <p class="text-gray-500 text-sm">加入时间</p>
-                                        <p class="font-bold text-gray-800 text-lg">2024-01</p>
+                                        <p class="font-bold text-gray-800 text-lg">{{ currentUser.created_at ? formatDate(currentUser.created_at).split(' ')[0] : '—' }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1697,7 +1678,7 @@
                                         </button>
                                         <button @click="downloadExercises(report.report_id)"
                                                 class="px-5 py-3 rounded-xl font-bold text-sm transition-all hover:shadow-lg active:scale-95"
-                                                style="background: linear-gradient(135deg, #2a9d8f 0%, #3E7C86 100%); color: white;">
+                                                style="background: linear-gradient(135deg, #2a9d8f 0%, var(--primary) 100%); color: white;">
                                             <i class="fas fa-download mr-2"></i>下载
                                         </button>
                                     </div>
@@ -1721,8 +1702,8 @@
                                     <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.duration_minutes || 0), 0) }} 分钟</p>
                                 </div>
                                 <div class="p-4 rounded-lg border" style="background: var(--primary-soft); border-color: #c1d8d4;">
-                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">总学生人数</h4>
-                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherClasses.reduce((sum, c) => sum + (c.member_count || 0), 0) }} 人</p>
+                                    <h4 class="font-bold mb-2" style="color: var(--primary-dark);">参与学生数</h4>
+                                    <p class="text-2xl font-extrabold" style="color: var(--primary-dark);">{{ teacherStats.totalStudents || 0 }} 人</p>
                                 </div>
                                 <div v-if="teacherClasses.length === 0" class="text-center text-gray-400 mt-4">
                                     <i class="fas fa-chart-line text-4xl mb-3 opacity-30"></i>
@@ -1933,7 +1914,7 @@
         <!-- AI辅导老师弹窗 -->
         <div v-if="showAITutor" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="showAITutor = false">
             <div class="max-w-4xl w-full h-4/5 bg-white rounded-3xl shadow-2xl flex flex-col">
-                <div class="p-6 rounded-t-3xl flex justify-between items-center" style="background: #3E7C86;">
+                <div class="p-6 rounded-t-3xl flex justify-between items-center" style="background: var(--primary);">
                     <div class="flex items-center space-x-4">
                         <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center">
                             <i class="fas fa-robot text-green-600 text-3xl"></i>
@@ -1982,13 +1963,13 @@
                     <div class="flex space-x-3">
                         <input v-model="aiInput" @keyup.enter="sendAIMessage" 
                                class="flex-1 px-6 py-4 bg-gray-100 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-opacity-40 outline-none text-gray-800 transition-all"
-                               style="--tw-ring-color: #2F6670;"
+                               style="--tw-ring-color: var(--primary-dark);"
                                placeholder="请输入你的问题...">
                         <button @click="sendAIMessage" :disabled="!aiInput.trim() || aiLoading"
                                 class="disabled:opacity-50 text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg flex items-center space-x-2"
-                                style="background: #3E7C86;"
-                                onmouseover="this.style.background='#2F6670'"
-                                onmouseout="this.style.background='#3E7C86'">
+                                style="background: var(--primary);"
+                                onmouseover="this.style.background='var(--primary-dark)'"
+                                onmouseout="this.style.background='var(--primary)'">
                             <i class="fas fa-paper-plane"></i>
                             <span>发送</span>
                         </button>
@@ -1998,33 +1979,39 @@
         </div>
 
         <!-- 进入课堂弹窗 -->
-        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="showClassModal = false">
+        <div v-if="showClassModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="closeClassModal">
             <div class="max-w-2xl w-full login-container">
                 <div class="login-content p-10">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-white">{{ currentUser.role === 'teacher' ? '创建课堂' : '加入课堂' }}</h2>
-                        <button @click="showClassModal = false" class="text-white text-opacity-80 hover:text-opacity-100">
+                        <button @click="closeClassModal" class="text-white text-opacity-80 hover:text-opacity-100">
                             <i class="fas fa-times text-2xl"></i>
                         </button>
                     </div>
-                    
+
                     <div class="space-y-5">
                         <div class="relative group">
                             <i class="fas fa-hashtag absolute left-4 top-1/2 transform -translate-y-1/2" style="color: var(--primary);"></i>
-                            <input v-model="classForm.class_code"
+                            <input v-model="classForm.class_code" @input="classFormErrors.class_code = ''"
+                                   :aria-invalid="classFormErrors.class_code ? 'true' : 'false'"
+                                   aria-describedby="class-code-error"
                                    class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 text-center font-mono font-bold text-lg tracking-wider transition-all shadow-lg"
                                    style="border-color: var(--primary);"
                                    placeholder="请输入课堂号">
                         </div>
-                        
+                        <p v-if="classFormErrors.class_code" id="class-code-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.class_code }}</p>
+
                         <div v-if="currentUser.role === 'teacher'" class="relative group">
                             <i class="fas fa-book absolute left-4 top-4" style="color: var(--primary);"></i>
-                            <textarea v-model="classForm.topic" rows="3"
+                            <textarea v-model="classForm.topic" @input="classFormErrors.topic = ''" rows="3"
+                                      :aria-invalid="classFormErrors.topic ? 'true' : 'false'"
+                                      aria-describedby="class-topic-error"
                                       class="w-full pl-12 pr-4 py-4 bg-white bg-opacity-95 border-2 rounded-xl focus:ring-4 outline-none text-gray-800 transition-all resize-none shadow-lg"
                                       style="border-color: var(--primary);"
                                       placeholder="请输入课程主题(教师必填)">
                             </textarea>
                         </div>
+                        <p v-if="currentUser.role === 'teacher' && classFormErrors.topic" id="class-topic-error" class="text-red-200 text-sm -mt-2 ml-1">{{ classFormErrors.topic }}</p>
                         
                         <!-- 教师上传资料 -->
                         <div v-if="currentUser.role === 'teacher'" class="space-y-4">
@@ -2086,12 +2073,18 @@
                             </div>
                         </div>
                         
-                        <button @click="enterClass" :disabled="loading"
-                                class="w-full btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
-                            <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
-                            <i v-else class="fas fa-door-open mr-2"></i>
-                            {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
-                        </button>
+                        <div class="flex space-x-3">
+                            <button @click="closeClassModal"
+                                    class="w-1/3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-4 rounded-xl font-bold text-lg transition-all">
+                                取消
+                            </button>
+                            <button @click="enterClass" :disabled="loading"
+                                    class="flex-1 btn-primary text-white py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 flex justify-center items-center">
+                                <i v-if="loading" class="fas fa-spinner animate-spin mr-2"></i>
+                                <i v-else class="fas fa-door-open mr-2"></i>
+                                {{ loading ? '进入中...' : (currentUser.role === 'teacher' ? '创建并进入' : '立即加入') }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2182,7 +2175,7 @@
                     </div>
                 </div>
                 <h2 class="text-sm font-bold text-gray-800 leading-snug line-clamp-3 flex items-start">
-                    <i class="fas fa-book-open mr-2 mt-0.5" style="color: #0f8b8d;"></i>
+                    <i class="fas fa-book-open mr-2 mt-0.5" style="color: var(--accent-teal);"></i>
                     <span>{{ currentTopic }}</span>
                 </h2>
             </div>
@@ -2232,25 +2225,26 @@
                         <i class="fas fa-chart-line mr-2"></i>
                         专注度
                     </span>
-                    <span class="text-lg font-extrabold" 
-                          :class="currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
-                        {{ currentRelevance }}%
+                    <span class="text-lg font-extrabold"
+                          :class="currentRelevance === null ? 'text-gray-400' : currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
+                        {{ currentRelevance === null ? '—' : currentRelevance + '%' }}
                     </span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill"
-                         :style="{width: currentRelevance + '%', background: currentRelevance >= 80 ? 'linear-gradient(to right, var(--primary), var(--secondary))' : currentRelevance >= 60 ? 'linear-gradient(to right, #F59E0B, #FBBF24)' : 'linear-gradient(to right, #EF4444, #F87171)'}">
+                         :style="{width: (currentRelevance || 0) + '%', background: currentRelevance >= 80 ? 'linear-gradient(to right, var(--primary), var(--secondary))' : currentRelevance >= 60 ? 'linear-gradient(to right, #F59E0B, #FBBF24)' : 'linear-gradient(to right, #EF4444, #F87171)'}">
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-400 text-center">
-                    <span v-if="currentRelevance >= 80">😎 状态绝佳!</span>
+                    <span v-if="currentRelevance === null">暂无专注度数据</span>
+                    <span v-else-if="currentRelevance >= 80">😎 状态绝佳!</span>
                     <span v-else-if="currentRelevance >= 60">🙂 保持专注</span>
                     <span v-else>😔 需要加油</span>
                 </div>
             </div>
             
-            <!-- 观点聚类按钮 -->
-            <div class="mt-4 space-y-2">
+            <!-- 观点聚类按钮（教师） -->
+            <div v-if="currentUser.role === 'teacher'" class="mt-4 space-y-2">
                 <button @click="quickDecompose" :disabled="viewpointLoading"
                         class="classroom-btn-solid w-full disabled:opacity-50 text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i :class="viewpointLoading ? 'fas fa-spinner fa-spin' : 'fas fa-bolt'" class="text-lg"></i>
@@ -2267,7 +2261,7 @@
             <div class="mt-2 space-y-3">
                 <button @click="endClass" class="classroom-btn-solid w-full text-white py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2">
                     <i class="fas fa-door-open text-lg"></i>
-                    <span>下课</span>
+                    <span>{{ currentUser.role === 'teacher' ? '结束课堂' : '退出课堂' }}</span>
                 </button>
                 <button @click="backToLobby" class="w-full text-gray-700 py-3 px-4 rounded-xl text-sm font-bold transition-all transform hover:scale-105 shadow-sm flex items-center justify-center space-x-2"
                         style="background: #e7ecef; border: 1px solid #d2dbe0;"
@@ -2282,10 +2276,10 @@
         <!-- 视频区域 -->
         <div class="flex-1 relative classroom-stage flex flex-col p-4">
             <!-- 顶部状态栏（浮于视频网格上方） -->
-            <div class="absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
+            <div class="classroom-statusbar absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
                 <div v-if="!isPaused" class="status-badge text-white flex items-center space-x-2 shadow-2xl" style="pointer-events:auto;">
                     <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
-                    <span>{{ statusText }}</span>
+                    <span>{{ asrUnavailable ? 'ASR 不可用' : statusText }}</span>
                 </div>
                 <div v-else class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
                     <i class="fas fa-pause mr-2"></i>
@@ -2299,6 +2293,46 @@
                     <i class="fas fa-users mr-2"></i>
                     <span>{{ onlineMembers.length }} 人在线</span>
                 </div>
+                <template v-if="!viewingGroupId && currentUser && currentUser.role === 'teacher'">
+                    <button v-if="mediaMode === 'none'" @click="startScreenShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i class="fas fa-desktop mr-2"></i>
+                        <span>共享屏幕</span>
+                    </button>
+                    <button v-if="mediaMode === 'none'" @click="startCameraShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i class="fas fa-video mr-2"></i>
+                        <span>使用摄像头</span>
+                    </button>
+                    <button v-else @click="switchVideoSource" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
+                        <i :class="mediaSwitching ? 'fas fa-spinner fa-spin mr-2' : (mediaMode === 'screen' ? 'fas fa-video mr-2' : 'fas fa-desktop mr-2')"></i>
+                        <span>{{ mediaSwitching ? '切换中...' : (mediaMode === 'screen' ? '切换摄像头' : '共享屏幕') }}</span>
+                    </button>
+                    <button v-if="mediaMode !== 'none'" @click="stopVideoShare" :disabled="mediaSwitching"
+                            class="status-badge text-white shadow-2xl"
+                            style="pointer-events:auto; background: var(--danger-bg);">
+                        <i class="fas fa-stop-circle mr-2"></i>
+                        <span>停止分享</span>
+                    </button>
+                </template>
+                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: var(--warning-bg);">
+                    <i class="fas fa-eye mr-2"></i>
+                    <span>小组查看模式 · 不发布本地音视频</span>
+                </div>
+                <button @click="toggleClassroomPanel"
+                        class="classroom-mobile-only status-badge text-white shadow-2xl"
+                        style="pointer-events:auto;">
+                    <i class="fas fa-columns mr-2"></i>
+                    <span>{{ classroomPanelCollapsed ? '展开面板' : '收起面板' }}</span>
+                </button>
+                <button v-if="currentUser && currentUser.role !== 'teacher'"
+                        @click="endClass"
+                        class="classroom-mobile-only status-badge text-white shadow-2xl"
+                        style="pointer-events:auto; background: var(--danger-bg);">
+                    <i class="fas fa-door-open mr-2"></i>
+                    <span>退出课堂</span>
+                </button>
             </div>
 
             <!-- 暂停/播放按钮 -->
@@ -2309,8 +2343,8 @@
             <!-- 教师：结束课堂按钮 -->
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
-                    class="absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
-                    style="background: rgba(220,38,38,0.85);">
+                    class="classroom-end-btn absolute top-6 right-24 h-12 px-4 rounded-full transition backdrop-filter backdrop-blur-sm z-50 flex items-center justify-center shadow-2xl hover:scale-105 transform text-white text-sm font-bold"
+                    style="background: var(--danger-bg);">
                 <i class="fas fa-stop-circle mr-2"></i>结束课堂
             </button>
 
@@ -2322,29 +2356,30 @@
                          class="video-grid-cell"
                          :class="{'is-speaking': speakingMembers[member], 'is-pinned': pinnedMember === member}"
                          @dblclick="pinnedMember = (pinnedMember === member ? null : member)"
-                         :title="member === currentUser.student_id ? '我（双击放大）' : member + '（双击放大）'">
+                         :title="member === effectiveLocalAgoraUid ? '我（双击放大）' : agoraMemberLabel(member) + '（双击放大）'">
 
                         <!-- 本人视频 -->
-                        <template v-if="member === currentUser.student_id">
+                        <template v-if="member === effectiveLocalAgoraUid">
                             <video id="localVideo" ref="video" autoplay muted playsinline
-                                   class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                                   class="w-full h-full object-cover"
+                                   :class="{'transform scale-x-[-1]': mediaMode === 'camera'}"></video>
                         </template>
                         <!-- 远端视频（声网Agora） -->
                         <template v-else>
                             <div :id="'agora-remote-' + member" class="w-full h-full"
                                  style="background:#1a1a2e;"></div>
                             <div v-if="!remoteStreams[member]" class="cell-avatar">
-                                <div class="avatar-circle">{{ member.charAt(0).toUpperCase() }}</div>
+                                <div class="avatar-circle">{{ agoraMemberLabel(member).charAt(0).toUpperCase() }}</div>
                             </div>
                         </template>
 
                         <!-- 名称条 -->
                         <div class="cell-name">
                             <i class="fas fa-microphone mic-icon" :class="{'active': speakingMembers[member]}"></i>
-                            <span>{{ member }}</span>
+                            <span>{{ agoraMemberLabel(member) }}</span>
                         </div>
                         <!-- 本人标记 -->
-                        <span v-if="member === currentUser.student_id" class="cell-me-badge">我</span>
+                        <span v-if="member === effectiveLocalAgoraUid" class="cell-me-badge">我</span>
                     </div>
                 </div>
             </div>
@@ -2371,7 +2406,7 @@
                 <div class="knowledge-graph-modal glass-card rounded-3xl shadow-2xl w-11/12 h-5/6 flex flex-col border-2 border-white border-opacity-20">
                     <div class="p-6 border-b-2 border-gray-100 flex justify-between items-center" style="background: #edf6f3;">
                         <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: #0f8b8d;">
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: var(--accent-teal);">
                                 <i class="fas fa-project-diagram text-white text-xl"></i>
                             </div>
                             <div>
@@ -2379,13 +2414,44 @@
                                 <p class="text-xs text-gray-500">智能构建的知识关系网络</p>
                             </div>
                         </div>
-                        <button @click="showKnowledgeGraph = false" 
-                                class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button v-if="currentUser.role === 'teacher'" @click="generateKnowledgeGraph"
+                                    :disabled="knowledgeGraphGenerating"
+                                    class="px-4 py-2 rounded-xl text-sm font-bold transition disabled:opacity-50"
+                                    style="background: var(--primary-soft); color: var(--primary-dark);">
+                                <i :class="knowledgeGraphGenerating ? 'fas fa-spinner fa-spin mr-1' : 'fas fa-sync-alt mr-1'"></i>
+                                {{ knowledgeGraphGenerating ? '生成中...' : '重新生成' }}
+                            </button>
+                            <button @click="showKnowledgeGraph = false"
+                                    class="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded-xl transition-all flex items-center justify-center transform hover:scale-110">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="flex-1 p-6" style="background: #f7fbfb;">
-                        <div id="knowledgeGraphChart" class="w-full h-full rounded-2xl shadow-inner bg-white"></div>
+                        <div v-if="knowledgeGraphLoading" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-4xl mb-4" style="color: var(--primary);"></i>
+                            <p>加载知识图谱...</p>
+                        </div>
+                        <div v-else-if="knowledgeGraphError" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-exclamation-triangle text-5xl mb-4 text-yellow-500"></i>
+                            <p class="text-lg">{{ knowledgeGraphError }}</p>
+                            <button @click="loadKnowledgeGraph" class="mt-4 text-white px-6 py-2 rounded-lg text-sm font-bold transition" style="background: var(--primary);">
+                                <i class="fas fa-sync-alt mr-2"></i>重试
+                            </button>
+                        </div>
+                        <div v-else-if="!hasKnowledgeGraphData" class="h-full flex flex-col items-center justify-center text-gray-500">
+                            <i class="fas fa-project-diagram text-6xl mb-4 opacity-30"></i>
+                            <p class="text-lg">暂无知识图谱</p>
+                            <p class="text-sm mt-2">课堂产生发言后可生成知识关系图</p>
+                            <button v-if="currentUser.role === 'teacher'" @click="generateKnowledgeGraph" :disabled="knowledgeGraphGenerating"
+                                    class="mt-5 text-white px-6 py-2 rounded-lg text-sm font-bold transition disabled:opacity-50" style="background: var(--primary);">
+                                <i :class="knowledgeGraphGenerating ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-magic mr-2'"></i>
+                                {{ knowledgeGraphGenerating ? '生成中...' : '生成图谱' }}
+                            </button>
+                            <p v-else class="text-sm mt-4 text-gray-400">等待教师生成知识图谱</p>
+                        </div>
+                        <div v-else id="knowledgeGraphChart" class="w-full h-full rounded-2xl shadow-inner bg-white"></div>
                     </div>
                 </div>
             </div>
@@ -2398,7 +2464,7 @@
                 <div class="glass-card rounded-3xl shadow-2xl w-11/12 max-w-4xl flex flex-col border-2 border-white border-opacity-20" style="max-height: 85vh;">
                     <div class="p-6 border-b-2 border-gray-100 flex justify-between items-center flex-shrink-0" style="background: #edf6f3;">
                         <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: #0f8b8d;">
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: var(--accent-teal);">
                                 <i class="fas fa-vote-yea text-white text-xl"></i>
                             </div>
                             <div>
@@ -2411,9 +2477,9 @@
                                     :disabled="voteClosing"
                                     :class="{ 'opacity-50 cursor-not-allowed': voteClosing }"
                                     class="text-white px-4 py-2 rounded-xl text-sm font-bold hover:shadow-lg transition-all"
-                                    style="background: #0f8b8d;"
+                                    style="background: var(--accent-teal);"
                                     onmouseover="this.style.background='#0c7678'"
-                                    onmouseout="this.style.background='#0f8b8d'">
+                                    onmouseout="this.style.background='var(--accent-teal)'">
                                 <i :class="voteClosing ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-check mr-2'"></i>
                                 {{ voteClosing ? '正在结束...' : '结束投票' }}
                             </button>
@@ -2526,7 +2592,8 @@
         </transition>
 
         <!-- 右侧功能面板 -->
-        <div class="w-96 classroom-rightpanel flex flex-col z-10">
+        <div class="w-96 classroom-rightpanel flex flex-col z-10"
+             :class="{ 'is-collapsed': classroomPanelCollapsed }">
             <!-- 标签页导航 -->
             <div class="p-3 classroom-tabbar">
                 <div class="flex space-x-1">
@@ -2608,7 +2675,7 @@
                                     @click="selectedMember = member; $nextTick(() => renderIndividualEmotionChart())"
                                     class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition"
                                     :class="selectedMember === member ? 'text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                                    :style="selectedMember === member ? 'background: linear-gradient(135deg, #0f8b8d 0%, #3E7C86 100%);' : ''">
+                                    :style="selectedMember === member ? 'background: linear-gradient(135deg, var(--accent-teal) 0%, var(--primary) 100%);' : ''">
                                 {{ member }}
                             </button>
                         </div>
@@ -2973,20 +3040,20 @@
                     </div>
                     <div v-for="(msg, idx) in classroomAIMessages" :key="'ai-'+idx" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
                         <div v-if="msg.role === 'assistant'" class="flex items-start space-x-2 max-w-full">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background: #0f8b8d;">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background: var(--accent-teal);">
                                 <i class="fas fa-robot text-white text-sm"></i>
                             </div>
                             <div class="bg-gray-100 p-3 rounded-2xl rounded-tl-none shadow-sm max-w-full">
                                 <div class="ai-md-content text-gray-800 text-sm break-words" :class="{'ai-cursor-blink': msg.streaming}" v-html="renderMarkdown(msg.content)"></div>
                             </div>
                         </div>
-                        <div v-else class="text-white p-3 rounded-2xl rounded-tr-none shadow-sm max-w-xs" style="background: #3E7C86;">
+                        <div v-else class="text-white p-3 rounded-2xl rounded-tr-none shadow-sm max-w-xs" style="background: var(--primary);">
                             <p class="text-sm whitespace-pre-wrap break-words">{{ msg.content }}</p>
                         </div>
                     </div>
                     <div v-if="classroomAILoading && !classroomAIMessages.some(m => m.streaming)" class="flex justify-start">
                         <div class="flex items-start space-x-2">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: #0f8b8d;">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--accent-teal);">
                                 <i class="fas fa-robot text-white text-sm"></i>
                             </div>
                             <div class="bg-gray-100 p-3 rounded-2xl shadow-sm">
@@ -3000,13 +3067,13 @@
                     <div class="flex space-x-2">
                         <input v-model="classroomAIInput" @keyup.enter="sendClassroomAIMessage" 
                                class="flex-1 px-6 py-3 bg-gray-100 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-opacity-40 outline-none text-sm text-gray-800 transition-all"
-                               style="--tw-ring-color: #2F6670; border-color: #d1d5db;"
+                               style="--tw-ring-color: var(--primary-dark); border-color: #d1d5db;"
                                placeholder="输入问题...">
                         <button @click="sendClassroomAIMessage" :disabled="!classroomAIInput.trim() || classroomAILoading"
                                 class="disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-md"
-                                style="background: #3E7C86;"
-                                onmouseover="this.style.background='#2F6670'"
-                                onmouseout="this.style.background='#3E7C86'">
+                                style="background: var(--primary);"
+                                onmouseover="this.style.background='var(--primary-dark)'"
+                                onmouseout="this.style.background='var(--primary)'">
                             <i class="fas fa-paper-plane"></i>
                         </button>
                     </div>
@@ -3039,7 +3106,6 @@
                     <a href="#home" class="lp-nav-link">首页</a>
                     <a href="#features" class="lp-nav-link">核心优势</a>
                     <a href="#benefits" class="lp-nav-link">平台优势</a>
-                    <a href="#testimonials" class="lp-nav-link">用户评价</a>
                 </div>
                 <div class="flex items-center gap-4">
                     <button @click="$emit('go', 'login')" class="lp-login-btn">登录</button>
@@ -3067,10 +3133,10 @@
                 <p class="lp-hero-sub">AI驱动，实时追踪情绪，深度分析互动，让每一次协作产生价值</p>
                 <div class="lp-btn-row">
                     <button @click="$emit('go', 'register')" class="lp-btn-primary flex items-center gap-2">
-                        <span>开始体验</span>
+                        <span>注册账号</span>
                         <i class="fas fa-arrow-right"></i>
                     </button>
-                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">免费试用</button>
+                    <button @click="$emit('go', 'login')" class="lp-btn-secondary">登录</button>
                 </div>
             </div>
         </section>
@@ -3150,50 +3216,6 @@
             </div>
         </section>
 
-        <section id="testimonials" class="lp-section pb-14">
-            <div class="lp-shell">
-                <div class="lp-title lp-reveal">
-                    <h2>深受教育工作者喜爱</h2>
-                    <p>教师、学生一致好评</p>
-                </div>
-                <div class="lp-testimonial-grid lp-reveal" data-delay="1">
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>这个平台真的很好用！能够帮助我更好地管理课程，学生的学习进度也一目了然。强烈推荐给所有教育工作者！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">张</div>
-                            <div>
-                                <div class="font-bold text-gray-700">张老师</div>
-                                <div class="text-sm text-gray-500">高中数学教师</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>AI推荐功能太棒了，能够推送我需要的学习资料。界面简洁清晰，学习体验非常好。</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">李</div>
-                            <div>
-                                <div class="font-bold text-gray-700">李同学</div>
-                                <div class="text-sm text-gray-500">大学在读</div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="lp-review-card">
-                        <div class="lp-stars">★★★★★</div>
-                        <p>数据分析功能非常强大，帮助我深入了解学生学习情况，及时调整教学策略。是现代教育的好帮手！</p>
-                        <div class="lp-review-user">
-                            <div class="lp-avatar">王</div>
-                            <div>
-                                <div class="font-bold text-gray-700">王教授</div>
-                                <div class="text-sm text-gray-500">大学教授</div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </div>
-        </section>
-
         <section class="lp-cta-wrap">
             <div class="lp-shell">
                 <div class="lp-cta-card lp-reveal" data-delay="2">
@@ -3221,12 +3243,6 @@
                         <a href="#benefits">题库系统</a>
                         <a href="#home">AI辅导</a>
                     </div>
-                    <div class="lp-footer-col">
-                        <h4>支持</h4>
-                        <a href="#">帮助中心</a>
-                        <a href="#">联系我们</a>
-                        <a href="#">用户反馈</a>
-                    </div>
                 </div>
                 <div class="lp-footer-bottom">© 2026 智慧教学平台 版权所有 · 隐私政策 · 服务条款</div>
             </div>
@@ -3249,8 +3265,8 @@
                 <div class="global-modal-title">{{ modal.title || '' }}</div>
                 <div class="global-modal-msg">{{ modal.message }}</div>
                 <div>
-                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">取消</button>
-                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">确定</button>
+                    <button v-if="modal.type === 'confirm'" class="global-modal-btn secondary" @click="$emit('resolve', false)">{{ modal.cancelText || '取消' }}</button>
+                    <button class="global-modal-btn primary" @click="$emit('resolve', true)">{{ modal.confirmText || '确定' }}</button>
                 </div>
             </div>
         </div>

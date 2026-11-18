@@ -35,7 +35,6 @@ def _no_nan(result) -> bool:
 
 
 class TestEngineDirect(unittest.TestCase):
-
     def test_unsorted_input_is_sorted(self):
         us = [
             _u("m1", "a", "third one here", 90.0, "u3"),
@@ -168,9 +167,7 @@ class TestTokenizerSwitch(unittest.TestCase):
 
     def test_chinese_mode_splits_more_than_legacy(self):
         chinese = analyze_utterances("zh", self._zh())
-        legacy = analyze_utterances(
-            "zh", self._zh(), config=EngineConfig(tokenizer="legacy")
-        )
+        legacy = analyze_utterances("zh", self._zh(), config=EngineConfig(tokenizer="legacy"))
         n_zh = chinese.metadata["tokenization"]["total_tokens"]
         n_legacy = legacy.metadata["tokenization"]["total_tokens"]
         # 4 条中文：旧分词每句最多 1-2 个 token；jieba 应该明显更多

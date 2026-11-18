@@ -154,9 +154,7 @@ def test_archived_explicit_path_is_refused():
     output = proc.stdout + proc.stderr
 
     # pytest 把 UsageError 记为退出码 4
-    assert proc.returncode != 0, (
-        f"显式点名归档测试文件竟然执行成功了——闸门失效。\n{output}"
-    )
+    assert proc.returncode != 0, f"显式点名归档测试文件竟然执行成功了——闸门失效。\n{output}"
     assert "拒绝收集" in output, (
         f"退出码非 0，但不是本仓库闸门造成的（可能只是路径写错）。\n{output}"
     )
@@ -175,12 +173,9 @@ def test_active_database_is_local_sqlite(local_app):
 
     url = str(database.engine.url)
     assert url.startswith("sqlite"), (
-        f"活跃数据库不是 sqlite：{url}\n"
-        f"根 conftest.py 的 §1 隔离未生效，测试可能正在读写生产库。"
+        f"活跃数据库不是 sqlite：{url}\n根 conftest.py 的 §1 隔离未生效，测试可能正在读写生产库。"
     )
-    assert "aliyuncs" not in url and "mssql" not in url, (
-        f"活跃数据库 URL 中出现生产标识：{url}"
-    )
+    assert "aliyuncs" not in url and "mssql" not in url, f"活跃数据库 URL 中出现生产标识：{url}"
 
 
 def test_settings_agree_with_engine(local_app):
@@ -189,8 +184,7 @@ def test_settings_agree_with_engine(local_app):
     两者若不一致，说明存在"配置说本地、实际连生产"（或反之）的错位——
     这种错位不会报错，只会让测试在错误的数据上通过。
     """
-    from app.core import config
-    from app.core import database
+    from app.core import config, database
 
     engine_url = str(database.engine.url)
     settings_url = str(config.settings.db.url)

@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "8efbda04502dcd19",
-    "length": 254137,
+    "digest": "1de31d22f6450410",
+    "length": 257526,
     "status": 200
   },
   "GET /api/active-groups/1": {
@@ -204,7 +204,7 @@
   },
   "GET /api/knowledge-graph/1": {
     "content_type": "application/json",
-    "digest": "b2ffe78982e1def6",
+    "digest": "cf11c54199c74dea",
     "length": 317,
     "shape": {
       "data": {
