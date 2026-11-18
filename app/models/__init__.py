@@ -9,6 +9,7 @@
 from app.models.base import Base
 from app.models.classroom import Meeting, MemberConnection
 from app.models.emotion import EmotionLog, MentalHealthAssessment
+from app.models.engagement import EngagementCurve
 from app.models.insight import AIInsight
 from app.models.knowledge_graph import GraphEdge, GraphNode, KnowledgeGraph
 from app.models.learning import Exercise, LearningReport, ReportTemplate, StudentAnswer
@@ -22,6 +23,7 @@ __all__ = [
     "AIInsight",
     "ActiveClassroomSession",
     "EmotionLog",
+    "EngagementCurve",
     "Exercise",
     "GraphEdge",
     "GraphNode",
