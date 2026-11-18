@@ -899,7 +899,6 @@ class ResearchRuntime:
             "setup_enhanced_runtime": str(repo_root / "setup_enhanced_runtime.ps1"),
             "download_open_models": str(repo_root / "download_enhanced_open_models.py"),
             "check_runtime": str(repo_root / "check_enhanced_runtime.ps1"),
-            "requirements_file": str(repo_root / "requirements_enhanced_runtime.txt"),
         }
 
     def get_profile_options(self) -> List[Dict]:

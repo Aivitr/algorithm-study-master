@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "0e35dd0ad1274264",
-    "length": 292033,
+    "digest": "1de31d22f6450410",
+    "length": 257526,
     "status": 200
   },
   "GET /api/active-groups/1": {
@@ -104,8 +104,8 @@
   },
   "GET /api/download-exercises/1": {
     "content_type": "text/plain",
-    "digest": "3f820f8f0ecb7e96",
-    "length": 497,
+    "digest": "f3dc6fa34164be05",
+    "length": 519,
     "status": 200
   },
   "GET /api/emotion-details/1": {
@@ -365,8 +365,8 @@
   },
   "GET /api/research-runtime": {
     "content_type": "application/json",
-    "digest": "32ee9752c707ab8c",
-    "length": 13931,
+    "digest": "ab591f633973532f",
+    "length": 14308,
     "shape": {
       "config": {
         "cache_root": "str",
@@ -705,7 +705,6 @@
           "check_runtime": "str",
           "download_open_models": "str",
           "prepare_layout": "str",
-          "requirements_file": "str",
           "setup_enhanced_runtime": "str"
         },
         "strict_enhanced_policy": "str"
@@ -854,22 +853,22 @@
   },
   "GET /api/voiceprint/users": {
     "content_type": "application/json",
-    "digest": "e472f683f0bd2156",
-    "length": 41,
+    "digest": "6194367342eed75c",
+    "length": 66,
     "shape": {
       "count": "int",
       "status": "str",
       "users": [
-        "list[0]",
-        null
+        "list[2]",
+        "str"
       ]
     },
     "status": 200
   },
   "GET /pcm-processor.js": {
     "content_type": "application/javascript",
-    "digest": "88fefc808b2e1e73",
-    "length": 1580,
+    "digest": "8bcd40780c6091a8",
+    "length": 1623,
     "status": 200
   }
 }

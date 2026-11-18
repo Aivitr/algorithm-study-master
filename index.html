@@ -279,7 +279,7 @@
                         <!-- 欢迎卡片 - 教师/学生区分 -->
                         <div v-if="currentUser.role === 'teacher'" class="p-8 rounded-2xl shadow-xl mb-8 text-white" style="background: var(--primary-gradient);">
                             <h2 class="text-3xl font-bold mb-2">
-                                <i class="fas fa-chalkboard-teacher mr-2"></i>欢迎回来，{{ currentUser.username }} 老师
+                                <i class="fas fa-chalkboard-teacher mr-2"></i>欢迎回来，{{ currentUser.username }}
                             </h2>
                             <p class="text-white text-opacity-90">今天有 {{ activeGroups.length }} 个小组正在学习</p>
                         </div>
@@ -623,8 +623,8 @@
                                     </div>
                                     
                                     <!-- 4. 讨论亮点 -->
-                                    <div v-if="report.data.highlights" class="p-4 rounded-xl border-l-4" style="background: #edf7f5; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.highlights" class="p-4 rounded-xl border-l-4" style="background: #edf7f5; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-star mr-2"></i>讨论亮点
                                         </h4>
                                         <div class="grid grid-cols-1 gap-2 text-sm">
@@ -644,8 +644,8 @@
                                     </div>
                                     
                                     <!-- 5. 达成的共识 -->
-                                    <div v-if="report.data.consensus && report.data.consensus.length" class="p-4 rounded-xl border-l-4" style="background: #eef7f2; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.consensus && report.data.consensus.length" class="p-4 rounded-xl border-l-4" style="background: #eef7f2; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-check-circle mr-2"></i>达成的共识
                                         </h4>
                                         <ul class="space-y-1">
@@ -656,8 +656,8 @@
                                     </div>
                                     
                                     <!-- 6. 未解决问题 -->
-                                    <div v-if="report.data.unresolved" class="p-4 rounded-xl border-l-4" style="background: #f0f7f5; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div v-if="report.data.unresolved" class="p-4 rounded-xl border-l-4" style="background: #f0f7f5; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-exclamation-triangle mr-2"></i>未解决问题
                                         </h4>
                                         <div class="text-sm space-y-2">
@@ -715,8 +715,8 @@
                                     </div>
                                     
                                     <!-- 改进建议 -->
-                                    <div class="p-4 rounded-xl border-l-4" style="background: #eef5f3; border-color: #3E7C86;">
-                                        <h4 class="font-bold mb-2 flex items-center" style="color: #2F6670;">
+                                    <div class="p-4 rounded-xl border-l-4" style="background: #eef5f3; border-color: var(--primary);">
+                                        <h4 class="font-bold mb-2 flex items-center" style="color: var(--primary-dark);">
                                             <i class="fas fa-magic mr-2"></i>改进建议
                                         </h4>
                                         <div class="text-gray-700 text-sm ai-md-content" v-html="renderMarkdown(report.data.improvement_suggestions || '表现良好，继续保持！')"></div>
@@ -736,7 +736,7 @@
                                         <i class="fas fa-file-pdf text-lg"></i>
                                         <span>下载PDF报告</span>
                                     </button>
-                                    <button @click="startQuiz(report.report_id, displayTopicText(report.data.meeting_topic, report.class_code))" class="flex-1 text-white py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, #3E7C86 0%, #2F6670 100%);">
+                                    <button @click="startQuiz(report.report_id, displayTopicText(report.data.meeting_topic, report.class_code))" class="flex-1 text-white py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);">
                                         <i class="fas fa-pen-fancy text-lg"></i>
                                         <span>开始答题</span>
                                     </button>
@@ -1216,7 +1216,7 @@
                                                     @click="tdSelectedMember = member; $nextTick(() => renderTdIndividualEmotionChart())"
                                                     class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition"
                                                     :class="tdSelectedMember === member ? 'text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                                                    :style="tdSelectedMember === member ? 'background: linear-gradient(135deg, #0f8b8d 0%, #3E7C86 100%);' : ''">
+                                                    :style="tdSelectedMember === member ? 'background: linear-gradient(135deg, var(--accent-teal) 0%, var(--primary) 100%);' : ''">
                                                 {{ member }}
                                             </button>
                                         </div>
@@ -1368,7 +1368,7 @@
                         <!-- 主内容区 -->
                         <div class="max-w-lg mx-auto px-4 py-6" v-if="!quizCompleted">
                             <!-- 标题 -->
-                            <h2 class="text-center text-xl font-bold mb-1" style="color: #3E7C86;">{{ quizTitle }}</h2>
+                            <h2 class="text-center text-xl font-bold mb-1" style="color: var(--primary);">{{ quizTitle }}</h2>
                             <p class="text-center text-sm text-gray-400 mb-5">点击选项立即查看结果，答错可查看正确答案</p>
 
                             <!-- 进度条 -->
@@ -1382,7 +1382,7 @@
                             <!-- 统计 -->
                             <div class="grid grid-cols-3 gap-3 mb-5">
                                 <div class="text-center p-2">
-                                    <div class="text-xl font-black" style="color: #3E7C86;">{{ quizCorrectCount }}</div>
+                                    <div class="text-xl font-black" style="color: var(--primary);">{{ quizCorrectCount }}</div>
                                     <div class="text-xs text-gray-500">答对题目</div>
                                 </div>
                                 <div class="text-center p-2">
@@ -1390,7 +1390,7 @@
                                     <div class="text-xs text-gray-500">连续答对</div>
                                 </div>
                                 <div class="text-center p-2">
-                                    <div class="text-xl font-black" style="color: #3E7C86;">{{ quizCurrentIndex + 1 }}/{{ quizQuestions.length }}</div>
+                                    <div class="text-xl font-black" style="color: var(--primary);">{{ quizCurrentIndex + 1 }}/{{ quizQuestions.length }}</div>
                                     <div class="text-xs text-gray-500">当前进度</div>
                                 </div>
                             </div>
@@ -1437,7 +1437,7 @@
                                     <div v-else class="space-y-3">
                                         <textarea v-model="quizShortAnswers[quizCurrentIndex]"
                                                   class="w-full border-2 rounded-xl p-4 text-sm resize-none focus:outline-none transition-colors"
-                                                  :style="{borderColor: quizShortAnswers[quizCurrentIndex] ? '#3E7C86' : '#e2e8f0'}"
+                                                  :style="{borderColor: quizShortAnswers[quizCurrentIndex] ? 'var(--primary)' : '#e2e8f0'}"
                                                   rows="4"
                                                   placeholder="请输入你的答案..."></textarea>
                                         <button v-if="!quizResults[quizCurrentIndex]"
@@ -1449,8 +1449,8 @@
                                     </div>
 
                                     <!-- 答案解析（答题后显示） -->
-                                    <div v-if="quizResults[quizCurrentIndex] && quizShowAnswer" class="mt-4 p-4 rounded-xl text-sm" style="background: #E7F2F3; border-left: 4px solid #3E7C86;">
-                                        <div class="font-bold mb-1" style="color: #2F6670;">
+                                    <div v-if="quizResults[quizCurrentIndex] && quizShowAnswer" class="mt-4 p-4 rounded-xl text-sm" style="background: var(--primary-soft); border-left: 4px solid var(--primary);">
+                                        <div class="font-bold mb-1" style="color: var(--primary-dark);">
                                             <i class="fas fa-lightbulb mr-1"></i>正确答案：{{ quizGetCorrectLabel() }}
                                         </div>
                                         <div class="ai-md-content text-gray-700" v-html="renderMarkdown(currentQuizQ.answer)"></div>
@@ -1493,7 +1493,7 @@
                                     <!-- 得分统计 -->
                                     <div class="grid grid-cols-3 gap-4 mb-6">
                                         <div class="text-center p-3 rounded-xl" style="background: rgba(62,124,134,0.08);">
-                                            <div class="text-3xl font-black" style="color: #3E7C86;">{{ quizCorrectCount }}</div>
+                                            <div class="text-3xl font-black" style="color: var(--primary);">{{ quizCorrectCount }}</div>
                                             <div class="text-xs text-gray-500 mt-1">答对</div>
                                         </div>
                                         <div class="text-center p-3 rounded-xl" style="background: rgba(239,68,68,0.08);">
@@ -1515,7 +1515,7 @@
                                              class="p-3 mb-2 rounded-xl border-l-4 border-red-400 bg-red-50">
                                             <div class="text-sm font-bold text-gray-800 mb-1">第{{ wq.index + 1 }}题</div>
                                             <div class="text-xs text-gray-600 ai-md-content" v-html="renderMarkdown(wq.question)"></div>
-                                            <div class="text-xs mt-1" style="color: #3E7C86;">
+                                            <div class="text-xs mt-1" style="color: var(--primary);">
                                                 <i class="fas fa-check mr-1"></i>正确答案：{{ wq.correctAnswer }}
                                             </div>
                                         </div>
@@ -1523,11 +1523,11 @@
 
                                     <!-- AI错题分析 -->
                                     <div v-if="quizErrorLoading" class="text-center py-6 text-gray-400">
-                                        <i class="fas fa-spinner fa-spin text-2xl mb-2" style="color: #3E7C86;"></i>
+                                        <i class="fas fa-spinner fa-spin text-2xl mb-2" style="color: var(--primary);"></i>
                                         <p class="text-sm">AI正在分析你的错题...</p>
                                     </div>
                                     <div v-if="quizErrorSummary" class="p-4 rounded-xl mb-6" style="background: rgba(62,124,134,0.06); border: 1px solid rgba(62,124,134,0.15);">
-                                        <h3 class="font-bold mb-2 flex items-center" style="color: #3E7C86;">
+                                        <h3 class="font-bold mb-2 flex items-center" style="color: var(--primary);">
                                             <i class="fas fa-robot mr-2"></i>AI学习建议
                                         </h3>
                                         <div class="ai-md-content text-sm text-gray-700" v-html="renderMarkdown(quizErrorSummary)"></div>
@@ -1746,7 +1746,7 @@
                                         </button>
                                         <button @click="downloadExercises(report.report_id)"
                                                 class="px-5 py-3 rounded-xl font-bold text-sm transition-all hover:shadow-lg active:scale-95"
-                                                style="background: linear-gradient(135deg, #2a9d8f 0%, #3E7C86 100%); color: white;">
+                                                style="background: linear-gradient(135deg, #2a9d8f 0%, var(--primary) 100%); color: white;">
                                             <i class="fas fa-download mr-2"></i>下载
                                         </button>
                                     </div>
@@ -1982,7 +1982,7 @@
         <!-- AI辅导老师弹窗 -->
         <div v-if="showAITutor" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50" @click.self="showAITutor = false">
             <div class="max-w-4xl w-full h-4/5 bg-white rounded-3xl shadow-2xl flex flex-col">
-                <div class="p-6 rounded-t-3xl flex justify-between items-center" style="background: #3E7C86;">
+                <div class="p-6 rounded-t-3xl flex justify-between items-center" style="background: var(--primary);">
                     <div class="flex items-center space-x-4">
                         <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center">
                             <i class="fas fa-robot text-green-600 text-3xl"></i>
@@ -2031,13 +2031,13 @@
                     <div class="flex space-x-3">
                         <input v-model="aiInput" @keyup.enter="sendAIMessage" 
                                class="flex-1 px-6 py-4 bg-gray-100 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-opacity-40 outline-none text-gray-800 transition-all"
-                               style="--tw-ring-color: #2F6670;"
+                               style="--tw-ring-color: var(--primary-dark);"
                                placeholder="请输入你的问题...">
                         <button @click="sendAIMessage" :disabled="!aiInput.trim() || aiLoading"
                                 class="disabled:opacity-50 text-white px-8 py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg flex items-center space-x-2"
-                                style="background: #3E7C86;"
-                                onmouseover="this.style.background='#2F6670'"
-                                onmouseout="this.style.background='#3E7C86'">
+                                style="background: var(--primary);"
+                                onmouseover="this.style.background='var(--primary-dark)'"
+                                onmouseout="this.style.background='var(--primary)'">
                             <i class="fas fa-paper-plane"></i>
                             <span>发送</span>
                         </button>
@@ -2243,7 +2243,7 @@
                     </div>
                 </div>
                 <h2 class="text-sm font-bold text-gray-800 leading-snug line-clamp-3 flex items-start">
-                    <i class="fas fa-book-open mr-2 mt-0.5" style="color: #0f8b8d;"></i>
+                    <i class="fas fa-book-open mr-2 mt-0.5" style="color: var(--accent-teal);"></i>
                     <span>{{ currentTopic }}</span>
                 </h2>
             </div>
@@ -2860,7 +2860,7 @@
                 <div class="knowledge-graph-modal glass-card rounded-3xl shadow-2xl w-11/12 h-5/6 flex flex-col border-2 border-white border-opacity-20">
                     <div class="p-6 border-b-2 border-gray-100 flex justify-between items-center" style="background: #edf6f3;">
                         <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: #0f8b8d;">
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: var(--accent-teal);">
                                 <i class="fas fa-project-diagram text-white text-xl"></i>
                             </div>
                             <div>
@@ -2918,7 +2918,7 @@
                 <div class="glass-card rounded-3xl shadow-2xl w-11/12 max-w-4xl flex flex-col border-2 border-white border-opacity-20" style="max-height: 85vh;">
                     <div class="p-6 border-b-2 border-gray-100 flex justify-between items-center flex-shrink-0" style="background: #edf6f3;">
                         <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: #0f8b8d;">
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background: var(--accent-teal);">
                                 <i class="fas fa-vote-yea text-white text-xl"></i>
                             </div>
                             <div>
@@ -2931,9 +2931,9 @@
                                     :disabled="voteClosing"
                                     :class="{ 'opacity-50 cursor-not-allowed': voteClosing }"
                                     class="text-white px-4 py-2 rounded-xl text-sm font-bold hover:shadow-lg transition-all"
-                                    style="background: #0f8b8d;"
+                                    style="background: var(--accent-teal);"
                                     onmouseover="this.style.background='#0c7678'"
-                                    onmouseout="this.style.background='#0f8b8d'">
+                                    onmouseout="this.style.background='var(--accent-teal)'">
                                 <i :class="voteClosing ? 'fas fa-spinner fa-spin mr-2' : 'fas fa-check mr-2'"></i>
                                 {{ voteClosing ? '正在结束...' : '结束投票' }}
                             </button>
@@ -3129,7 +3129,7 @@
                                     @click="selectedMember = member; $nextTick(() => renderIndividualEmotionChart())"
                                     class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition"
                                     :class="selectedMember === member ? 'text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                                    :style="selectedMember === member ? 'background: linear-gradient(135deg, #0f8b8d 0%, #3E7C86 100%);' : ''">
+                                    :style="selectedMember === member ? 'background: linear-gradient(135deg, var(--accent-teal) 0%, var(--primary) 100%);' : ''">
                                 {{ member }}
                             </button>
                         </div>
@@ -3494,20 +3494,20 @@
                     </div>
                     <div v-for="(msg, idx) in classroomAIMessages" :key="'ai-'+idx" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
                         <div v-if="msg.role === 'assistant'" class="flex items-start space-x-2 max-w-full">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background: #0f8b8d;">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background: var(--accent-teal);">
                                 <i class="fas fa-robot text-white text-sm"></i>
                             </div>
                             <div class="bg-gray-100 p-3 rounded-2xl rounded-tl-none shadow-sm max-w-full">
                                 <div class="ai-md-content text-gray-800 text-sm break-words" :class="{'ai-cursor-blink': msg.streaming}" v-html="renderMarkdown(msg.content)"></div>
                             </div>
                         </div>
-                        <div v-else class="text-white p-3 rounded-2xl rounded-tr-none shadow-sm max-w-xs" style="background: #3E7C86;">
+                        <div v-else class="text-white p-3 rounded-2xl rounded-tr-none shadow-sm max-w-xs" style="background: var(--primary);">
                             <p class="text-sm whitespace-pre-wrap break-words">{{ msg.content }}</p>
                         </div>
                     </div>
                     <div v-if="classroomAILoading && !classroomAIMessages.some(m => m.streaming)" class="flex justify-start">
                         <div class="flex items-start space-x-2">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: #0f8b8d;">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--accent-teal);">
                                 <i class="fas fa-robot text-white text-sm"></i>
                             </div>
                             <div class="bg-gray-100 p-3 rounded-2xl shadow-sm">
@@ -3521,13 +3521,13 @@
                     <div class="flex space-x-2">
                         <input v-model="classroomAIInput" @keyup.enter="sendClassroomAIMessage" 
                                class="flex-1 px-6 py-3 bg-gray-100 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-opacity-40 outline-none text-sm text-gray-800 transition-all"
-                               style="--tw-ring-color: #2F6670; border-color: #d1d5db;"
+                               style="--tw-ring-color: var(--primary-dark); border-color: #d1d5db;"
                                placeholder="输入问题...">
                         <button @click="sendClassroomAIMessage" :disabled="!classroomAIInput.trim() || classroomAILoading"
                                 class="disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-md"
-                                style="background: #3E7C86;"
-                                onmouseover="this.style.background='#2F6670'"
-                                onmouseout="this.style.background='#3E7C86'">
+                                style="background: var(--primary);"
+                                onmouseover="this.style.background='var(--primary-dark)'"
+                                onmouseout="this.style.background='var(--primary)'">
                             <i class="fas fa-paper-plane"></i>
                         </button>
                     </div>

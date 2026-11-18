@@ -61,7 +61,7 @@ def test_project_root_is_the_repo_root():
     from app.core.paths import PROJECT_ROOT
 
     assert PROJECT_ROOT == REPO_ROOT
-    for sentinel in ("requirements.txt", "index.html", "server.py"):
+    for sentinel in ("pyproject.toml", "index.html", "server.py"):
         assert (PROJECT_ROOT / sentinel).exists(), f"仓库根缺少哨兵文件 {sentinel}"
 
 
