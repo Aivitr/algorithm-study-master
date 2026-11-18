@@ -9,6 +9,17 @@
 - 代码：`'Consolas', monospace`
 - 不引入第二种无衬线字体
 
+## 字号
+
+常用字号用 token：`--font-xs`（12px）、`--font-sm`（14px）、`--font-base`（16px）、
+`--font-lg`（18px）、`--font-xl`（20px）。大标题的 22/24/28/34px 仍按页面局部使用。
+
+## 间距
+
+常用间距用 token：`--space-1`（4px）、`--space-2`（8px）、`--space-3`（12px）、
+`--space-4`（16px）、`--space-5`（20px）、`--space-6`（24px）、`--space-8`（32px）。
+新代码不要再写这些像素值。
+
 ## 色板
 
 | Token | 值 | 用途 |
