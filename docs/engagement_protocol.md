@@ -62,19 +62,24 @@ insufficient_data / invalid_input / not_found / internal_error）**保持原样�
 
 ```python
 # gca_engine/engagement/emotional.py（岳柔）
-def analyze_emotional(records: list[EmotionRecord],
-                      meeting_id: str) -> EngagementDimensionResult: ...
+def analyze_emotional(
+    records: list[EmotionRecord], meeting_id: str
+) -> EngagementDimensionResult: ...
+
 
 # gca_engine/engagement/behavioral.py（雷梦琪）
-def analyze_behavioral(meeting_id: str,
-                       utterances: list[Utterance],
-                       gca_result: GroupAnalysisResult | None = None) -> EngagementDimensionResult: ...
+def analyze_behavioral(
+    meeting_id: str, utterances: list[Utterance], gca_result: GroupAnalysisResult | None = None
+) -> EngagementDimensionResult: ...
+
 
 # gca_engine/engagement/cognitive.py（葛艾蓝）
-def analyze_cognitive(meeting_id: str,
-                      utterances: list[Utterance],
-                      quality: list[SpeechQualityRecord],
-                      gca_result: GroupAnalysisResult | None = None) -> EngagementDimensionResult: ...
+def analyze_cognitive(
+    meeting_id: str,
+    utterances: list[Utterance],
+    quality: list[SpeechQualityRecord],
+    gca_result: GroupAnalysisResult | None = None,
+) -> EngagementDimensionResult: ...
 ```
 
 约定：
@@ -91,6 +96,9 @@ def analyze_cognitive(meeting_id: str,
   `GroupAnalysisResult` 的 docstring）：
   `{"fixed_5min": [{"start_second", "end_second", "group_metrics": {...}}], "sliding_5min": [{"center_second", "group_metrics": {...}}]}`，
   无数据的窗口 `group_metrics` 为 `{}`；本轮不计算时间趋势时给 `None`。
+  已合入的情绪模块（PR #26）窗口条目额外带可选的 `student_metrics`
+  （`{user_id: 指标}`），属可加扩展：`group_metrics` 键必须存在，
+  整合层与前端按需读取，其余维度模块不强制跟随。
 - 行为维度注意：当前课堂适配器 `gca_engine/adapters/classroom.py` 一律传
   `end_time=None`，真实数据的"发言时长"暂不可用，本轮只统计次数/频率。
 - 整合入口由组长实现：`analyze_engagement(meeting_id, ...) -> EngagementResult`，
@@ -314,8 +322,11 @@ from gca_engine.engagement import compute_hint_candidates, HintTriggerState
 # 整合层每 30 秒调用一次（课堂相对秒数由整合层换算）
 state = HintTriggerState()
 candidates = compute_hint_candidates(
-    meeting_id, utterances, now_second=t, state=state,
-    online_members=online_members,   # list[str] | None，见第 6.1 节
+    meeting_id,
+    utterances,
+    now_second=t,
+    state=state,
+    online_members=online_members,  # list[str] | None，见第 6.1 节
 )
 # -> list[HintCandidate]，Agent 组拿 evidence/trigger_reason 组装 Prompt
 ```
