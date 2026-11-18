@@ -48,7 +48,7 @@ db-init  同一个镜像，一次性跑 db/schema.sql，跑完退出（退出码
 **不打包进 app 镜像**——`docker compose --profile local-db pull` 可以单独拉。
 
 首次构建要装一整套 ML 依赖（torch / insightface / pyannote / funasr），**很慢，且镜像很大**；
-`db` 镜像本身另有 2.31 GB。之后只要 `requirements.txt` 没变，改代码不会触发重装——
+`db` 镜像本身另有 2.31 GB。之后只要 `uv.lock` 没变，改代码不会触发重装——
 依赖分了三层缓存，见 `Dockerfile` 的注释。
 
 ```bash

@@ -33,9 +33,23 @@ powershell -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "prepare_enhanced_
 
 if ($InstallPythonDeps) {
     Write-Host "[STEP] Installing enhanced runtime Python dependencies..."
-    & $PythonExe -m pip install -r (Join-Path $RepoRoot "requirements_enhanced_runtime.txt")
+    $uv = Get-Command uv -ErrorAction SilentlyContinue
+    if (-not $uv) {
+        throw "uv not found. Enhanced dependencies now come from pyproject/uv.lock; install uv first."
+    }
+    $reqFile = Join-Path $env:TEMP "smartclass-enhanced-requirements.txt"
+    Push-Location $RepoRoot
+    try {
+        & $uv.Source export --frozen --extra enhanced --no-hashes --format requirements-txt -o $reqFile
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv export --extra enhanced failed"
+        }
+    } finally {
+        Pop-Location
+    }
+    & $PythonExe -m pip install -r $reqFile
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install requirements_enhanced_runtime.txt"
+        throw "Failed to install enhanced dependencies"
     }
 }
 
