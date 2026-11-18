@@ -23,13 +23,7 @@
    `TestDevEnvLayer`（开发层内容）与 `TestNoProductionCredentialsAreTracked`
    （凭据没被提交）三处。
 
-3. **requirements.txt 被切成两份时的静默遗漏。**
-   镜像分两层装依赖（torch 三件套走 PyTorch CPU 索引，其余走 PyPI）。
-   切分由 `tools/split_requirements.py` 现算，不另立一份清单——但"现算"也得
-   有人证明它没把某个包漏掉或算重。漏掉的后果是运行时 `ModuleNotFoundError`，
-   且按本仓库的老规矩，多半还是**延迟导入**里才炸。
-
-4. **构建上下文里少了运行时资产。**
+3. **构建上下文里少了运行时资产。**
    前三条都在挡"不该进去的进去了"，这条挡反方向：`.dockerignore` 是一条通配规则
    就能扫掉一整棵子树的，而 `index.html`、`static/` 这些正是 `server.py` 在
    **运行时**才读的。少一个的后果在宿主机上完全不可见——所有测试读的是宿主文件，
@@ -41,7 +35,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -166,21 +159,6 @@ def _pattern_hits(relpath: str, patterns: set[str]) -> bool:
 # 真要堵它，就得逐文件判定"这个文件运行时会不会被读到"，而那需要引入
 # SOURCES.json / index.html 的可达性，等于把阶段 6 的守卫复制一份到这里。
 # 与其做一个半吊子的复制，不如把边界写清楚：这里管"目录整个没了"。
-
-
-def _load_split_tool():
-    """按路径加载 `tools/split_requirements.py`。
-
-    `tools/` 没有 `__init__.py`，靠隐式命名空间包能被 `import tools.x` 找到——
-    但那要求当前工作目录恰好是仓库根。测试可能在别处被调用，所以按文件路径加载，
-    摆脱对 cwd 的依赖（`test_paths_anchor.py` 说的正是这类 cwd 假设）。
-    """
-    path = REPO_ROOT / "tools" / "split_requirements.py"
-    spec = importlib.util.spec_from_file_location("_split_requirements", path)
-    assert spec is not None and spec.loader is not None, f"无法加载 {path}"
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _compose_file(name: str) -> dict:
@@ -595,62 +573,6 @@ class TestGeneratedSchemaCarriesNoSourceHost:
 # --------------------------------------------------------------------------
 # 3. 依赖切分是一份**划分**：不漏、不重、不另立清单
 # --------------------------------------------------------------------------
-
-
-class TestRequirementsSplit:
-    @pytest.mark.parametrize("manifest", ["requirements.txt", "requirements-dev.txt"])
-    def test_split_is_a_partition_preserving_order(self, manifest):
-        tool = _load_split_tool()
-        path = REPO_ROOT / manifest
-        source = path.read_text(encoding="utf-8")
-        # 基准取**展开 -r 之后**的清单：开发镜像是照着 requirements-dev.txt 装的，
-        # 它首行的 `-r requirements.txt` 必须被跟随，否则 torch 会整个漏掉。
-        origin = tool.expand_requirements(source, path.parent)
-        heavy, light = tool.split_requirements(source, path.parent)
-
-        assert origin, f"{manifest} 展开后一条 requirement 都没有"
-        merged = heavy + light
-
-        # (a) 合起来 = 原清单。少一项就是容器里运行期 ModuleNotFoundError，
-        #     多一项就是装了个清单里没有的包。
-        assert sorted(merged) == sorted(origin), (
-            f"切分后的两份合起来与 {manifest}（展开 -r 后）对不上——"
-            "有包被漏掉或重复。漏掉的包在容器里要到**运行时**才报 ModuleNotFoundError。\n"
-            f"  只在原清单：{sorted(set(origin) - set(merged))}\n"
-            f"  只在切分后：{sorted(set(merged) - set(origin))}"
-        )
-        assert len(merged) == len(set(merged)), (
-            f"切分后出现重复条目：{sorted(x for x in merged if merged.count(x) > 1)}"
-        )
-
-        # (b) 每一份都保持它在原清单里的**相对顺序**。
-        #
-        #     这里不能写成 `merged == origin`——heavy 是从原清单**中间**抽出来的，
-        #     拼回去必然换位。真正要保的不变量是"顺序不变"而非"位置不变"：
-        #     顺序一旦被打乱，改一个无关行的位置就会让镜像层缓存整体失效。
-        def is_subsequence(sub: list[str], whole: list[str]) -> bool:
-            it = iter(whole)
-            return all(item in it for item in sub)
-
-        assert is_subsequence(heavy, origin), f"重型层的顺序与 {manifest} 不一致：{heavy}"
-        assert is_subsequence(light, origin), f"其余层的顺序与 {manifest} 不一致：{light}"
-
-    def test_every_declared_heavy_package_exists_in_requirements(self):
-        tool = _load_split_tool()
-        # 拿开发镜像真正会喂进去的那份清单来核。
-        path = REPO_ROOT / "requirements-dev.txt"
-        names = {
-            tool.package_name(line)
-            for line in tool.expand_requirements(path.read_text(encoding="utf-8"), path.parent)
-        }
-        missing = [name for name in tool.HEAVY_PACKAGES if name not in names]
-        assert not missing, (
-            f"切分工具声明这些包走 PyTorch 索引，但 requirements-dev.txt"
-            f"（展开 -r 后）里没有：{missing}。\n"
-            f"多半是清单改了名或删了包，而切分名单没跟着改——"
-            f"那会让 Dockerfile 去装一个清单里不存在的包，或者反过来"
-            f"让某个 torch 系包走了普通 PyPI（在 Linux 上会拉进 CUDA 版，镜像涨到数 GB）。"
-        )
 
 
 # --------------------------------------------------------------------------

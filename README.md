@@ -96,8 +96,8 @@ docker compose exec app python -m pytest   # 容器里跑
 
 ## 可选依赖（pyproject extras）
 
-依赖的唯一来源是 `pyproject.toml` + `uv.lock`；`requirements*.txt` 仅保留为旧入口 shim，
-新环境不要再直接 `pip install -r`。
+依赖的唯一来源是 `pyproject.toml` + `uv.lock`；旧 `requirements*.txt` 已移除，
+新环境只用 `uv sync` / `uv export`。
 
 - 阿里本地语音识别：`uv sync --extra funasr`
 - 性能优化/增强运行时：`uv sync --extra enhanced`
@@ -216,7 +216,7 @@ algorithm-study-master/
 ├── conftest.py / pytest.ini       # 测试隔离闸门，只收集 tests_safe/
 ├── .env.example                   # 共享密钥模板（.env / .env.dev / .env.prod 都由它派生）
 ├── Dockerfile / docker-compose.yml / .dockerignore
-├── pyproject.toml / uv.lock     # 依赖唯一来源（uv）；requirements*.txt 为旧入口 shim
+├── pyproject.toml / uv.lock     # 依赖唯一来源（uv）
 ├── app/                           # 应用代码
 │   ├── agents/                    # 小组分析 Agent：工具、状态门、结构化输出
 │   ├── core/                      # 配置、数据库、路径锚点
@@ -239,10 +239,10 @@ algorithm-study-master/
 ```
 
 > 根目录那几样"看着该挪走"的东西**动不得**：`download_enhanced_open_models.py`、
-> `requirements_enhanced_runtime.txt`、四个 `.ps1`、`enhanced_bridge_templates/`。
-> `GET /api/research-runtime` 把其中 5 条路径**原样返回**给调用方（三个 `.ps1`：
+> 四个 `.ps1`、`enhanced_bridge_templates/`。
+> `GET /api/research-runtime` 把其中 4 条路径**原样返回**给调用方（三个 `.ps1`：
 > `prepare_enhanced_model_layout` / `setup_enhanced_runtime` / `check_enhanced_runtime`，
-> 外加那个 `.py` 与 `.txt`），`tests_safe/test_research_assets.py` 断言它们就在仓库根。
+> 外加那个 `.py`），`tests_safe/test_research_assets.py` 断言它们就在仓库根。
 > 剩下的 `install_enhanced_models_from_local.ps1` 与 `enhanced_bridge_templates/`
 > 虽不进该接口，但后者被 `download_enhanced_open_models.py` 按**仓库根相对路径**引用
 > （`repo_root / "enhanced_bridge_templates" / …`），同样挪不得。

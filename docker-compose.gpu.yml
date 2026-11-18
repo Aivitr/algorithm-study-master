@@ -41,7 +41,7 @@
 # 变量时，本文件的行为与不加它时**完全一致**（除了设备那一段）。
 # 索引里 cu118 / cu121 / cu124 对应不同 CUDA 版本，按宿主驱动挑一个能用的。
 #
-# 注意：增强版那六个模型槽位与增强依赖（`requirements_enhanced_runtime.txt`）
+# 注意：增强版那六个模型槽位与增强依赖（`pyproject.toml` 的 `enhanced` extra）
 # 是**另一条线**，由 `setup_enhanced_runtime.ps1` 在宿主上准备。三者齐了才算
 # 真正的增强版，判据看 `/api/research-runtime` 的 `enhanced_stack_ready`，
 # 或直接在宿主上跑 `check_enhanced_runtime.ps1`（它会打印 `nvidia-smi` 与
