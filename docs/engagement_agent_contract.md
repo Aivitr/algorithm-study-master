@@ -167,7 +167,6 @@ Agent 生成和落库时，把 GCA 的数值证据补成可回查的 ID 列表�
 
 ## 8. 不在本轮范围
 
-- `behavioral.py` 与 `analyze_engagement()` 整合入口（GCA 侧尚未实现）。
 - `windows.py` 自定义指标汇总扩展。
 - Hint 自动发送、A/B 分组、模型影子对比。
 - 多 worker 下的共享冷却与在线名单。

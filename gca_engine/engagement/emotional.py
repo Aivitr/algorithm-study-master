@@ -14,6 +14,11 @@ from gca_engine.config import (
     SLIDING_STEP_SECONDS,
     SLIDING_WINDOW_SECONDS,
 )
+from gca_engine.engagement._common import (
+    fixed_windows,
+    group_metric_stats,
+    sliding_windows,
+)
 from gca_engine.engagement.protocols import (
     EmotionRecord,
     EngagementDimensionResult,
@@ -128,96 +133,6 @@ def _numeric_student_metrics(
     return metrics
 
 
-def _group_metric_stats(student_metrics: dict[str, dict]) -> dict:
-    """按公共协议 aggregation.py 的口径汇总任意自定义数值指标。
-
-    aggregation.group_metric_stats 目前只处理 GCA 的 SIX_METRICS，情绪指标
-    不属于那六项，因此在本模块内复用相同统计定义，而不修改公共文件。
-    """
-    if not student_metrics:
-        return {}
-
-    metric_names = sorted(
-        {
-            name
-            for metrics in student_metrics.values()
-            for name, value in metrics.items()
-            if isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(float(value))
-        }
-    )
-    result = {}
-    for name in metric_names:
-        values = [
-            float(metrics[name])
-            for metrics in student_metrics.values()
-            if name in metrics
-            and isinstance(metrics[name], (int, float))
-            and not isinstance(metrics[name], bool)
-            and math.isfinite(float(metrics[name]))
-        ]
-        if not values:
-            continue
-        mean = sum(values) / len(values)
-        variance = sum((value - mean) ** 2 for value in values) / len(values)
-        result[name] = {
-            "mean": float(mean),
-            "min": float(min(values)),
-            "max": float(max(values)),
-            "std": float(math.sqrt(variance)),
-            "count": len(values),
-        }
-    return result
-
-
-def _fixed_windows(
-    records: list[dict],
-    duration: float,
-    window_seconds: int = FIXED_WINDOW_SECONDS,
-) -> list[tuple[float, float, list[dict]]]:
-    """按 windows.py 的固定窗口边界 [start, end) 划分情绪记录。"""
-    max_timestamp = max((item["timestamp"] for item in records), default=0.0)
-    # 即使最后一条记录恰好落在 300/600 秒边界，也为它保留后一个窗口。
-    n_by_records = int(max_timestamp // window_seconds) + 1
-    n_by_duration = max(1, int(math.ceil(duration / window_seconds)))
-    n_windows = max(1, n_by_records, n_by_duration)
-
-    windows = []
-    for index in range(n_windows):
-        start = float(index * window_seconds)
-        end = float((index + 1) * window_seconds)
-        subset = [item for item in records if start <= item["timestamp"] < end]
-        windows.append((start, end, subset))
-    return windows
-
-
-def _sliding_windows(
-    records: list[dict],
-    duration: float,
-    window_seconds: int = SLIDING_WINDOW_SECONDS,
-    step_seconds: int = SLIDING_STEP_SECONDS,
-) -> list[tuple[float, list[dict]]]:
-    """按 windows.py 的滑动窗口边界 (center-window, center] 取数。"""
-    centers: list[float] = []
-    point = float(step_seconds)
-    while point <= duration:
-        centers.append(point)
-        point += step_seconds
-
-    if not centers:
-        return []
-    if duration > centers[-1]:
-        centers.append(float(duration))
-
-    result = []
-    for center in centers:
-        start = max(0.0, center - window_seconds)
-        subset = [item for item in records if start < item["timestamp"] <= center]
-        result.append((center, subset))
-    return result
-
-
 def _window_student_metrics(records: list[dict]) -> dict:
     """统计当前时间窗口内每个学生的情绪分布和记录数量。"""
     if not records:
@@ -253,7 +168,7 @@ def _window_group_metrics(records: list[dict]) -> dict:
         user_id: _numeric_student_metrics(student_records)
         for user_id, student_records in by_student.items()
     }
-    return _group_metric_stats(per_student)
+    return group_metric_stats(per_student)
 
 
 def analyze_emotional(
@@ -314,7 +229,7 @@ def analyze_emotional(
     normalized.sort(key=lambda item: (item["timestamp"], item["user_id"]))
     max_timestamp = max(item["timestamp"] for item in normalized)
     duration = max(max_timestamp, supplied_duration or 0.0)
-    fixed = _fixed_windows(normalized, duration)
+    fixed = fixed_windows(normalized, duration)
     total_windows = len(fixed)
 
     by_student: dict[str, list[dict]] = defaultdict(list)
@@ -343,7 +258,7 @@ def analyze_emotional(
         }
         student_metrics[user_id].update(_numeric_student_metrics(student_records, coverage_rate))
 
-    group_metrics = _group_metric_stats(
+    group_metrics = group_metric_stats(
         {
             user_id: {
                 key: value
@@ -367,7 +282,7 @@ def analyze_emotional(
             }
         )
     sliding_timeline = []
-    for center, subset in _sliding_windows(normalized, duration):
+    for center, subset in sliding_windows(normalized, duration):
         sliding_timeline.append(
             {
                 "center_second": int(center),

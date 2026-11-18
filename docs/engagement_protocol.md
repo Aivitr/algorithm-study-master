@@ -96,14 +96,19 @@ def analyze_cognitive(
   `GroupAnalysisResult` 的 docstring）：
   `{"fixed_5min": [{"start_second", "end_second", "group_metrics": {...}}], "sliding_5min": [{"center_second", "group_metrics": {...}}]}`，
   无数据的窗口 `group_metrics` 为 `{}`；本轮不计算时间趋势时给 `None`。
-  已合入的情绪模块（PR #26）窗口条目额外带可选的 `student_metrics`
+  情绪与行为模块的窗口条目额外带可选的 `student_metrics`
   （`{user_id: 指标}`），属可加扩展：`group_metrics` 键必须存在，
   整合层与前端按需读取，其余维度模块不强制跟随。
 - 行为维度注意：当前课堂适配器 `gca_engine/adapters/classroom.py` 一律传
   `end_time=None`，真实数据的"发言时长"暂不可用，本轮只统计次数/频率。
-- 整合入口由组长实现：`analyze_engagement(meeting_id, ...) -> EngagementResult`，
-  其中 `student_metrics` / `group_metrics` 是三个维度结果的投影，不重复计算。
-  等三个维度模块合入后编写。
+  已实现指标：`utterance_count`、`participation`、`utterances_per_minute`；
+  提供可用 GCA 结果时额外带 `gca_social_impact` / `gca_communication_density`，
+  不重算 GCA 指标。
+- 整合入口：`analyze_engagement(meeting_id, utterances, emotions, quality,
+  gca_result) -> EngagementResult`（`gca_engine/engagement/integration.py`）。
+  `student_metrics` / `group_metrics` 是三个维度结果的投影，不重复计算。
+  整体状态用 `AnalysisStatus`：无有效发言或少于 2 条为 `insufficient_data`，
+  单人为 `single_speaker`，其余为 `success`。本轮不做综合分。
 
 ## 5. JSON 样例
 
