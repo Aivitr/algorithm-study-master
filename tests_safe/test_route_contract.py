@@ -8,7 +8,7 @@
 |---|---|---|
 | 对象 | 响应的**内容**（状态码、长度、结构摘要） | 路由的**存在与地址** |
 | 手段 | 发请求、比对摘要 | 直接读 `app.routes`，不发请求 |
-| 覆盖 | 只覆盖只读路由（写路由会改库） | **全部 64 条**，写路由也覆盖 |
+| 覆盖 | 只覆盖只读路由（写路由会改库） | **全部 66 条**，写路由也覆盖 |
 
 基线只能够到"能被安全调用"的那部分路由——写路由、要外部服务的路由全都够不着。
 而**路由被搬走或改地址**这件事，恰恰最容易发生在那些够不着的路由身上（例如
@@ -24,11 +24,11 @@
 正因如此，「路由前缀契约……必须在测试中断言」。
 本文件即该项。
 
-66 这个数字
+69 这个数字
 -----------
-接口契约冻结的是「66 个接口」。实测枚举得 **63 条 HTTP + 3 条 WebSocket = 66**，
+接口契约冻结的是「69 个接口」。实测枚举得 **66 条 HTTP + 3 条 WebSocket = 69**，
 与 `docs/route-inventory.md` 一致。其余 5 条（`/storage` 挂载、`/docs`、
-`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 66，
+`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 69，
 但同样需要钉住——重构时误删 `app.mount("/storage", ...)` 会让所有 OSS 素材 404。
 """
 
@@ -136,6 +136,7 @@ HTTP_ROUTES = [
     ("GET", "/api/download-exercises/{report_id}"),
     ("GET", "/api/emotion-details/{meeting_id}"),
     ("POST", "/api/end-class"),
+    ("GET", "/api/engagement/{meeting_id}"),
     ("GET", "/api/exercises/{report_id}"),
     ("POST", "/api/generate-pdf-report"),
     ("POST", "/api/generate-report"),
@@ -211,14 +212,14 @@ def actual_routes(local_app):
     return _enumerate(local_app)
 
 
-def test_frozen_interface_count_is_68():
-    """契约冻结的「68 个接口」= 65 条 HTTP + 3 条 WebSocket。
+def test_frozen_interface_count_is_69():
+    """契约冻结的「69 个接口」= 66 条 HTTP + 3 条 WebSocket。
 
     这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
-    路由，这里会先失败，逼他确认"68"这个对外承诺是否也要改。
+    路由，这里会先失败，逼他确认"69"这个对外承诺是否也要改。
     """
-    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 68, (
-        f"契约冻结 68 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 69, (
+        f"契约冻结 69 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 
