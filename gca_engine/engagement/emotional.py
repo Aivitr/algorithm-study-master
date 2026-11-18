@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from typing import Iterable
 
-from app.core.emotions import normalize_emotion_label
 from gca_engine.config import (
     FIXED_WINDOW_SECONDS,
     SLIDING_STEP_SECONDS,
@@ -22,8 +20,9 @@ from gca_engine.engagement.protocols import (
     dimension_result,
 )
 
-
-# normalize_emotion_label 的项目标准标签。未知标签不会被擅自当作新情绪类别。
+# 与 app/core/emotions.py 归一化词表一致的项目标准标签。
+# 协议约定适配层完成归一化（EmotionRecord.emotion_type 已是归一化标签），
+# 本模块只做词表校验，不重复归一化；未知标签不会被擅自当作新情绪类别。
 KNOWN_EMOTIONS = frozenset(
     {
         "happy",
@@ -63,14 +62,15 @@ def _validate_inputs(records: list[EmotionRecord], meeting_id: str) -> None:
 def _normalize_records(
     records: list[EmotionRecord],
 ) -> tuple[list[dict], Counter, list[str]]:
-    """归一化情绪标签，并收集无法识别的标签记录。"""
+    """校验情绪标签在项目标准词表中，并收集无法识别的标签记录。"""
     normalized: list[dict] = []
     invalid_reasons: Counter = Counter()
     warnings: list[str] = []
 
     for record in records:
-        # 全项目只使用 app/core/emotions.py 中的归一化函数，避免词表分叉。
-        label = normalize_emotion_label(record.emotion_type)
+        # 协议规定 emotion_type 已是归一化标签（适配层负责归一化，
+        # 见 protocols.EmotionRecord docstring），这里只校验不重复归一化。
+        label = record.emotion_type
         if label not in KNOWN_EMOTIONS:
             invalid_reasons["unknown_emotion_label"] += 1
             continue
@@ -81,11 +81,7 @@ def _normalize_records(
                 "user_id": record.user_id,
                 "emotion_type": label,
                 "timestamp": float(record.timestamp),
-                "intensity": (
-                    float(record.intensity)
-                    if record.intensity is not None
-                    else None
-                ),
+                "intensity": (float(record.intensity) if record.intensity is not None else None),
                 "record_id": record.record_id,
             }
         )
@@ -101,10 +97,7 @@ def _distribution(records: list[dict]) -> dict:
     """计算一个记录集合的情绪计数、比例和主导情绪。"""
     counts = Counter(item["emotion_type"] for item in records)
     total = len(records)
-    ratios = {
-        emotion: count / total
-        for emotion, count in sorted(counts.items())
-    } if total else {}
+    ratios = {emotion: count / total for emotion, count in sorted(counts.items())} if total else {}
     dominant = None
     if counts:
         # 次数相同时按标签字母序，保证结果可复现。
@@ -130,12 +123,8 @@ def _numeric_student_metrics(
         metrics["coverage_rate"] = float(coverage_rate)
 
     for emotion in sorted(KNOWN_EMOTIONS):
-        metrics[f"emotion_count_{emotion}"] = float(
-            distribution["counts"].get(emotion, 0)
-        )
-        metrics[f"emotion_ratio_{emotion}"] = float(
-            distribution["ratios"].get(emotion, 0.0)
-        )
+        metrics[f"emotion_count_{emotion}"] = float(distribution["counts"].get(emotion, 0))
+        metrics[f"emotion_ratio_{emotion}"] = float(distribution["ratios"].get(emotion, 0.0))
     return metrics
 
 
@@ -198,10 +187,7 @@ def _fixed_windows(
     for index in range(n_windows):
         start = float(index * window_seconds)
         end = float((index + 1) * window_seconds)
-        subset = [
-            item for item in records
-            if start <= item["timestamp"] < end
-        ]
+        subset = [item for item in records if start <= item["timestamp"] < end]
         windows.append((start, end, subset))
     return windows
 
@@ -227,10 +213,7 @@ def _sliding_windows(
     result = []
     for center in centers:
         start = max(0.0, center - window_seconds)
-        subset = [
-            item for item in records
-            if start < item["timestamp"] <= center
-        ]
+        subset = [item for item in records if start < item["timestamp"] <= center]
         result.append((center, subset))
     return result
 
@@ -257,6 +240,7 @@ def _window_student_metrics(records: list[dict]) -> dict:
         }
 
     return result
+
 
 def _window_group_metrics(records: list[dict]) -> dict:
     """将窗口内记录先按学生统计，再按学生维度汇总为小组指标。"""
@@ -357,9 +341,7 @@ def analyze_emotional(
             },
             "dominant_emotion": distribution["dominant_emotion"],
         }
-        student_metrics[user_id].update(
-            _numeric_student_metrics(student_records, coverage_rate)
-        )
+        student_metrics[user_id].update(_numeric_student_metrics(student_records, coverage_rate))
 
     group_metrics = _group_metric_stats(
         {
@@ -376,23 +358,23 @@ def analyze_emotional(
 
     fixed_timeline = []
     for start, end, subset in fixed:
-     fixed_timeline.append(
-         {
+        fixed_timeline.append(
+            {
                 "start_second": int(start),
-             "end_second": int(end),
-             "student_metrics": _window_student_metrics(subset),
-              "group_metrics": _window_group_metrics(subset),
-           }
+                "end_second": int(end),
+                "student_metrics": _window_student_metrics(subset),
+                "group_metrics": _window_group_metrics(subset),
+            }
         )
     sliding_timeline = []
     for center, subset in _sliding_windows(normalized, duration):
-     sliding_timeline.append(
-        {
-            "center_second": int(center),
-            "student_metrics": _window_student_metrics(subset),
-            "group_metrics": _window_group_metrics(subset),
-        }
-    )
+        sliding_timeline.append(
+            {
+                "center_second": int(center),
+                "student_metrics": _window_student_metrics(subset),
+                "group_metrics": _window_group_metrics(subset),
+            }
+        )
 
     valid_count = len(normalized)
     status = "ok" if valid_count >= 2 else "insufficient"
@@ -432,7 +414,9 @@ def analyze_emotional(
                 "coverage_rate": float(group_coverage),
             },
             "duration_seconds": float(duration),
-            "duration_source": "provided" if supplied_duration is not None else "max_valid_emotion_timestamp_estimate",
+            "duration_source": "provided"
+            if supplied_duration is not None
+            else "max_valid_emotion_timestamp_estimate",
             "window_seconds": FIXED_WINDOW_SECONDS,
             "sliding_window_seconds": SLIDING_WINDOW_SECONDS,
             "sliding_step_seconds": SLIDING_STEP_SECONDS,
@@ -440,8 +424,9 @@ def analyze_emotional(
                 "固定5分钟窗口中至少有一条该学生有效情绪记录即视为该学生窗口被覆盖"
             ),
             "coverage_limitation": (
-                None if supplied_duration is not None else
-                "未提供课堂总时长，按最后一条有效情绪记录估算观察跨度"
+                None
+                if supplied_duration is not None
+                else "未提供课堂总时长，按最后一条有效情绪记录估算观察跨度"
             ),
             "emotion_labels": sorted(KNOWN_EMOTIONS),
             "intensity_used": False,
@@ -450,8 +435,3 @@ def analyze_emotional(
         warnings=warnings,
         error=None,
     )
-
-
-# 为早期个人分支可能存在的调用名称保留兼容别名；正式接口仍为 analyze_emotional。
-analyze_emotions = analyze_emotional
-calculate_emotional_metrics = analyze_emotional

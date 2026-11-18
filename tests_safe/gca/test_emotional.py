@@ -1,4 +1,3 @@
-
 """
 情感投入维度测试（负责人：岳柔）。
 
@@ -16,6 +15,7 @@ import json
 import unittest
 
 from gca_engine.engagement.emotional import analyze_emotional
+
 from gca_engine.engagement.protocols import EmotionRecord
 
 
@@ -32,7 +32,6 @@ def _record(user_id, emotion_type, timestamp):
 
 
 class TestAnalyzeEmotional(unittest.TestCase):
-
     def _normal_records(self):
         """构造两名学生的正常情绪记录。"""
         return [
@@ -42,7 +41,6 @@ class TestAnalyzeEmotional(unittest.TestCase):
             _record("u001", "thinking", 90),
             _record("u001", "excited", 120),
             _record("u001", "happy", 150),
-
             _record("u002", "calm", 20),
             _record("u002", "thinking", 50),
             _record("u002", "happy", 80),
@@ -139,6 +137,7 @@ class TestAnalyzeEmotional(unittest.TestCase):
             restored["status"],
             ("ok", "insufficient", "unavailable"),
         )
+
     def test_expected_emotion_results(self):
         """验证具体情绪次数、比例、主导情绪及小组统计结果。"""
         result = analyze_emotional(
@@ -196,10 +195,7 @@ class TestAnalyzeEmotional(unittest.TestCase):
                 ratio = distribution["ratios"][emotion]
                 print(f"  {emotion}: {count} 次，占比 {ratio:.2%}")
 
-            print(
-                f"时间窗口覆盖率："
-                f"{metrics['coverage']['coverage_rate']:.2%}"
-            )
+            print(f"时间窗口覆盖率：{metrics['coverage']['coverage_rate']:.2%}")
 
         print("\n小组统计：")
         print(
@@ -208,7 +204,6 @@ class TestAnalyzeEmotional(unittest.TestCase):
         )
         print("整体分析状态：", result.status)
         print("======================================")
-
 
 
 if __name__ == "__main__":
