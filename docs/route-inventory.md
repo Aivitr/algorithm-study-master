@@ -47,6 +47,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | POST | `/api/classroom/leave` | 写操作 |  |
 | GET | `/api/class-history/{user_id}` | 只读本地 | ✅ |
 | GET | `/api/emotion-details/{meeting_id}` | 只读本地 | ✅ |
+| GET | `/api/engagement/{meeting_id}` | 只读本地 |  |
 | GET | `/api/exercises/{report_id}` | 只读本地 | ✅ |
 | GET | `/api/get-video-context` | 只读本地 | ✅ |
 | GET | `/api/gca-dashboard/{meeting_id}` | 只读本地 |  |
@@ -95,7 +96,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 70 条：{'WebSocket': 3, '写操作': 12, '写操作（有副作用）': 1, '只读本地': 28, '外部服务': 20, '本地模型推理': 6}
+总计 71 条：{'WebSocket': 3, '写操作': 12, '写操作（有副作用）': 1, '只读本地': 29, '外部服务': 20, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖
