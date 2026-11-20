@@ -365,8 +365,8 @@
   },
   "GET /api/research-runtime": {
     "content_type": "application/json",
-    "digest": "2cccae6918f0c0f9",
-    "length": 14392,
+    "digest": "ab591f633973532f",
+    "length": 14308,
     "shape": {
       "config": {
         "cache_root": "str",
@@ -705,7 +705,6 @@
           "check_runtime": "str",
           "download_open_models": "str",
           "prepare_layout": "str",
-          "requirements_file": "str",
           "setup_enhanced_runtime": "str"
         },
         "strict_enhanced_policy": "str"

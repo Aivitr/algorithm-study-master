@@ -1,5 +1,9 @@
 # 智能协作学习系统 - 部署指南
 
+> ⚠️ **历史文档**：本文是 MySQL/pymysql + `requirements.txt` 时代的部署记录，与当前
+> 实现（SQL Server/pymssql + uv/pyproject + Docker/GitHub Actions）不符。不要照做；
+> 当前部署请看 [`deploy/RUNBOOK.md`](../deploy/RUNBOOK.md) 与根目录 README。
+
 ## 一、系统环境要求
 
 ### 1.1 服务器配置

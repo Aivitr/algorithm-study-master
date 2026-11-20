@@ -15,7 +15,7 @@ def _setup_scripts_summary(self) -> Dict:
 
 危险在于 `Path(__file__).resolve().parent` 这一句。它当时恰好等于仓库根，
 所以看起来没问题；但阶段 3 要把该文件迁进 `app/`，**一迁，`parent` 就变成
-`app/`，这 5 条路径会同时指空——接口不报错，只是静静地返回 5 个不存在的路径。**
+`app/`，这 4 条路径会同时指空——接口不报错，只是静静地返回 4 个不存在的路径。**
 
 **本文件在搬迁之前就把这条契约钉死了，它按设计如实变红。** 阶段 3.3 搬迁
 `research_runtime` 时确实先红后绿：
@@ -41,13 +41,12 @@ from pathlib import Path
 
 from app.core.paths import PROJECT_ROOT
 
-# 契约：这 5 个键就是接口 `setup_scripts` 字段的全部内容。
+# 契约：这 4 个键就是接口 `setup_scripts` 字段的全部内容。
 EXPECTED_KEYS = {
     "prepare_layout",
     "setup_enhanced_runtime",
     "download_open_models",
     "check_runtime",
-    "requirements_file",
 }
 
 
@@ -63,11 +62,11 @@ def test_summary_exposes_exactly_the_contracted_keys():
 
 
 def test_paths_are_anchored_to_project_root_not_module_dir():
-    """5 条路径都必须落在**仓库根**下。
+    """4 条路径都必须落在**仓库根**下。
 
     这一条当初是搬迁的警报器：模块一旦移入 `app/`，`Path(__file__).resolve().parent`
     就变成 `app/`，本断言会立刻失败，提示必须改用 `PROJECT_ROOT`
-    （否则接口静默返回 5 个空路径）。阶段 3.3 搬迁时它**确实**红了，改完重新变绿。
+    （否则接口静默返回 4 个空路径）。阶段 3.3 搬迁时它**确实**红了，改完重新变绿。
 
     现在它守的是另一件事：**别把锚点改回去**。文件已经不在根目录了，
     再出现"以本文件所在目录为准"的写法，这里会立刻发现。
@@ -84,7 +83,7 @@ def test_paths_are_anchored_to_project_root_not_module_dir():
 
 
 def test_expected_assets_actually_exist():
-    """5 条路径必须全部指向真实文件。
+    """4 条路径必须全部指向真实文件。
 
     每一条都由 `/api/research-runtime` 返回给调用方；指空即为接口层面的静默失效
     ——请求成功、字段齐全，指向的却是空气。

@@ -35,7 +35,7 @@
 为什么 SHA256 记在 `SOURCES.json` 而不是写死在测试里
 --------------------------------------------------
 本仓库反复吃过"两份清单不会同时改、分叉后不报错"的亏
-（见 `app/core/oss.py` 文件头、`tools/split_requirements.py` 文件头）。
+（见 `app/core/oss.py` 文件头）。
 清单只留**一处**（`static/vendor/SOURCES.json`，由生成脚本产出），
 测试只负责核对现实与它是否一致。
 

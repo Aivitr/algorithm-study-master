@@ -301,6 +301,11 @@ from app.routers.student_stats import router as student_stats_router
 app.include_router(student_stats_router)
 
 
+from app.routers.engagement import router as engagement_router
+
+app.include_router(engagement_router)
+
+
 from app.routers.emotion_stats import router as emotion_stats_router
 
 app.include_router(emotion_stats_router)

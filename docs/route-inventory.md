@@ -47,6 +47,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | POST | `/api/classroom/leave` | 写操作 |  |
 | GET | `/api/class-history/{user_id}` | 只读本地 | ✅ |
 | GET | `/api/emotion-details/{meeting_id}` | 只读本地 | ✅ |
+| GET | `/api/engagement/{meeting_id}` | 只读本地 |  |
 | GET | `/api/exercises/{report_id}` | 只读本地 | ✅ |
 | GET | `/api/get-video-context` | 只读本地 | ✅ |
 | GET | `/api/knowledge-graph/{meeting_id}` | 只读本地 | ✅ |

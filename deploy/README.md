@@ -5,8 +5,9 @@
 > systemd 安装脚本；下面的 systemd 指南保留作历史参考。
 
 > **本地开发请走容器**：[`docker.md`](docker.md)（阶段 5）。
-> 本文件描述的是 **systemd + nginx 的线上部署路线**，仍然有效、未被取代；
-> 容器化的线上部署方案尚未定案，见 `docker.md` 文末代办。
+> 本文件描述的是 **systemd + nginx 的历史路线**，已被当前 Docker + GitHub Actions
+> 取代；发布/回滚请看 [`RUNBOOK.md`](RUNBOOK.md)。下文 `pip install -r requirements.txt`
+> 也是历史命令，新环境用 `uv sync --frozen` / `uv export`。
 
 ## 📋 部署概述
 

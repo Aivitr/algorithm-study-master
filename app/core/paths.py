@@ -13,7 +13,7 @@
 from pathlib import Path
 
 # 哨兵：三者需同时存在于仓库根。
-_ROOT_SENTINELS = ("requirements.txt", "index.html", "server.py")
+_ROOT_SENTINELS = ("pyproject.toml", "index.html", "server.py")
 
 _THIS_FILE = Path(__file__).resolve()
 
