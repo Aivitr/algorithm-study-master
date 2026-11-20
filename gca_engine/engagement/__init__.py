@@ -1,11 +1,11 @@
 """
 gca_engine.engagement —— 第二阶段三维学习投入 + Hint 触发候选（GCA 组新增子包）。
 
-本包当前包含（feat/gca，2026-11-18 更新）：
+本包当前包含（feat/gca，2026-11-20 更新）：
 
 - protocols.py：公共数据结构（EmotionRecord / SpeechQualityRecord /
   EngagementDimensionResult / EngagementResult / HintCandidate），
-  三维模块与整合层统一遵守。
+  三维模块与整合层统一遵守；契约版本 ENGAGEMENT_PROTOCOL_VERSION。
 - triggers.py：两类 Hint 触发候选（low_participation / discussion_stall），
   纯 Python 计算，不调 LLM。
 - emotional.py：情感维度模块（岳柔），入口 analyze_emotional()
@@ -13,21 +13,20 @@ gca_engine.engagement —— 第二阶段三维学习投入 + Hint 触发候选�
   student_metrics 键，见 docs/engagement_protocol.md）。
 - cognitive.py：认知维度模块（葛艾蓝），入口 analyze_cognitive()
   （PR #31 已合入）。
-
-尚未实现（不在本包占位）：
-
-- behavioral.py：行为维度模块（雷梦琪），入口 analyze_behavioral()，
-  函数签名见 docs/engagement_protocol.md 第 4 节。
-- 整合入口 analyze_engagement(meeting_id, ...) -> EngagementResult：
-  由组长实现，等三个维度模块合入后编写（投影三个维度结果，不重复计算）。
+- behavioral.py：行为维度模块（雷梦琪），入口 analyze_behavioral()
+  （PR #85 已合入；复用 windows.py 窗口边界与 aggregation 同口径汇总）。
+- integration.py：三维统一整合入口 analyze_engagement()（组长），
+  一次调用三个维度模块并投影出 EngagementResult，不重复计算指标。
 
 维度模块按模块路径导入（如 gca_engine.engagement.emotional），
-本包顶层只重导出协议与 Hint 触发相关的公共符号。
+本包顶层只重导出协议、Hint 触发与整合入口相关的公共符号。
 """
 
+from gca_engine.engagement.integration import analyze_engagement
 from gca_engine.engagement.protocols import (
     DIMENSION_STATUS,
     DIMENSIONS,
+    ENGAGEMENT_PROTOCOL_VERSION,
     HINT_TYPES,
     TARGET_TYPES,
     EmotionRecord,
@@ -48,6 +47,7 @@ from gca_engine.engagement.triggers import (
 __all__ = [
     "DIMENSIONS",
     "DIMENSION_STATUS",
+    "ENGAGEMENT_PROTOCOL_VERSION",
     "HINT_TYPES",
     "TARGET_TYPES",
     "EmotionRecord",
@@ -61,4 +61,5 @@ __all__ = [
     "compute_hint_candidates",
     "discussion_stall_candidates",
     "low_participation_candidates",
+    "analyze_engagement",
 ]
