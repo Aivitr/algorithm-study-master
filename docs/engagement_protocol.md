@@ -101,9 +101,14 @@ def analyze_cognitive(
   整合层与前端按需读取，其余维度模块不强制跟随。
 - 行为维度注意：当前课堂适配器 `gca_engine/adapters/classroom.py` 一律传
   `end_time=None`，真实数据的"发言时长"暂不可用，本轮只统计次数/频率。
-- 整合入口由组长实现：`analyze_engagement(meeting_id, ...) -> EngagementResult`，
-  其中 `student_metrics` / `group_metrics` 是三个维度结果的投影，不重复计算。
-  等三个维度模块合入后编写。
+- 整合入口已实现（组长，2026-11-20）：`gca_engine/engagement/integration.py`
+  的 `analyze_engagement(meeting_id, utterances, emotion_records=None,
+  quality_records=None, gca_result=None, *, duration_seconds=None)
+  -> EngagementResult`，其中 `student_metrics` / `group_metrics` 是三个
+  维度结果的投影，不重复计算。整体 status 沿用 AnalysisStatus 7 种：
+  无发言记录 / 发言清洗后全为空 → `insufficient_data`；只有一名发言人 →
+  `single_speaker`；其余 → `success`。整合层 `timeline` 本轮输出 `None`，
+  各维度时间趋势经 `dimensions[维度名].timeline` 读取。
 
 ## 5. JSON 样例
 
