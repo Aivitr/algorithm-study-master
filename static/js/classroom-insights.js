@@ -29,6 +29,16 @@
                 gcaDashboard: null,
                 gcaMemberNames: {},
                 agentQuestion: TEACHER_QUESTION,
+                myNotes: '',
+                todoState: {},
+                aiDrawerPos: null,
+                followUpText: '',
+                followUpHistory: [],
+                editingScript: {},
+                openSpeech: {},
+                evidenceHit: '',
+                starred: {},
+                speaking: false,
                 agentLoading: false,
                 agentError: '',
                 agentResult: null,
@@ -81,8 +91,108 @@
                     && Array.isArray(this.gcaDashboard.timeline.fixed_5min)
                     ? this.gcaDashboard.timeline.fixed_5min : [];
             },
+            /** 没有真实结果时用示例数据填充面板（标「示例」，不写库）。 */
+            isDemoAnalysis() {
+                return !(this.agentResult && this.agentResult.analysis);
+            },
             agentAnalysis() {
-                return this.agentResult && this.agentResult.analysis ? this.agentResult.analysis : null;
+                if (this.agentResult && this.agentResult.analysis) return this.agentResult.analysis;
+                return this.isTeacherRole ? this.demoGroupAnalysis : this.demoPersonalAnalysis;
+            },
+            /** 教师：群体示例，数字来自当前课堂的发言。 */
+            demoGroupAnalysis() {
+                const stats = this.groupQuickStats || {};
+                const silent = this.silentMembers || [];
+                return {
+                    summary:
+                        `本组 ${stats.speakers || 0} 名学生已产生 ${stats.speeches || 0} 条发言，`
+                        + `平均质量 ${stats.avgQuality === '—' ? '暂无' : stats.avgQuality} 分。`
+                        + (silent.length ? `其中 ${silent.join('、')} 尚未开口。` : '')
+                        + '讨论已覆盖光反应与暗反应的关系，但结论仍停在并列观点上，建议推进一次收口。',
+                    findings: [
+                        {
+                            finding: '参与面已经铺开，但发言集中在少数人身上，需要点一次沉默成员。',
+                            evidence: this.sampleRefs(2),
+                            confidence: 'high',
+                        },
+                        {
+                            finding: '多数发言在补充事实，缺少把观点收敛成结论的动作。',
+                            evidence: this.sampleRefs(3),
+                            confidence: 'medium',
+                        },
+                        {
+                            finding: '实验设计讨论较多，但还没有落到可执行的分工。',
+                            evidence: this.sampleRefs(2).slice(0, 1),
+                            confidence: 'medium',
+                        },
+                    ],
+                    interventions: [
+                        {
+                            target: silent[0] || '小组',
+                            action: '引导沉默成员发言',
+                            script: `${silent[0] || '同学'}，你刚才一直在听，能就刚才讨论的实验设计补一句你的判断吗？`,
+                            expected: '让参与面覆盖到全部成员',
+                            risk: '突然点名可能让对方紧张，给一点思考时间',
+                            evidence: this.sampleRefs(2),
+                        },
+                        {
+                            target: '小组',
+                            action: '追加一个反例讨论',
+                            script: '如果光照骤降，暗反应会怎样？请用你们的实验数据说明依据。',
+                            expected: '把并列观点收敛成一条结论',
+                            risk: '可能重新打开已经收敛的分歧',
+                            evidence: this.sampleRefs(2),
+                        },
+                    ],
+                    metrics_reading: [],
+                    data_gaps: [],
+                    unsupported_claims: [],
+                };
+            },
+            /** 学生：个体示例，编号取自「我自己的发言」。 */
+            demoPersonalAnalysis() {
+                const stats = this.myStats || {};
+                const refs = (this.myTranscripts || []).map((item) => item.ref);
+                return {
+                    summary:
+                        `你在本组共发言 ${stats.count || 0} 条，占全组 ${stats.share || '—'}，`
+                        + `平均质量 ${stats.avgQuality === '—' ? '暂无' : stats.avgQuality} 分，`
+                        + `主要情绪是 ${stats.topEmotion || '—'}。`
+                        + '内容基本围绕课堂目标，但多为补充事实，缺少把观点讲成结论、并回应他人的动作。',
+                    findings: [
+                        {
+                            finding: '你的发言以事实补充为主，可以先给判断、再给依据，让别人更容易接话。',
+                            evidence: refs.slice(0, 2),
+                            confidence: 'high',
+                        },
+                        {
+                            finding: '有一次追问没有等到回应就被新话题带走了，可以主动把问题再抛一次。',
+                            evidence: refs.slice(2, 4),
+                            confidence: 'medium',
+                        },
+                    ],
+                    interventions: [
+                        {
+                            target: this.currentUser ? this.currentUser.username : '我',
+                            action: '给观点加一句结论',
+                            script: '我同意这个方向，因为……，所以我认为下一步应该……',
+                            expected: '让发言从补充事实变成可被引用的结论',
+                            risk: '如果依据不足，可能被同学追问细节',
+                            evidence: refs.slice(0, 2),
+                        },
+                        {
+                            target: '小组',
+                            action: '把追问再抛一次',
+                            script: '刚才那个问题还没结论，我们先把这一条讨论清楚再往下走。',
+                            expected: '把没被回应的疑问变成小组结论',
+                            risk: '可能拖慢进度，需要控制在一分钟内',
+                            evidence: refs.slice(1, 3),
+                        },
+                    ],
+                    metrics_reading: [],
+                    data_gaps: [],
+                    unsupported_claims: [],
+                };
             },
             agentFindings() {
                 return this.agentAnalysis && Array.isArray(this.agentAnalysis.findings)
@@ -152,22 +262,231 @@
             insightShowsGca() {
                 return false;
             },
+            /** 抽屉位置：默认贴右下，拖动后按坐标定位。 */
+            aiDrawerStyle() {
+                if (!this.aiDrawerPos) return {};
+                return {
+                    top: this.aiDrawerPos.top + 'px',
+                    left: this.aiDrawerPos.left + 'px',
+                    right: 'auto',
+                    bottom: 'auto',
+                };
+            },
             /** 教师才有动作确认权限；界面上的确认入口按它判断。 */
             isTeacherRole() {
                 return !!(this.currentUser && this.currentUser.role === 'teacher');
             },
+            /** 快捷问题：教师问群体，学生问自己。 */
+            presetQuestions() {
+                if (this.isTeacherRole) {
+                    return ['谁还没发言', '观点是否收敛', '下一阶段怎么推进'];
+                }
+                return ['我的发言质量如何', '我的观点被回应了吗', '我下一步能做什么'];
+            },
+            /** 取前 n 条真实证据编号的函数（computed 返回函数，供示例数据调用）。 */
+            sampleRefs() {
+                const items = this.transcriptItems || [];
+                return (n) => items.slice(0, n || 2).map((item) => item.ref);
+            },
+            /** 一条发言都没有的成员（教师示例里用来点名）。 */
+            silentMembers() {
+                const spoken = new Set((this.transcriptItems || []).map((item) => item.username));
+                const all = (this.onlineMembers || [])
+                    .map((m) => (typeof m === 'string' ? m : (m && (m.username || m.name)) || ''))
+                    .filter(Boolean);
+                return all.filter((name) => !spoken.has(name)).slice(0, 2);
+            },
+            /** 把 /api/transcripts 的原始项归一化：接口给的是 id / username，不是 speaker / evidence_id。 */
+            transcriptItems() {
+                return Object.entries(this.agentTranscriptMap || {}).map(([ref, item]) => ({
+                    ref,
+                    username: item.username || item.speaker || '',
+                    text: item.text || '',
+                    qualityScore: Number.isFinite(Number(item.quality_score)) ? Number(item.quality_score) : null,
+                    feedback: item.quality_feedback || '',
+                    emotion: item.emotion || '',
+                    timestamp: item.timestamp || 0,
+                }));
+            },
+            /** 我的发言对应的证据编号集合。 */
+            myEvidenceRefs() {
+                const refs = new Set();
+                (this.myTranscripts || []).forEach((item) => refs.add(item.ref));
+                return refs;
+            },
+            /** 我的发言明细（时间正序）。 */
+            myTranscripts() {
+                const name = this.currentUser && this.currentUser.username;
+                if (!name) return [];
+                return (this.transcriptItems || [])
+                    .filter((item) => item.username === name)
+                    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            },
+            /** 我的数据：条数 / 占比 / 平均质量 / 主要情绪 / 质量走势。 */
+            myStats() {
+                const mine = this.myTranscripts || [];
+                const all = this.transcriptItems || [];
+                const qualities = mine
+                    .map((item) => item.qualityScore)
+                    .filter((value) => Number.isFinite(value));
+                const emotions = {};
+                mine.forEach((item) => {
+                    const key = item.emotion || '未标注';
+                    emotions[key] = (emotions[key] || 0) + 1;
+                });
+                const topEmotion = Object.entries(emotions).sort((a, b) => b[1] - a[1])[0];
+                const avg = qualities.length
+                    ? Math.round(qualities.reduce((sum, value) => sum + value, 0) / qualities.length)
+                    : null;
+                return {
+                    count: mine.length,
+                    share: all.length ? Math.round((mine.length / all.length) * 100) + '%' : '—',
+                    avgQuality: avg === null ? '—' : avg,
+                    topEmotion: topEmotion ? topEmotion[0] : '—',
+                    series: qualities.slice(-8).map((value) => Math.max(6, Math.min(100, value))),
+                };
+            },
+            /** 教师端只留 3 条群体信号，避免面板过长。 */
+            groupFindings() {
+                return (this.agentFindings || []).slice(0, 3);
+            },
+            /** 学生端：证据落在我身上的发现。 */
+            personalFindings() {
+                const refs = this.myEvidenceRefs;
+                return (this.agentFindings || []).filter((finding) =>
+                    (finding.evidence || []).some((ref) => refs.has(ref))
+                );
+            },
+            /** 学生端：指向我（或引用我发言）的干预动作。 */
+            personalInterventions() {
+                const refs = this.myEvidenceRefs;
+                const name = this.currentUser && this.currentUser.username;
+                return (this.agentInterventions || []).filter((action) => {
+                    const target = String(action.target || '').trim();
+                    const hitName = name && target.includes(name);
+                    const hitRef = (action.evidence || []).some((ref) => refs.has(ref));
+                    // 面向「小组」的动作对我也成立，否则学生常常一条都看不到
+                    const hitGroup = !target || target === '小组';
+                    return hitName || hitRef || hitGroup;
+                });
+            },
+            /** 学生端待办：动作卡转成可勾选清单，状态存本机。 */
+            myTodos() {
+                return (this.personalInterventions || []).map((action, index) => {
+                    const key = this._todoKey(action, index);
+                    return {
+                        key,
+                        action: action.action,
+                        script: action.script,
+                        done: !!this.todoState[key],
+                    };
+                });
+            },
+            /** 成员总数：优先用在线名单，拿不到时退回「已发言人数」，避免显示 0。 */
+            memberCount() {
+                const online = (this.onlineMembers || []).length;
+                const spoken = (this.groupQuickStats && this.groupQuickStats.speakers) || 0;
+                return Math.max(online, spoken);
+            },
+            /** 参与率：已发言学生 / 成员总数。 */
+            participationRate() {
+                const total = this.memberCount || 0;
+                if (!total) return 0;
+                return Math.min(100, Math.round(((this.groupQuickStats.speakers || 0) / total) * 100));
+            },
+            /** 我发言占比的数值形式，给环形图用。 */
+            myShareNum() {
+                const share = String(this.myStats.share || '').replace('%', '');
+                const num = Number(share);
+                return Number.isFinite(num) ? Math.min(100, num) : 0;
+            },
+            /** 最近 5 条我的发言（倒序展示更近的在后）。 */
+            recentMyTranscripts() {
+                return (this.myTranscripts || []).slice(-5);
+            },
+            todoDoneCount() {
+                return (this.myTodos || []).filter((item) => item.done).length;
+            },
+            todoPercent() {
+                const total = (this.myTodos || []).length;
+                return total ? Math.round((this.todoDoneCount / total) * 100) : 0;
+            },
+            /** 教师端速览：参与人数 / 发言条数 / 平均质量。 */
+            groupQuickStats() {
+                const items = this.transcriptItems || [];
+                const speakers = new Set(items.map((item) => item.username).filter(Boolean));
+                const qualities = items
+                    .map((item) => item.qualityScore)
+                    .filter((value) => Number.isFinite(value));
+                const avg = qualities.length
+                    ? Math.round(qualities.reduce((sum, value) => sum + value, 0) / qualities.length)
+                    : null;
+                return {
+                    speakers: speakers.size,
+                    speeches: items.length,
+                    avgQuality: avg === null ? '—' : avg,
+                };
+            },
+        },
+        watch: {
+            // 切到 AI 页签（Agent 面板所在）时补一次数据：证据/成员/工具清单
+            classroomTab(tab) {
+                if (tab !== 'ai') return;
+                this.restoreStudentState();
+                if (this.isTeacherRole) this.loadAgentTools();
+            },
+            meetingId() {
+                this.gcaLoaded = false;
+                this.agentResult = null;
+                this.followUpHistory = [];
+            },
         },
         methods: {
+            /** 按住抽屉标题栏拖动窗口（限制在视口内）。 */
+            startAiDrawerDrag(event) {
+                const drawer = event.currentTarget.closest('.ai-drawer');
+                if (!drawer) return;
+                event.preventDefault();
+                const rect = drawer.getBoundingClientRect();
+                const offsetX = event.clientX - rect.left;
+                const offsetY = event.clientY - rect.top;
+                this.aiDrawerPos = { top: Math.round(rect.top), left: Math.round(rect.left) };
+                const move = (ev) => {
+                    const maxLeft = window.innerWidth - rect.width - 8;
+                    const maxTop = window.innerHeight - 80;
+                    const left = Math.min(Math.max(8, ev.clientX - offsetX), Math.max(8, maxLeft));
+                    const top = Math.min(Math.max(8, ev.clientY - offsetY), Math.max(8, maxTop));
+                    this.aiDrawerPos = { top: Math.round(top), left: Math.round(left) };
+                };
+                const up = () => {
+                    window.removeEventListener('mousemove', move);
+                    window.removeEventListener('mouseup', up);
+                    document.body.style.userSelect = '';
+                };
+                document.body.style.userSelect = 'none';
+                window.addEventListener('mousemove', move);
+                window.addEventListener('mouseup', up);
+            },
+            /** AI 页签入口：Agent 面板所在，进入时补齐证据/成员/工具数据。 */
+            openAgentTab() {
+                this.classroomTab = 'ai';
+                this._hydrateAgentQuestion();
+                this.restoreStudentState();
+                if (this.isTeacherRole) this.loadAgentTools();
+            },
             openInsightPanel(section) {
-                this.classroomTab = 'insight';
+                // 「分析」页签已取消：Agent 能力并入 AI 页签
+                this.classroomTab = 'ai';
                 this.insightSection = this._normalizeInsightSection(section);
                 this._hydrateAgentQuestion();
+                this.restoreStudentState();
                 this.$nextTick(() => setTimeout(() => this._ensureInsightSection(), 100));
             },
             /** 预填问题不再出现 GCA 口径；用户改过就不再覆盖。 */
             _hydrateAgentQuestion() {
                 const text = String(this.agentQuestion || '').trim();
-                if (!text || text === LEGACY_TEACHER_QUESTION) {
+                const defaults = [TEACHER_QUESTION, STUDENT_QUESTION, LEGACY_TEACHER_QUESTION];
+                if (!text || defaults.includes(text)) {
                     this.agentQuestion = this.isTeacherRole ? TEACHER_QUESTION : STUDENT_QUESTION;
                 }
             },
@@ -193,9 +512,257 @@
                 // GCA 看板已下线：不再请求 /metrics 与 /class-groups，函数留作兼容旧调用点
                 return;
             },
-            async runClassroomAgent() {
+            /** 证据编号 → 中文显示（指标类走中文名，发言类保留 T# 编号）。 */
+            refLabel(ref) {
+                const value = String(ref || '');
+                if (value.startsWith('M:')) {
+                    const metric = METRICS.find((item) => item.key === value.slice(2));
+                    return metric ? metric.label : '课堂指标';
+                }
+                return value;
+            },
+            /** 工具函数名 → 通俗中文名。 */
+            toolLabel(name) {
+                const map = {
+                    get_classroom_transcripts: '读取课堂发言',
+                    get_classroom_statistics: '读取课堂统计',
+                    get_classroom_knowledge: '读取课堂知识',
+                    get_class_metrics: '读取课堂指标',
+                };
+                return map[name] || '课堂数据';
+            },
+            /** 工具可用状态 → 中文。 */
+            toolStateLabel(state) {
+                const map = { running: '上课中', ended: '已结束', paused: '已暂停' };
+                return map[state] || '可用';
+            },
+            /** 头像文字：取称呼首字（王同学 → 王）。 */
+            shortName(name) {
+                const text = String(name || '').trim();
+                if (!text) return '组';
+                return text.slice(0, 1);
+            },
+            _todoKey(action, index) {
+                const mid = this.meetingId || 0;
+                const uid = (this.currentUser && this.currentUser.id) || 0;
+                return `${mid}:${uid}:${index}:${action.action || ''}`;
+            },
+            _studentStorageKey(kind) {
+                const mid = this.meetingId || 0;
+                const uid = (this.currentUser && this.currentUser.id) || 0;
+                return `insight:${kind}:${mid}:${uid}`;
+            },
+            /** 打开面板时加载证据；学生额外恢复本机的待办与笔记。 */
+            restoreStudentState() {
+                this.loadAgentTranscriptEvidence();
+                try {
+                    const rawStars = localStorage.getItem(this._studentStorageKey('stars'));
+                    this.starred = rawStars ? JSON.parse(rawStars) : {};
+                } catch (e) {
+                    this.starred = {};
+                }
+                if (this.isTeacherRole) return;
+                try {
+                    const rawTodos = localStorage.getItem(this._studentStorageKey('todos'));
+                    this.todoState = rawTodos ? JSON.parse(rawTodos) : {};
+                    const rawNotes = localStorage.getItem(this._studentStorageKey('notes'));
+                    this.myNotes = rawNotes || '';
+                } catch (e) {
+                    this.todoState = {};
+                    this.myNotes = '';
+                }
+            },
+            toggleMyTodo(key) {
+                const next = { ...this.todoState };
+                if (next[key]) {
+                    delete next[key];
+                } else {
+                    next[key] = true;
+                }
+                this.todoState = next;
+                try {
+                    localStorage.setItem(this._studentStorageKey('todos'), JSON.stringify(next));
+                } catch (e) {
+                    /* 隐私模式下写不进去，忽略 */
+                }
+            },
+            saveMyNotes() {
+                try {
+                    localStorage.setItem(this._studentStorageKey('notes'), this.myNotes || '');
+                } catch (e) {
+                    /* 同上 */
+                }
+            },
+            /** 预置问题：点一下直接跑，不用手打。 */
+            runPresetQuestion(question) {
+                if (this.agentLoading) return;
+                this.agentQuestion = question;
+                this.runClassroomAgent();
+            },
+            /** 就某一条自己的发言追问。 */
+            askAboutTranscript(item) {
+                if (!item || this.agentLoading) return;
+                this.agentQuestion = `请只针对我的这条发言 ${item.evidence_id}：「${item.text}」，说明我表达得怎么样、可以怎么改进。`;
+                this.runClassroomAgent();
+            },
+            /** 多轮追问：把历史和本次问题拼成一次请求，答案记进对话线。 */
+            async askFollowUp() {
+                const text = String(this.followUpText || '').trim();
+                if (!text || this.agentLoading) return;
+                const history = this.followUpHistory
+                    .slice(-2)
+                    .map((turn) => `上一轮问答｜问：${turn.question}｜答：${turn.answer}`)
+                    .join('\n');
+                const question = (history ? history + '\n' : '')
+                    + `新问题：${text}\n只回答这个问题，可以引用 T# 证据编号。`;
+                this.followUpText = '';
+                const previous = this.agentResult;
+                await this.runClassroomAgent(question, { silent: true });
+                const answer = (this.agentAnalysis && this.agentAnalysis.summary) || '';
+                if (this.agentResult !== previous && answer) {
+                    this.followUpHistory.push({ question: text, answer });
+                }
+            },
+            /** 朗读结论/反馈（浏览器 SpeechSynthesis，前端本地能力）。 */
+            speakSummary(text) {
+                if (!('speechSynthesis' in window)) {
+                    this.showAlert('当前浏览器不支持朗读', 'warning', '提示');
+                    return;
+                }
+                const synth = window.speechSynthesis;
+                if (this.speaking) {
+                    synth.cancel();
+                    this.speaking = false;
+                    return;
+                }
+                const utter = new SpeechSynthesisUtterance(String(text || ''));
+                utter.lang = 'zh-CN';
+                utter.rate = 1.02;
+                utter.onend = () => { this.speaking = false; };
+                utter.onerror = () => { this.speaking = false; };
+                this.speaking = true;
+                synth.cancel();
+                synth.speak(utter);
+            },
+            /** 星标收藏（本机保存）。 */
+            isStarred(key) {
+                return !!this.starred[key];
+            },
+            toggleStar(key) {
+                const next = { ...this.starred };
+                if (next[key]) {
+                    delete next[key];
+                } else {
+                    next[key] = true;
+                    this.showAlert('已收藏，下次还在这台设备上', 'success', '已收藏');
+                }
+                this.starred = next;
+                try {
+                    localStorage.setItem(this._studentStorageKey('stars'), JSON.stringify(next));
+                } catch (e) {
+                    /* 忽略隐私模式写入失败 */
+                }
+            },
+            /** 话术就地编辑。 */
+            startEditScript(index, action) {
+                this.$set(this.editingScript, index, true);
+                if (action) this._scriptBackup = action.script;
+            },
+            stopEditScript(index) {
+                this.$set(this.editingScript, index, false);
+            },
+            /** 点信号里的 T# 跳到证据页并高亮该条。 */
+            openEvidenceAt(ref) {
+                this.evidenceHit = ref;
+                this.$set(this.evidenceOpen, ref, true);
+                this.$nextTick(() => {
+                    setTimeout(() => {
+                        const el = document.querySelector(`[data-ev="${ref}"]`);
+                        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 260);
+                });
+            },
+            /** 展开「我的发言」的评分理由。 */
+            toggleSpeech(ref) {
+                this.$set(this.openSpeech, ref, !this.openSpeech[ref]);
+            },
+            /** 教师：给未发言成员生成可直接复制的话术。 */
+            makeSilentScript() {
+                const names = this.silentMembers || [];
+                if (!names.length) {
+                    this.showAlert('当前没有未发言成员', 'info', '提示');
+                    return;
+                }
+                const script = `${names[0]}，刚才这轮你一直在听，能就「光照减弱后暗反应会怎样」补一句你的判断吗？说一个理由就行。`;
+                this.agentQuestion = script;
+                this.copyText(script, '点名话术');
+            },
+            /** 复制文本到剪贴板（http 页面下退化为 execCommand）。 */
+            async copyText(text, label) {
+                const value = String(text || '').trim();
+                if (!value) {
+                    this.showAlert('没有可复制的内容', 'warning', '提示');
+                    return;
+                }
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(value);
+                    } else {
+                        const area = document.createElement('textarea');
+                        area.value = value;
+                        document.body.appendChild(area);
+                        area.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(area);
+                    }
+                    this.showAlert(`${label || '内容'}已复制`, 'success', '已复制');
+                } catch (e) {
+                    this.showAlert('复制失败，请手动选择文本', 'error', '复制失败');
+                }
+            },
+            /** 把本次分析导出成 markdown，纯前端生成。 */
+            downloadAgentMarkdown() {
+                const analysis = this.agentAnalysis;
+                if (!analysis) {
+                    this.showAlert('先运行一次分析', 'warning', '提示');
+                    return;
+                }
+                const lines = [];
+                lines.push(`# ${this.isTeacherRole ? '群体' : '个体'}分析 · 课堂 ${this.meetingId}`);
+                lines.push('');
+                lines.push(`- 生成时间：${new Date().toLocaleString('zh-CN')}`);
+                lines.push(`- 提问：${this.agentQuestion}`);
+                lines.push('');
+                lines.push('## 结论');
+                lines.push(analysis.summary || '');
+                (analysis.findings || []).forEach((finding, index) => {
+                    lines.push('');
+                    lines.push(`## 发现 ${index + 1}（${finding.confidence || 'medium'}）`);
+                    lines.push(finding.finding || '');
+                    lines.push(`证据：${(finding.evidence || []).join('、')}`);
+                });
+                (analysis.interventions || []).forEach((action, index) => {
+                    lines.push('');
+                    lines.push(`## 动作 ${index + 1}：${action.action || ''}`);
+                    lines.push(`对象：${action.target || '小组'}`);
+                    lines.push(`话术：${action.script || ''}`);
+                    lines.push(`预期：${action.expected || ''}`);
+                    lines.push(`风险：${action.risk || ''}`);
+                });
+                const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `classroom-${this.meetingId}-${this.isTeacherRole ? 'group' : 'me'}-analysis.md`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            },
+            async runClassroomAgent(overrideQuestion, options) {
                 if (!this.meetingId || this.agentLoading) return;
-                const question = String(this.agentQuestion || '').trim();
+                const silent = !!(options && options.silent);
+                const question = String(overrideQuestion || this.agentQuestion || '').trim();
                 if (!question) {
                     return this.showAlert('请输入希望 Agent 分析的问题', 'warning', '提示');
                 }
@@ -210,6 +777,7 @@
                         max_turns: 8,
                     }, { timeout: 120000, headers: { 'Content-Type': 'application/json' } });
                     this.agentResult = response.data;
+                    if (!silent) this.followUpHistory = [];
                     this.agentLastRunAt = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
                     this.insightSection = 'agent';
                     await this.loadAgentTranscriptEvidence();
@@ -271,12 +839,20 @@
                 const value = String(ref || '');
                 if (value.startsWith('T#')) {
                     const row = this.agentTranscriptMap[value];
+                    const chars = row ? String(row.text || '').trim().length : 0;
+                    const stamp = row && row.timestamp
+                        ? new Date(Number(row.timestamp)).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                        : '';
                     return {
                         ref: value,
-                        kind: '原始发言',
-                        title: row ? `${row.username || '学生'}：${row.text || ''}` : '原始发言证据',
-                        meta: row ? `质量 ${row.quality_score ?? '—'} · ${row.emotion || 'neutral'}` : '等待加载原文',
-                        transcript: row ? String(row.text || '') : '',
+                        kind: '课堂发言',
+                        // 只给聚合后的描述，不回显原句（原句统一在「对话」页查看）
+                        title: row
+                            ? `${row.username || '学生'} 的一条发言`
+                            : '课堂发言',
+                        meta: row
+                            ? [stamp, `质量 ${row.quality_score ?? '—'}`, `情绪 ${this.translateEmotion(row.emotion) || '—'}`, `${chars} 字`].filter(Boolean).join(' · ')
+                            : '等待加载',
                     };
                 }
                 if (value.startsWith('M:')) {
@@ -284,6 +860,7 @@
                     return {
                         ref: value,
                         kind: '质量指标',
+                        label: metric ? metric.label : '课堂指标',
                         title: metric ? `${metric.label}：${metric.tip}` : value.slice(2),
                         meta: 'GCA 确定性指标',
                     };

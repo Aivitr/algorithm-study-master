@@ -13,7 +13,7 @@
     <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
     <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/app.css" rel="stylesheet">
-    <link href="/static/css/classroom-insights.css?v=20261118b" rel="stylesheet">
+    <link href="/static/css/classroom-insights.css?v=20261122f" rel="stylesheet">
 </head>
 <body class="text-gray-800 h-screen flex flex-col font-sans">
 
@@ -1206,24 +1206,8 @@
                                         <div id="tdInteractionChart" class="w-full h-72"></div>
                                     </div>
 
-                                    <!-- 个体情绪波动 -->
-                                    <div class="bg-white rounded-2xl shadow-lg p-5 mb-6">
-                                        <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                            <i class="fas fa-user text-teal-600 mr-2"></i>个体情绪分析
-                                        </h4>
-                                        <!-- 成员选择 -->
-                                        <div class="flex space-x-2 mb-3 overflow-x-auto pb-2">
-                                            <button v-for="member in Object.keys(tdIndividualEmotions)" :key="'td-em-'+member"
-                                                    @click="tdSelectedMember = member; $nextTick(() => renderTdIndividualEmotionChart())"
-                                                    class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition"
-                                                    :class="tdSelectedMember === member ? 'text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                                                    :style="tdSelectedMember === member ? 'background: linear-gradient(135deg, #0f8b8d 0%, #3E7C86 100%);' : ''">
-                                                {{ member }}
-                                            </button>
-                                        </div>
-                                        <div id="tdIndividualEmotionChart" class="w-full h-72"></div>
-                                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-mouse-pointer mr-1"></i>点击图表上的点可播放该时刻的视频片段</p>
-                                    </div>
+                
+
 
                                     <!-- 群体情绪波动 -->
                                     <div class="bg-white rounded-2xl shadow-lg p-5">
@@ -1878,14 +1862,14 @@
                         </div>
 
                         <!-- AI辅导老师 -->
-                        <div class="bg-white p-8 rounded-2xl shadow-lg">
+                        <div v-if="false" class="bg-white p-8 rounded-2xl shadow-lg">
                             <div class="flex justify-between items-center mb-6">
                                 <h2 class="text-2xl font-bold text-gray-800">
                                     <i class="fas fa-robot text-green-600 mr-2"></i>AI辅导老师
                                 </h2>
                             </div>
                             <button @click="showAITutor = true" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-4 px-6 rounded-xl font-bold text-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center space-x-3">
-                                <i class="fas fa-comments text-2xl"></i>
+                                <i class="fas fa-comment-dots text-2xl"></i>
                                 <span>开始对话</span>
                             </button>
                             <p class="text-center text-gray-500 text-sm mt-4">24小时在线智能答疑,随时解答学习疑问</p>
@@ -1931,7 +1915,7 @@
                 </div>
                 <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50" ref="aiChatBox">
                     <div v-if="aiMessages.length === 0" class="text-center py-12 text-gray-400">
-                        <i class="fas fa-comments text-6xl mb-4 opacity-30"></i>
+                        <i class="fas fa-wand-magic-sparkles text-6xl mb-4 opacity-30"></i>
                         <p class="text-lg font-bold">你好！我是AI辅导老师</p>
                         <p class="text-sm mt-2">有什么学习问题都可以问我哦~</p>
                     </div>
@@ -2582,7 +2566,7 @@
                     <button @click="classroomTab = 'chat'" 
                             class="flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all"
                             :class="classroomTab === 'chat' ? 'classroom-tab-active' : 'classroom-tab-inactive'">
-                        <i class="fas fa-comments mr-1"></i>对话
+                        <i class="fas fa-comment-dots mr-1"></i>对话
                     </button>
                     <button @click="classroomTab = 'materials'" 
                             class="flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all relative"
@@ -2590,21 +2574,16 @@
                         <i class="fas fa-book mr-1"></i>资料
                         <span v-if="recommendedMaterials.length > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">{{ recommendedMaterials.length }}</span>
                     </button>
-                    <button @click="classroomTab = 'ai'" 
+                    <button @click="openAgentTab" 
                             class="flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all"
                             :class="classroomTab === 'ai' ? 'classroom-tab-active' : 'classroom-tab-inactive'">
                         <i class="fas fa-robot mr-1"></i>AI
-                    </button>
-<button @click="openInsightPanel('agent')"
-                            class="flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all"
-                            :class="classroomTab === 'insight' ? 'classroom-tab-active' : 'classroom-tab-inactive'">
-                        <i class="fas fa-chart-pie mr-1"></i>分析
                     </button>
                 </div>
             </div>
             
             <!-- 实时统计模块 -->
-            <div v-show="classroomTab === 'stats'" class="flex-1 overflow-y-auto p-4 bg-white" style="max-height: calc(100vh - 200px);">
+            <div v-show="classroomTab === 'stats'" class="flex-1 overflow-y-auto p-4 bg-white insight-pane-fill">
                 <div class="flex justify-end items-center mb-4">
                     <button @click="loadRealtimeStats" class="text-xs font-bold" style="color: var(--primary);">
                         <i class="fas fa-sync-alt mr-1"></i>刷新
@@ -2615,7 +2594,7 @@
                 <div class="space-y-4">
 
                     <!-- 发言占比饼图 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
+                    <div class="bg-white rounded-xl shadow-lg p-4" v-if="isTeacherRole">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-chart-pie text-teal-600 mr-2"></i>发言占比
                         </h4>
@@ -2623,7 +2602,7 @@
                     </div>
                     
                     <!-- 小组成员平均学习状态曲线 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
+                    <div class="bg-white rounded-xl shadow-lg p-4" v-if="isTeacherRole">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-chart-line text-teal-600 mr-2"></i>学习状态
                         </h4>
@@ -2631,15 +2610,9 @@
                     </div>
 
                     <!-- 成员交互关系雷达图 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
-                        <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-bullseye text-teal-600 mr-2"></i>互动雷达
-                        </h4>
-                        <div id="interactionChart" class="w-full h-56"></div>
-                    </div>
                     
                     <!-- 发言次数柱状图 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
+                    <div class="bg-white rounded-xl shadow-lg p-4" v-if="isTeacherRole">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-chart-bar text-green-500 mr-2"></i>发言次数
                         </h4>
@@ -2647,7 +2620,38 @@
                     </div>
                     
                     <!-- 个体情绪波动 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
+                    <!-- 学生专属：我的发言次数 -->
+                    <div v-if="!isTeacherRole" class="bg-white rounded-xl shadow-lg p-4">
+                        <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                            <i class="fas fa-chart-column text-teal-600 mr-2"></i>我的发言次数
+                            <span class="text-[10px] text-gray-400 ml-2">按 2 分钟窗口统计</span>
+                        </h4>
+                        <div id="mySpeechChart" class="w-full h-48"></div>
+                    </div>
+
+                    <!-- 学生专属：我的课堂数据 -->
+                    <div v-if="!isTeacherRole" class="bg-white rounded-xl shadow-lg p-4">
+                        <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                            <i class="fas fa-gauge-high text-teal-600 mr-2"></i>我的课堂数据
+                        </h4>
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div class="rounded-lg p-2" style="background:#f2f8f5;">
+                                <div class="text-[10px] text-gray-400">我的发言</div>
+                                <div class="text-lg font-black" style="color:var(--primary-dark)">{{ mySpeechCount }}</div>
+                            </div>
+                            <div class="rounded-lg p-2" style="background:#f2f8f5;">
+                                <div class="text-[10px] text-gray-400">平均质量</div>
+                                <div class="text-lg font-black" style="color:var(--primary-dark)">{{ myAvgQuality }}</div>
+                            </div>
+                            <div class="rounded-lg p-2" style="background:#f2f8f5;">
+                                <div class="text-[10px] text-gray-400">占全组</div>
+                                <div class="text-lg font-black" style="color:var(--primary-dark)">{{ mySpeechShare }}</div>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-2">仅展示你自己的数据；群体统计在教师端查看。</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-4" v-if="!isTeacherRole">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-user text-teal-600 mr-2"></i>{{ currentUser && currentUser.role === 'teacher' ? '个体情绪' : '我的情绪' }}
                         </h4>
@@ -2666,16 +2670,9 @@
                     </div>
                     
                     <!-- 群体情绪波动 -->
-                    <div class="bg-white rounded-xl shadow-lg p-4">
-                        <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-users mr-2" style="color: var(--primary);"></i>群体情绪
-                        </h4>
-                        <div id="groupEmotionChart" class="w-full h-64"></div>
-                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle mr-1"></i>所有成员平均情绪趋势</p>
-                    </div>
                     
                     <!-- 成员实时打分 -->
-                    <div class="bg-white rounded-xl shadow p-3 border border-gray-200">
+                    <div class="bg-white rounded-xl shadow p-3 border border-gray-200" v-if="isTeacherRole">
                         <h4 class="text-xs font-bold text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-star text-yellow-500 mr-2"></i>成员实时打分 <span class="text-[10px] text-gray-400 ml-2">(AI评分)</span>
                         </h4>
@@ -2835,259 +2832,9 @@
                 </div>  <!-- 关闭 v-else 的 space-y-4 -->
             </div>  <!-- 关闭统计模块 -->
             
-            <!-- 课堂分析扩展：Agent、证据与动作（GCA 看板已下线，教师/学生同构） -->
-            <div v-if="classroomTab === 'insight'" class="insight-panel p-4">
-                <div class="insight-subtabs mb-4">
-                    <button type="button" class="insight-subtab"
-                            :class="{ active: insightSection === 'agent' }"
-                            @click="switchInsightSection('agent')">
-                        <i class="fas fa-wand-magic-sparkles mr-1"></i>Agent
-                    </button>
-                    <button type="button" class="insight-subtab"
-                            :class="{ active: insightSection === 'evidence' }"
-                            @click="switchInsightSection('evidence')">
-                        <i class="fas fa-link mr-1"></i>证据与动作
-                    </button>
-                </div>
-
-                <!-- Agent 分析 -->
-                <div v-show="insightSection === 'agent'" class="space-y-4">
-                    <div class="insight-card p-4">
-                        <div class="flex items-start justify-between mb-3">
-                            <div>
-                                <h3 class="insight-card-title">
-                                    <i class="fas fa-wand-magic-sparkles" style="color: var(--primary);"></i>
-                                    Agent 分析
-                                </h3>
-                                <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '课堂事实层 · 干预建议' : '课堂事实层 · 小组协作观察' }}</p>
-                            </div>
-                            <span class="insight-status-chip">
-                                <i class="fas fa-shield-halved"></i>状态门禁
-                            </span>
-                        </div>
-                        <textarea v-model="agentQuestion" class="insight-agent-textarea"
-                                  :disabled="agentLoading"
-                                  placeholder="输入希望分析的问题"></textarea>
-                        <div class="flex items-center justify-between mt-3">
-                            <span class="text-[9px] text-gray-400">
-                                <i class="far fa-clock mr-1"></i>{{ agentLastRunAt || '尚未运行' }}
-                            </span>
-                            <button type="button" class="insight-primary-btn"
-                                    :disabled="agentLoading"
-                                    @click="runClassroomAgent">
-                                <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-play'"></i>
-                                {{ agentLoading ? '分析中' : '开始分析' }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 只读工具清单是教师侧的 Agent 审计信息，学生端不展示 -->
-                    <div v-if="isTeacherRole" class="insight-card p-4 space-y-2">
-                        <div class="flex items-start justify-between gap-2">
-                            <div>
-                                <h4 class="insight-card-title">
-                                    <i class="fas fa-toolbox" style="color: var(--primary);"></i>
-                                    可用工具
-                                </h4>
-                                <p class="text-[9px] text-gray-400 mt-1">Agent 只能调用下列只读工具</p>
-                            </div>
-                            <button type="button" class="insight-secondary-btn" @click="loadAgentTools(true)" :disabled="agentToolsLoading">
-                                <i class="fas" :class="agentToolsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
-                                刷新
-                            </button>
-                        </div>
-                        <div v-if="agentToolsError" class="insight-alert error">
-                            <i class="fas fa-circle-exclamation mr-1"></i>{{ agentToolsError }}
-                        </div>
-                        <div v-else-if="agentTools.length" class="space-y-2">
-                            <div v-for="tool in agentTools" :key="'tool-' + tool.name" class="insight-finding">
-                                <div class="flex items-start justify-between gap-2">
-                                    <p class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ tool.name }}</p>
-                                    <div class="flex flex-wrap gap-1 justify-end">
-                                        <span v-for="state in tool.allowed_states" :key="'state-' + tool.name + '-' + state"
-                                              class="insight-evidence-chip">{{ state }}</span>
-                                    </div>
-                                </div>
-                                <p class="text-[9px] text-gray-500 mt-1 leading-relaxed">{{ tool.description }}</p>
-                            </div>
-                        </div>
-                        <div v-else class="insight-empty">
-                            <i class="fas fa-toolbox"></i>
-                            <p>尚未加载工具清单</p>
-                        </div>
-                    </div>
-
-                    <div v-if="agentLoading" class="insight-loading">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>Agent 正在读取证据并计算指标</span>
-                    </div>
-                    <div v-else-if="agentError" class="insight-alert error">
-                        <i class="fas fa-circle-exclamation mr-1"></i>{{ agentError }}
-                    </div>
-                    <template v-else-if="agentAnalysis">
-                        <div class="insight-card p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <h4 class="insight-card-title">
-                                    <i class="fas fa-align-left" style="color: var(--primary);"></i>
-                                    分析摘要
-                                </h4>
-                                <button type="button" class="insight-secondary-btn" @click="switchInsightSection('evidence')">
-                                    查看证据
-                                </button>
-                            </div>
-                            <p class="text-[11px] leading-relaxed text-gray-600 whitespace-pre-wrap">{{ agentAnalysis.summary }}</p>
-                        </div>
-
-                        <div v-if="agentFindings.length" class="insight-card p-4 space-y-2">
-                            <h4 class="insight-card-title">
-                                <i class="fas fa-magnifying-glass-chart" style="color: var(--primary);"></i>
-                                关键发现
-                            </h4>
-                            <div v-for="(finding, index) in agentFindings" :key="'finding-' + index" class="insight-finding">
-                                <div class="flex items-start justify-between gap-2">
-                                    <p class="text-[11px] text-gray-700 leading-relaxed">{{ finding.finding }}</p>
-                                    <span class="insight-status-chip">{{ finding.confidence || 'medium' }}</span>
-                                </div>
-                                <div class="flex flex-wrap gap-1 mt-2">
-                                    <span v-for="ref in (finding.evidence || [])" :key="ref" class="insight-evidence-chip">{{ ref }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div v-if="agentAnalysis.metrics_reading && agentAnalysis.metrics_reading.length" class="insight-card p-4 space-y-2">
-                            <h4 class="insight-card-title">
-                                <i class="fas fa-gauge-high" style="color: var(--primary);"></i>
-                                指标解读
-                            </h4>
-                            <div v-for="(item, index) in agentAnalysis.metrics_reading" :key="'reading-' + index"
-                                 class="flex items-start justify-between gap-2 p-2 rounded-lg" style="background: #f7fbfa;">
-                                <div class="min-w-0">
-                                    <p class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ metricLabel(item.metric) }}</p>
-                                    <p class="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{{ item.reading }}</p>
-                                </div>
-                                <span class="text-[10px] font-black" style="color: var(--primary);">
-                                    {{ agentMetricValue(item) }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div v-if="agentAnalysis.data_gaps && agentAnalysis.data_gaps.length" class="insight-alert">
-                            <i class="fas fa-circle-info mr-1"></i>{{ agentAnalysis.data_gaps.join('；') }}
-                        </div>
-                    </template>
-                    <div v-else class="insight-empty">
-                        <i class="fas fa-wand-magic-sparkles"></i>
-                        <p>输入问题后运行 Agent</p>
-                    </div>
-                </div>
-
-                <!-- 证据与动作确认 -->
-                <div v-show="insightSection === 'evidence'" class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="insight-card-title">
-                                <i class="fas fa-link" style="color: var(--primary);"></i>
-                                证据与动作
-                            </h3>
-                            <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '引用原文 · 教师确认后记录' : '引用原文 · 干预动作由教师确认' }}</p>
-                        </div>
-                        <button type="button" class="insight-secondary-btn" @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
-                            <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
-                            刷新证据
-                        </button>
-                    </div>
-
-                    <div v-if="!agentAnalysis" class="insight-empty">
-                        <i class="fas fa-link-slash"></i>
-                        <p>运行 Agent 后显示证据链</p>
-                    </div>
-                    <template v-else>
-                        <div class="insight-card p-4">
-                            <div class="flex items-center justify-between mb-3">
-                                <h4 class="insight-card-title">
-                                    <i class="fas fa-fingerprint" style="color: var(--primary);"></i>
-                                    证据索引
-                                </h4>
-                                <div class="flex items-center gap-2">
-                                    <span class="insight-status-chip">已确认 {{ agentConfirmedCount }}</span>
-                                    <span class="insight-status-chip">待确认 {{ agentPendingCount }}</span>
-                                    <span class="insight-status-chip">{{ agentEvidenceRefs.length }} 条</span>
-                                </div>
-                            </div>
-                            <div v-if="agentEvidenceRefs.length" class="space-y-2">
-                                <div v-for="item in agentEvidenceRefs" :key="item.ref"
-                                     class="p-3 rounded-lg border border-gray-100 bg-gray-50">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="insight-evidence-chip">{{ item.ref }}</span>
-                                        <span class="text-[9px] text-gray-400">{{ item.kind }}</span>
-                                    </div>
-                                    <p class="text-[10px] text-gray-700 leading-relaxed">{{ item.title }}</p>
-                                    <p v-if="item.meta" class="text-[9px] text-gray-400 mt-1">{{ item.meta }}</p>
-                                    <div v-if="item.transcript" v-show="evidenceOpen[item.ref]"
-                                         class="insight-code mt-1">{{ item.transcript }}</div>
-                                    <button v-if="item.transcript" type="button"
-                                            class="text-[9px] font-bold mt-1"
-                                            style="color: var(--primary);"
-                                            @click="toggleEvidence(item.ref)">
-                                        {{ evidenceOpen[item.ref] ? '收起原文' : '查看原文' }}
-                                    </button>
-                                </div>
-                            </div>
-                            <div v-else class="insight-empty">
-                                <i class="fas fa-inbox"></i>
-                                <p>本次结论没有返回证据编号</p>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3">
-                            <div v-for="(action, index) in agentInterventions" :key="'action-' + index"
-                                 class="insight-action-card" :class="{ confirmed: action.confirmed }">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div>
-                                        <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ action.action }}</p>
-                                        <p class="text-[9px] text-gray-400 mt-0.5">
-                                            <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
-                                        </p>
-                                    </div>
-                                    <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
-                                        {{ action.confirmed ? '已确认' : '待确认' }}
-                                    </span>
-                                </div>
-                                <div class="insight-code mt-3">{{ action.script }}</div>
-                                <div class="grid grid-cols-1 gap-2 mt-3 text-[9px] leading-relaxed">
-                                    <p><span class="font-bold text-gray-500">预期：</span><span class="text-gray-600">{{ action.expected }}</span></p>
-                                    <p><span class="font-bold text-gray-500">风险：</span><span style="color:#9b5a3d;">{{ action.risk }}</span></p>
-                                </div>
-                                <div v-if="action.evidence && action.evidence.length" class="flex flex-wrap gap-1 mt-2">
-                                    <span v-for="ref in action.evidence" :key="ref" class="insight-evidence-chip">{{ ref }}</span>
-                                </div>
-                                <button v-if="isTeacherRole" type="button" class="insight-primary-btn w-full mt-3"
-                                        :disabled="action.confirmed || agentConfirming[index]"
-                                        @click="confirmAgentAction(action, index)">
-                                    <i class="fas" :class="action.confirmed ? 'fa-circle-check' : agentConfirming[index] ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-                                    {{ action.confirmed ? '已确认并记录' : '确认并记录动作' }}
-                                </button>
-                                <p v-else class="text-[9px] text-gray-400 mt-3 text-center">
-                                    <i class="fas fa-lock mr-1"></i>确认与记录由教师完成
-                                </p>
-                            </div>
-                            <div v-if="!agentInterventions.length" class="insight-empty insight-card">
-                                <i class="fas fa-clipboard-check"></i>
-                                <p>本次分析没有生成干预动作</p>
-                            </div>
-                        </div>
-
-                        <div v-if="agentAnalysis.unsupported_claims && agentAnalysis.unsupported_claims.length" class="insight-alert">
-                            <i class="fas fa-circle-question mr-1"></i>
-                            无证据表述：{{ agentAnalysis.unsupported_claims.join('；') }}
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-<!-- 实时对话模块 -->
-            <div v-if="classroomTab === 'chat'" style="position: relative;">
-            <div class="overflow-y-auto p-5 space-y-4 bg-white" ref="chat" style="max-height: calc(100vh - 250px);">
+            <!-- 实时对话模块 -->
+            <div v-if="classroomTab === 'chat'" class="flex-1 flex flex-col min-h-0" style="position: relative;">
+            <div class="overflow-y-auto p-5 space-y-4 bg-white insight-pane-fill" ref="chat">
                 <div v-for="(m, i) in displayMsgs" :key="messageRenderKey(m, i)" class="transition-all duration-500 chat-message">
                     <!-- 语音消息 -->
                     <div v-if="m.type=='new_speech_fast' || m.type=='new_speech'" class="flex flex-col">
@@ -3109,7 +2856,17 @@
                         </div>
                         <div class="bg-white p-4 rounded-2xl rounded-tl-none text-gray-700 text-sm shadow-sm border border-gray-100 hover:shadow-md transition-shadow" 
                              :class="{'analyzing-pulse': m.analyzing}">
-                            <div class="mb-3">{{m.text}}</div>
+                            <div class="mb-2">{{m.text}}</div>
+                            <!-- 每句话后的即时评价 -->
+                            <div v-if="m.type=='new_speech' || m.type=='new_speech_fast'"
+                                 class="mb-2 flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5"
+                                 style="background:#f4f9f7;border:1px solid #e2eee9;">
+                                <span class="text-[10px] font-bold" style="color:var(--primary-dark);">评价</span>
+                                <span v-if="m.quality_score" class="text-[10px] font-black" style="color:var(--primary);">{{ m.quality_score }} 分</span>
+                                <span v-if="m.emotion" class="insight-evidence-chip">{{ translateEmotion(m.emotion) }}</span>
+                                <span v-if="m.quality_feedback" class="text-[10px] text-gray-500">{{ m.quality_feedback }}</span>
+                                <span v-else class="text-[10px] text-gray-400">暂无文字评价</span>
+                            </div>
                             <!-- AI评语 -->
                             <div v-if="m.quality_feedback" class="p-2 rounded-lg mb-3 flex items-start space-x-2" style="background: var(--primary-soft);">
                                 <i class="fas fa-robot mt-0.5" style="color: var(--primary);"></i>
@@ -3264,7 +3021,540 @@
             
             <!-- AI对话模块 -->
             <div v-if="classroomTab === 'ai'" class="flex-1 flex flex-col bg-white min-h-0">
-                <div class="flex-1 overflow-y-auto p-5 space-y-4" ref="classroomAIChatBox">
+
+<!-- Agent 全部能力：并入 AI 页签 -->
+            <div v-if="classroomTab === 'ai'" class="insight-panel p-4">
+                
+
+                <!-- Agent 分析：教师=群体洞察（简），学生=我的学习画像（详） -->
+                <div class="space-y-4">
+
+                    <!-- ================= 教师：群体洞察 ================= -->
+                    <template v-if="isTeacherRole">
+                        <div class="insight-hero">
+                            <div class="insight-hero-main">
+                                <p class="insight-hero-kicker"><i class="fas fa-users-viewfinder mr-1"></i>本课整体</p>
+                                <h3 class="insight-hero-title">群体协作洞察</h3>
+                                <p class="insight-hero-sub">一屏结论 · 只给可执行的干预动作</p>
+                                <div class="insight-kpi-row">
+                                    <div class="insight-kpi">
+                                        <span class="k">参与学生</span>
+                                        <span class="v"><span>{{ groupQuickStats.speakers }}</span><small>/{{ memberCount }}</small></span>
+                                    </div>
+                                    <div class="insight-kpi">
+                                        <span class="k">发言条数</span>
+                                        <span class="v"><span>{{ groupQuickStats.speeches }}</span></span>
+                                    </div>
+                                    <div class="insight-kpi">
+                                        <span class="k">平均质量</span>
+                                        <span class="v"><span>{{ groupQuickStats.avgQuality }}</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="insight-ring" :style="{ '--pct': participationRate + '%' }">
+                                <div class="insight-ring-inner">
+                                    <span class="num">{{ participationRate }}%</span>
+                                    <span class="lab">参与率</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-bolt" style="color: var(--primary);"></i>问一句，拿结论
+                                </h4>
+                                <span class="text-[9px] text-gray-400">{{ agentLastRunAt || '尚未运行' }}</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                <button v-for="preset in presetQuestions" :key="'preset-' + preset"
+                                        type="button" class="insight-preset-chip"
+                                        :disabled="agentLoading" @click="runPresetQuestion(preset)">
+                                    <i class="fas fa-angle-right mr-1"></i>{{ preset }}
+                                </button>
+                            </div>
+                            <textarea v-model="agentQuestion" class="insight-agent-textarea"
+                                      :disabled="agentLoading" placeholder="也可以自己描述要看的群体问题"></textarea>
+                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent">
+                                <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-play'"></i>
+                                {{ agentLoading ? '分析中' : '分析群体' }}
+                            </button>
+                        </div>
+
+                        <!-- Agent 能查哪些数据 -->
+                        <div v-if="isTeacherRole" class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-toolbox" style="color: var(--primary);"></i>可用工具
+                                </h4>
+                                <button type="button" class="insight-icon-btn" title="刷新工具清单"
+                                        @click="loadAgentTools(true)" :disabled="agentToolsLoading">
+                                    <i class="fas" :class="agentToolsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                                </button>
+                            </div>
+                            
+                            <div v-if="agentToolsError" class="insight-alert error">
+                                <i class="fas fa-circle-exclamation mr-1"></i>{{ agentToolsError }}
+                            </div>
+                            <div v-else-if="agentTools.length" class="space-y-1">
+                                <div v-for="tool in agentTools" :key="'tool-' + tool.name" class="insight-finding">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ toolLabel(tool.name) }}</span>
+                                        <span class="flex gap-1">
+                                            <span v-for="st in tool.allowed_states" :key="tool.name + st"
+                                                  class="insight-evidence-chip">{{ toolStateLabel(st) }}</span>
+                                        </span>
+                                    </div>
+                                    <p class="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{{ tool.description }}</p>
+                                </div>
+                            </div>
+                            <div v-else class="insight-empty">
+                                <i class="fas fa-toolbox"></i>
+                                <p>尚未加载工具清单</p>
+                            </div>
+                        </div>
+
+                        <div v-if="agentLoading" class="insight-loading">
+                            <i class="fas fa-spinner fa-spin"></i><span>正在汇总群体证据</span>
+                        </div>
+                        <div v-else-if="agentError" class="insight-alert error">
+                            <i class="fas fa-circle-exclamation mr-1"></i>{{ agentError }}
+                        </div>
+                        <template v-else-if="agentAnalysis">
+                            <div class="insight-card p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-quote-left" style="color: var(--primary);"></i>群体结论
+                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">示例</span>
+                                    </h4>
+                                    <div class="flex gap-1">
+                                        <button type="button" class="insight-icon-btn" :class="{ 'is-on': isStarred('group-summary') }"
+                                                :title="isStarred('group-summary') ? '取消收藏' : '收藏这条结论'"
+                                                @click="toggleStar('group-summary')">
+                                            <i :class="isStarred('group-summary') ? 'fas fa-star' : 'far fa-star'"></i>
+                                        </button>
+                                        <button type="button" class="insight-icon-btn" :class="{ 'is-on': speaking }"
+                                                :title="speaking ? '停止朗读' : '朗读结论'" @click="speakSummary(agentAnalysis.summary)">
+                                            <i :class="speaking ? 'fas fa-stop' : 'fas fa-volume-high'"></i>
+                                        </button>
+                                        <button type="button" class="insight-icon-btn" title="复制结论"
+                                                @click="copyText(agentAnalysis.summary, '群体结论')">
+                                            <i class="far fa-copy"></i>
+                                        </button>
+                                        <button type="button" class="insight-icon-btn" title="查看证据"
+                                                @click="switchInsightSection('evidence')">
+                                            <i class="fas fa-link"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="insight-quote">{{ agentAnalysis.summary }}</p>
+                                <div v-if="followUpHistory.length" class="insight-thread mt-2">
+                                    <div v-for="(turn, i) in followUpHistory" :key="'turn-' + i" class="thread-turn">
+                                        <p class="q"><i class="fas fa-user mr-1"></i>{{ turn.question }}</p>
+                                        <p class="a"><i class="fas fa-robot mr-1"></i>{{ turn.answer }}</p>
+                                    </div>
+                                </div>
+                                <div class="insight-followup">
+                                    <input v-model="followUpText" class="insight-followup-input"
+                                           placeholder="继续追问，例如：具体点名下一个人该说什么"
+                                           :disabled="agentLoading" @keyup.enter="askFollowUp">
+                                    <button type="button" class="insight-primary-btn" :disabled="agentLoading || !followUpText.trim()"
+                                            @click="askFollowUp">
+                                        <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="groupFindings.length" class="insight-card p-4">
+                                <h4 class="insight-card-title mb-2">
+                                    <i class="fas fa-wave-square" style="color: var(--primary);"></i>关键信号
+                                </h4>
+                                <ul class="insight-timeline">
+                                    <li v-for="(finding, index) in groupFindings" :key="'gfind-' + index">
+                                        <span class="dot"></span>
+                                        <div class="body">
+                                            <p class="text-[11px] text-gray-700 leading-relaxed">{{ finding.finding }}</p>
+                                            <div class="flex flex-wrap gap-1 mt-1">
+                                                <button v-for="ref in (finding.evidence || [])" :key="'gref-' + index + ref"
+                                                        type="button" class="insight-evidence-chip insight-chip-click"
+                                                        :title="'跳到 ' + ref + ' 原文'"
+                                                        @click="openEvidenceAt(ref)">{{ refLabel(ref) }}</button>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <div v-if="silentMembers.length" class="insight-callout">
+                                    <span><i class="fas fa-user-clock mr-1"></i>未发言：{{ silentMembers.join('、') }}</span>
+                                    <button type="button" class="insight-secondary-btn" @click="makeSilentScript">
+                                        生成点名话术
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="agentInterventions.length" class="insight-card p-4 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-hand-holding-hand" style="color: var(--primary);"></i>干预动作
+                                    </h4>
+                                    <span class="text-[9px] text-gray-400">{{ agentInterventions.length }} 条</span>
+                                </div>
+                                <div v-for="(action, index) in agentInterventions" :key="'gact-' + index"
+                                     class="insight-action-card" :class="{ confirmed: action.confirmed }">
+                                    <div class="flex items-start gap-2">
+                                        <span class="insight-avatar">{{ shortName(action.target) }}</span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ action.action }}</p>
+                                            <p class="text-[9px] text-gray-400 mt-0.5">
+                                                <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
+                                            </p>
+                                        </div>
+                                        <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
+                                            {{ action.confirmed ? '已确认' : '待确认' }}
+                                        </span>
+                                    </div>
+                                    <div v-if="!editingScript[index]" class="insight-code mt-2 insight-code-editable"
+                                         title="点一下可以改话术" @click="startEditScript(index, action)">
+                                        {{ action.script }}
+                                    </div>
+                                    <textarea v-else v-model="action.script" class="insight-agent-textarea mt-2"
+                                              style="min-height: 56px;" @blur="stopEditScript(index)"></textarea>
+                                    <div class="flex gap-1 mt-2">
+                                        <button v-if="!editingScript[index]" type="button" class="insight-icon-btn"
+                                                title="编辑话术" @click="startEditScript(index, action)">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
+                                        <button type="button" class="insight-secondary-btn flex-1"
+                                                @click="copyText(action.script, '话术')">
+                                            <i class="far fa-copy"></i>复制话术
+                                        </button>
+                                        <button type="button" class="insight-primary-btn flex-1"
+                                                :disabled="action.confirmed || agentConfirming[index]"
+                                                @click="confirmAgentAction(action, index)">
+                                            <i class="fas" :class="action.confirmed ? 'fa-circle-check' : 'fa-check'"></i>
+                                            {{ action.confirmed ? '已记录' : '确认记录' }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="button" class="insight-ghost-btn w-full" @click="downloadAgentMarkdown">
+                                <i class="fas fa-file-arrow-down mr-1"></i>导出本次分析（.md）
+                            </button>
+                        </template>
+                    </template>
+
+                    <!-- ================= 学生：我的学习画像 ================= -->
+                    <template v-else>
+                        <div class="insight-hero insight-hero-student">
+                            <div class="insight-hero-main">
+                                <div class="flex items-center gap-2">
+                                    <span class="insight-avatar insight-avatar-lg">{{ shortName(currentUser.username) }}</span>
+                                    <div>
+                                        <p class="insight-hero-kicker">我的学习画像</p>
+                                        <h3 class="insight-hero-title">{{ currentUser.username }}</h3>
+                                    </div>
+                                </div>
+                                <div class="insight-kpi-row">
+                                    <div class="insight-kpi">
+                                        <span class="k">我的发言</span>
+                                        <span class="v"><span>{{ myStats.count }}</span></span>
+                                    </div>
+                                    <div class="insight-kpi">
+                                        <span class="k">平均质量</span>
+                                        <span class="v"><span>{{ myStats.avgQuality }}</span></span>
+                                    </div>
+                                    <div class="insight-kpi">
+                                        <span class="k">主要情绪</span>
+                                        <span class="v" style="font-size: 12px;">{{ myStats.topEmotion }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="insight-ring" :style="{ '--pct': myShareNum + '%' }">
+                                <div class="insight-ring-inner">
+                                    <span class="num">{{ myStats.share }}</span>
+                                    <span class="lab">发言占比</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-chart-simple" style="color: var(--primary);"></i>我的发言走势
+                                </h4>
+                                <button type="button" class="insight-icon-btn" title="刷新"
+                                        @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
+                                    <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                                </button>
+                            </div>
+                            <div v-if="myStats.series.length" class="insight-mini-bars">
+                                <span v-for="(bar, i) in myStats.series" :key="'bar-' + i"
+                                      class="insight-mini-bar" :style="{ height: bar + '%' }"
+                                      :title="'质量 ' + bar"></span>
+                            </div>
+                            <p v-else class="text-[9px] text-gray-400">还没有可展示的发言质量数据</p>
+                            <p class="text-[9px] text-gray-400 mt-1">最近 {{ myStats.series.length }} 条发言的质量分，越高代表内容越贴合课堂目标</p>
+                        </div>
+
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-wand-magic-sparkles" style="color: var(--primary);"></i>问问关于我的表现
+                                </h4>
+                                <span class="text-[9px] text-gray-400">{{ agentLastRunAt || '尚未运行' }}</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                <button v-for="preset in presetQuestions" :key="'spreset-' + preset"
+                                        type="button" class="insight-preset-chip"
+                                        :disabled="agentLoading" @click="runPresetQuestion(preset)">
+                                    <i class="fas fa-angle-right mr-1"></i>{{ preset }}
+                                </button>
+                            </div>
+                            <textarea v-model="agentQuestion" class="insight-agent-textarea"
+                                      :disabled="agentLoading" placeholder="也可以自己描述想看的角度"></textarea>
+                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent">
+                                <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+                                {{ agentLoading ? '分析中' : '分析我的表现' }}
+                            </button>
+                        </div>
+
+
+                        <div v-if="agentLoading" class="insight-loading">
+                            <i class="fas fa-spinner fa-spin"></i><span>正在读取我的发言证据</span>
+                        </div>
+                        <div v-else-if="agentError" class="insight-alert error">
+                            <i class="fas fa-circle-exclamation mr-1"></i>{{ agentError }}
+                        </div>
+                        <template v-else-if="agentAnalysis">
+                            <div v-if="isTeacherRole" class="insight-card p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-quote-left" style="color: var(--primary);"></i>给我的反馈
+                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">示例</span>
+                                    </h4>
+                                    <div class="flex gap-1">
+                                        <button type="button" class="insight-icon-btn" :class="{ 'is-on': isStarred('my-summary') }"
+                                                :title="isStarred('my-summary') ? '取消收藏' : '收藏这条反馈'"
+                                                @click="toggleStar('my-summary')">
+                                            <i :class="isStarred('my-summary') ? 'fas fa-star' : 'far fa-star'"></i>
+                                        </button>
+                                        <button type="button" class="insight-icon-btn" :class="{ 'is-on': speaking }"
+                                                :title="speaking ? '停止朗读' : '朗读反馈'" @click="speakSummary(agentAnalysis.summary)">
+                                            <i :class="speaking ? 'fas fa-stop' : 'fas fa-volume-high'"></i>
+                                        </button>
+                                        <button type="button" class="insight-icon-btn" title="复制反馈"
+                                                @click="copyText(agentAnalysis.summary, '反馈')">
+                                            <i class="far fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="insight-quote">{{ agentAnalysis.summary }}</p>
+                                <div v-if="followUpHistory.length" class="insight-thread mt-2">
+                                    <div v-for="(turn, i) in followUpHistory" :key="'sturn-' + i" class="thread-turn">
+                                        <p class="q"><i class="fas fa-user mr-1"></i>{{ turn.question }}</p>
+                                        <p class="a"><i class="fas fa-robot mr-1"></i>{{ turn.answer }}</p>
+                                    </div>
+                                </div>
+                                <div class="insight-followup">
+                                    <input v-model="followUpText" class="insight-followup-input"
+                                           placeholder="继续问，例如：我下一句话可以怎么说"
+                                           :disabled="agentLoading" @keyup.enter="askFollowUp">
+                                    <button type="button" class="insight-primary-btn" :disabled="agentLoading || !followUpText.trim()"
+                                            @click="askFollowUp">
+                                        <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="personalFindings.length" class="insight-card p-4">
+                                <h4 class="insight-card-title mb-2">
+                                    <i class="fas fa-crosshairs" style="color: var(--primary);"></i>与我相关
+                                </h4>
+                                <ul class="insight-timeline">
+                                    <li v-for="(finding, index) in personalFindings" :key="'pfind-' + index">
+                                        <span class="dot"></span>
+                                        <div class="body">
+                                            <p class="text-[11px] text-gray-700 leading-relaxed">{{ finding.finding }}</p>
+                                            <div class="flex flex-wrap gap-1 mt-1">
+                                                <span v-for="ref in (finding.evidence || [])" :key="'pref-' + index + ref"
+                                                      class="insight-evidence-chip">{{ refLabel(ref) }}</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div v-if="isTeacherRole && myTodos.length" class="insight-card p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-list-check" style="color: var(--primary);"></i>我可以做的
+                                    </h4>
+                                    <span class="text-[9px] text-gray-400"><span>{{ todoDoneCount }}</span>/{{ myTodos.length }} 已完成</span>
+                                </div>
+                                <div class="insight-progress"><span :style="{ width: todoPercent + '%' }"></span></div>
+                                <label v-for="todo in myTodos" :key="'todo-' + todo.key"
+                                       class="insight-todo" :class="{ done: todo.done }">
+                                    <input type="checkbox" :checked="todo.done" @change="toggleMyTodo(todo.key)">
+                                    <span class="min-w-0">
+                                        <span class="block text-[10px] font-bold" style="color: var(--primary-dark);">{{ todo.action }}</span>
+                                        <span class="block text-[9px] text-gray-500 mt-0.5 leading-relaxed">{{ todo.script }}</span>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div class="insight-card p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-pen-to-square" style="color: var(--primary);"></i>我的笔记
+                                    </h4>
+                                    <button type="button" class="insight-icon-btn" title="复制笔记" @click="copyText(myNotes, '笔记')">
+                                        <i class="far fa-copy"></i>
+                                    </button>
+                                </div>
+                                <textarea v-model="myNotes" class="insight-agent-textarea" style="min-height: 66px;"
+                                          placeholder="记下下一步想说的话，自动存在本机" @input="saveMyNotes"></textarea>
+                                <p class="text-[9px] text-gray-400 mt-1">
+                                    <i class="fas fa-circle-check mr-1" style="color:#4b9e78;"></i>已自动保存到本机浏览器
+                                </p>
+                            </div>
+                        </template>
+                        <div v-else class="insight-empty">
+                            <i class="fas fa-user-astronaut"></i>
+                            <p>运行一次，得到只针对我自己的反馈</p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 证据与动作确认 -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="insight-card-title">
+                                <i class="fas fa-link" style="color: var(--primary);"></i>
+                                证据与动作
+                            </h3>
+                            <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '引用原文 · 教师确认后记录' : '引用原文 · 干预动作由教师确认' }}</p>
+                        </div>
+                        <button type="button" class="insight-secondary-btn" @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
+                            <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                            刷新证据
+                        </button>
+                    </div>
+
+                    <div v-if="!agentAnalysis" class="insight-empty">
+                        <i class="fas fa-link-slash"></i>
+                        <p>运行 Agent 后显示证据链</p>
+                    </div>
+                    <template v-else>
+                        <div class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-fingerprint" style="color: var(--primary);"></i>
+                                    证据索引
+                                    <span class="text-[9px] font-normal text-gray-400 ml-1">原句见对话页</span>
+                                </h4>
+                                <div class="flex items-center gap-2">
+                                    <span class="insight-status-chip">已确认 {{ agentConfirmedCount }}</span>
+                                    <span class="insight-status-chip">待确认 {{ agentPendingCount }}</span>
+                                    <span class="insight-status-chip">{{ agentEvidenceRefs.length }} 条</span>
+                                </div>
+                            </div>
+                            <div v-if="agentEvidenceRefs.length" class="space-y-2">
+                                <div v-for="item in agentEvidenceRefs" :key="item.ref"
+                                     :data-ev="item.ref"
+                                     class="p-3 rounded-lg border border-gray-100 bg-gray-50"
+                                     :class="{ 'insight-evidence-hit': evidenceHit === item.ref }">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="insight-evidence-chip">{{ item.label || item.ref }}</span>
+                                        <span class="text-[9px] text-gray-400">{{ item.kind }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-gray-700 leading-relaxed">{{ item.title }}</p>
+                                    <p v-if="item.meta" class="text-[9px] text-gray-400 mt-1">{{ item.meta }}</p>
+                                </div>
+                            </div>
+                            <div v-else class="insight-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p>本次结论没有返回证据编号</p>
+                            </div>
+                        </div>
+
+                        <div v-if="isTeacherRole" class="space-y-3">
+                            <div v-for="(action, index) in agentInterventions" :key="'action-' + index"
+                                 class="insight-action-card" :class="{ confirmed: action.confirmed }">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ action.action }}</p>
+                                        <p class="text-[9px] text-gray-400 mt-0.5">
+                                            <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
+                                        </p>
+                                    </div>
+                                    <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
+                                        {{ action.confirmed ? '已确认' : '待确认' }}
+                                    </span>
+                                </div>
+                                <div class="insight-code mt-3">{{ action.script }}</div>
+                                <div class="grid grid-cols-1 gap-2 mt-3 text-[9px] leading-relaxed">
+                                    <p><span class="font-bold text-gray-500">预期：</span><span class="text-gray-600">{{ action.expected }}</span></p>
+                                    <p><span class="font-bold text-gray-500">风险：</span><span style="color:#9b5a3d;">{{ action.risk }}</span></p>
+                                </div>
+                                <div v-if="action.evidence && action.evidence.length" class="flex flex-wrap gap-1 mt-2">
+                                    <span v-for="ref in action.evidence" :key="ref" class="insight-evidence-chip">{{ refLabel(ref) }}</span>
+                                </div>
+                                <button v-if="isTeacherRole" type="button" class="insight-primary-btn w-full mt-3"
+                                        :disabled="action.confirmed || agentConfirming[index]"
+                                        @click="confirmAgentAction(action, index)">
+                                    <i class="fas" :class="action.confirmed ? 'fa-circle-check' : agentConfirming[index] ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                                    {{ action.confirmed ? '已确认并记录' : '确认并记录动作' }}
+                                </button>
+                                <p v-else class="text-[9px] text-gray-400 mt-3 text-center">
+                                    <i class="fas fa-lock mr-1"></i>确认与记录由教师完成
+                                </p>
+                            </div>
+                            <div v-if="isTeacherRole && !agentInterventions.length" class="insight-empty insight-card">
+                                <i class="fas fa-clipboard-check"></i>
+                                <p>本次分析没有生成干预动作</p>
+                            </div>
+                        </div>
+
+                        <div v-if="agentAnalysis.unsupported_claims && agentAnalysis.unsupported_claims.length" class="insight-alert">
+                            <i class="fas fa-circle-question mr-1"></i>
+                            无证据表述：{{ agentAnalysis.unsupported_claims.join('；') }}
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 通用弹窗（组件 global-modal）
+         组件定义在 app.js 里；模板在同目录下那个 text/x-template 的 script 块中。
+         这里只保留"把状态喂进去、把决定接回来"两件事：
+           :modal   → 弹窗要显示的内容与类型
+           @resolve → 用户在弹窗里做的选择（true = 确定/遮罩关闭，false = 取消）
+         之所以能把 v-if 收进组件里，是因为 resolveModal 本来就会把
+         globalModal 复位成 { show: false, ... }，隐藏方式没有变。 -->
+            <!-- AI 助手悬浮入口（所有页签可见） -->
+            <button v-if="pageState === 'classroom' && classroomTab === 'ai'" type="button" class="ai-fab" :class="{ 'is-open': aiDrawerOpen }" @click="aiDrawerOpen = !aiDrawerOpen">
+                <i class="fas" :class="aiDrawerOpen ? 'fa-xmark' : 'fa-wand-magic-sparkles'"></i>
+                <span>{{ aiDrawerOpen ? '收起助手' : 'AI 助手' }}</span>
+            </button>
+            <!-- AI 助手：右侧浮出窗口 -->
+            <transition name="ai-drawer-fade">
+            <div v-if="aiDrawerOpen && pageState === 'classroom' && classroomTab === 'ai'" class="ai-drawer" :style="aiDrawerStyle">
+                <div class="ai-drawer-head" title="按住可拖动窗口" @mousedown="startAiDrawerDrag($event)">
+                    <span class="flex items-center gap-2">
+                        <i class="fas fa-robot" style="color:#2F6670;"></i>
+                        <b style="font-size:12px;color:var(--primary-dark);">AI 助手</b>
+                        <span class="text-[9px] text-gray-400">课堂内提问</span>
+                    </span>
+                    <button type="button" class="ai-drawer-close" @click="aiDrawerOpen = false" title="关闭">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="ai-drawer-body" ref="classroomAIChatBox">
                     <div v-if="classroomAIMessages.length === 0" class="text-center py-12 text-gray-400">
                         <i class="fas fa-robot text-6xl mb-4 opacity-30"></i>
                         <p class="text-lg font-bold">有问题问我</p>
@@ -3295,7 +3585,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="classroom-ai-inputbar p-4 border-t-2 border-gray-100">
+                <div class="ai-drawer-inputbar">
                     <div class="flex space-x-2">
                         <input v-model="classroomAIInput" @keyup.enter="sendClassroomAIMessage" 
                                class="flex-1 px-6 py-3 bg-gray-100 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-opacity-40 outline-none text-sm text-gray-800 transition-all"
@@ -3311,16 +3601,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- 通用弹窗（组件 global-modal）
-         组件定义在 app.js 里；模板在同目录下那个 text/x-template 的 script 块中。
-         这里只保留"把状态喂进去、把决定接回来"两件事：
-           :modal   → 弹窗要显示的内容与类型
-           @resolve → 用户在弹窗里做的选择（true = 确定/遮罩关闭，false = 取消）
-         之所以能把 v-if 收进组件里，是因为 resolveModal 本来就会把
-         globalModal 复位成 { show: false, ... }，隐藏方式没有变。 -->
+            </transition>
     <global-modal :modal="globalModal" @resolve="resolveModal"></global-modal>
 
 </div>
@@ -3505,7 +3786,7 @@
     </transition>
 </script>
 
-<script src="/static/js/classroom-insights.js?v=20261118b"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/classroom-insights.js?v=20261122f"></script>
+<script src="/static/js/app.js?v=20261122f"></script>
 </body>
 </html>
