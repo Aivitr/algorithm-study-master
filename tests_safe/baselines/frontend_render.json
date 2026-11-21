@@ -25,32 +25,32 @@
       "length": 10205
     },
     "课堂（学生）": {
-      "hash": "d56a55f705e96dd1",
-      "length": 8090
+      "hash": "4474be879a7aab25",
+      "length": 7784
     },
     "课堂（教师）": {
-      "hash": "5bd8efcbc93dbbb8",
-      "length": 9100
+      "hash": "530dcb9f8b1e7498",
+      "length": 8853
     },
     "AI 辅导弹窗": {
-      "hash": "c1e8ac5ea822d09d",
-      "length": 7021
+      "hash": "cbc062fc88427c9c",
+      "length": 7003
     },
     "进入课堂弹窗": {
-      "hash": "a515a838a28b4f22",
-      "length": 10399
+      "hash": "59400261f07e5a39",
+      "length": 10381
     },
     "小组报告弹窗": {
-      "hash": "f27c1f470accb49b",
-      "length": 7581
+      "hash": "ad64e5b8f789ccc0",
+      "length": 7563
     },
     "通用弹窗": {
-      "hash": "d2585c97657b7ad0",
-      "length": 5579
+      "hash": "376910bb7486cd2e",
+      "length": 5561
     },
     "通用弹窗（确认）": {
-      "hash": "4bab3bf164d54330",
-      "length": 5626
+      "hash": "46aac5cfdb5a67f6",
+      "length": 5608
     }
   },
   "clicks": {
