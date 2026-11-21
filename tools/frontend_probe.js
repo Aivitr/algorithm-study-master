@@ -117,14 +117,7 @@ const doc = window.document;
 if (!doc.getElementById('app')) { process.stderr.write('页面里没有 #app\n'); process.exit(4); }
 
 const tick = () => new Promise(resolve => vm.$nextTick(resolve));
-// 有意新增、且由独立契约测试覆盖的功能入口可以声明为 probe-ignore。
-// 这样旧页面的冻结基线继续回答“原有界面有没有被改坏”，新增功能则由自己的
-// 测试回答“入口和接口有没有接上”，不必把一次有意增加按钮误报成回归。
-const snapshot = () => {
-  const clone = doc.getElementById('app').cloneNode(true);
-  clone.querySelectorAll('[data-frontend-probe-ignore]').forEach(el => el.remove());
-  return clone.outerHTML;
-};
+const snapshot = () => doc.getElementById('app').outerHTML;
 const hash = text => crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
 
 // 本探针会动到的根实例字段，挂载后立刻留一份初值。

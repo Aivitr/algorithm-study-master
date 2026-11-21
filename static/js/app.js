@@ -1017,6 +1017,9 @@ new Vue({
         studentGcaAverage(metricKey) {
             return ((this.studentGcaData || {}).class_average || {})[metricKey];
         },
+        studentGcaHasClassAverage() {
+            return Object.keys(((this.studentGcaData || {}).class_average || {})).length > 0;
+        },
         studentGcaSuggestionClass(level) {
             return `student-gca-suggestion-${level || 'info'}`;
         },
@@ -1037,9 +1040,21 @@ new Vue({
             this.chartInstances.studentGcaRadar = chart;
             const ownValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaMetric(metric.key) || 0));
             const averageValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaAverage(metric.key) || 0));
+            const showAverage = this.studentGcaHasClassAverage();
+            const seriesData = [
+                { value: ownValues, name: '我的特征', areaStyle: { color: 'rgba(37,99,235,.18)' }, lineStyle: { color: '#2563eb' } },
+            ];
+            if (showAverage) {
+                seriesData.push({
+                    value: averageValues,
+                    name: '课堂匿名均值',
+                    areaStyle: { color: 'rgba(15,139,141,.08)' },
+                    lineStyle: { color: '#0f8b8d', type: 'dashed' },
+                });
+            }
             chart.setOption({
                 tooltip: { trigger: 'item' },
-                legend: { top: 0, data: ['我的特征', '课堂匿名均值'] },
+                legend: { top: 0, data: showAverage ? ['我的特征', '课堂匿名均值'] : ['我的特征'] },
                 radar: {
                     radius: '62%', center: ['50%', '57%'],
                     indicator: this.gcaMetricDefinitions.map(metric => ({ name: metric.label, max: 1 })),
@@ -1047,10 +1062,7 @@ new Vue({
                 },
                 series: [{
                     type: 'radar',
-                    data: [
-                        { value: ownValues, name: '我的特征', areaStyle: { color: 'rgba(37,99,235,.18)' }, lineStyle: { color: '#2563eb' } },
-                        { value: averageValues, name: '课堂匿名均值', areaStyle: { color: 'rgba(15,139,141,.08)' }, lineStyle: { color: '#0f8b8d', type: 'dashed' } },
-                    ],
+                    data: seriesData,
                 }],
             }, true);
         },

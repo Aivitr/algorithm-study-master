@@ -62,8 +62,13 @@ def build_student_collaboration_feedback(
 
     suggestions: list[Dict[str, Any]] = []
     participation = float(student_metrics.get("participation") or 0.0)
-    participation_average = float(class_average.get("participation") or 0.0)
-    if participation < max(0.12, participation_average * 0.65):
+    participation_average = class_average.get("participation")
+    participation_threshold = None
+    if isinstance(participation_average, (int, float)) and not isinstance(
+        participation_average, bool
+    ):
+        participation_threshold = max(0.12, float(participation_average) * 0.65)
+    if participation_threshold is not None and participation < participation_threshold:
         suggestions.append(
             _feedback(
                 "participation_opportunity",

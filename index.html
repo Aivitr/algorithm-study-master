@@ -2412,7 +2412,6 @@
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="openGcaDashboard()"
                     class="gca-fab"
-                    data-frontend-probe-ignore
                     :class="{ 'has-stale-data': gcaDashboardStale }"
                     title="打开协作学习分析">
                 <i :class="gcaDashboardLoading ? 'fas fa-spinner fa-spin' : 'fas fa-project-diagram'"></i>
@@ -2422,7 +2421,6 @@
             <button v-else-if="currentUser && currentUser.role === 'student'"
                     @click="openStudentGca"
                     class="gca-fab student-gca-fab"
-                    data-frontend-probe-ignore
                     :class="{ 'has-stale-data': studentGcaStale }"
                     title="查看我的协作学习分析">
                 <i :class="studentGcaLoading ? 'fas fa-spinner fa-spin' : 'fas fa-user-friends'"></i>
@@ -2787,7 +2785,8 @@
                         <div v-else-if="studentGcaActiveTab === 'personal'" class="gca-content">
                             <section class="student-gca-privacy-note">
                                 <i class="fas fa-shield-alt"></i>
-                                <span>课堂均值已经匿名汇总；这里不会显示任何其他同学的姓名、个人指标或排名。</span>
+                                <span v-if="studentGcaHasClassAverage()">课堂均值已经匿名汇总；这里不会显示任何其他同学的姓名、个人指标或排名。</span>
+                                <span v-else>{{ studentGcaData.privacy_note || '课堂人数较少，匿名课堂均值暂不展示。' }}</span>
                             </section>
                             <section class="gca-individual-grid">
                                 <article class="gca-panel-card">
@@ -2817,13 +2816,18 @@
                         </div>
 
                         <div v-else-if="studentGcaActiveTab === 'classroom'" class="gca-content">
-                            <section class="gca-panel-card student-gca-trend-card">
+                            <section v-if="studentGcaHasClassAverage() && studentGcaData.timeline" class="gca-panel-card student-gca-trend-card">
                                 <div class="gca-card-title">
                                     <div><i class="fas fa-wave-square"></i><span>匿名课堂协作趋势</span></div>
                                     <small>仅显示全班汇总，不展示任何个人数据</small>
                                 </div>
                                 <div id="studentGcaTrend" class="gca-chart student-gca-trend"></div>
                             </section>
+                            <div v-else class="gca-state-view">
+                                <i class="fas fa-user-shield"></i>
+                                <h3>匿名趋势暂不展示</h3>
+                                <p>{{ studentGcaData.privacy_note || '课堂人数较少，匿名课堂均值与趋势暂不展示。' }}</p>
+                            </div>
                             <section class="student-gca-privacy-note">
                                 <i class="fas fa-lightbulb"></i>
                                 <span>趋势表示整个课堂讨论如何变化，不能据此推断某位同学的表现。</span>

@@ -11,7 +11,6 @@ def test_teacher_dashboard_markup_and_endpoint_are_wired():
     javascript = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
 
     assert 'class="gca-fab"' in html
-    assert "data-frontend-probe-ignore" in html
     assert "currentUser.role === 'teacher'" in html
     assert "gcaDashboardVisible" in html
     assert "整体情况" in html

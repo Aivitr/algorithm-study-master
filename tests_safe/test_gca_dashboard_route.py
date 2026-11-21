@@ -29,6 +29,43 @@ def test_gca_dashboard_returns_named_students_for_owner(client, seeded_ids, teac
     assert body["signals"]
 
 
+def test_gca_dashboard_rejects_other_teacher(client, seeded_ids):
+    from app.core import database
+    from app.models import User, UserSession
+    from app.services.session_service import create_session
+
+    db = database.SessionLocal()
+    try:
+        other = User(
+            student_id="T-OTHER",
+            username="其他老师",
+            password="not-a-real-hash",
+            role="teacher",
+        )
+        db.add(other)
+        db.commit()
+        db.refresh(other)
+        other_id = other.id
+        token, _ = create_session(db, other_id, device_id="gca-other-teacher")
+    finally:
+        db.close()
+
+    try:
+        response = client.get(
+            f"/api/gca-dashboard/{seeded_ids['meeting_id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 403
+    finally:
+        cleanup = database.SessionLocal()
+        try:
+            cleanup.query(UserSession).filter(UserSession.user_id == other_id).delete()
+            cleanup.query(User).filter(User.id == other_id).delete()
+            cleanup.commit()
+        finally:
+            cleanup.close()
+
+
 def test_gca_dashboard_returns_404_for_missing_meeting(client, teacher_headers):
     response = client.get("/api/gca-dashboard/999999", headers=teacher_headers)
     assert response.status_code == 404
@@ -52,18 +89,42 @@ def test_student_gca_view_contains_only_current_student(client, seeded_ids, stud
     assert "students" not in body
     assert "student_metrics" not in body
     assert "王同学" not in response.text
-    assert set(body["class_average"]) == {
-        "participation",
-        "internal_cohesion",
-        "overall_responsivity",
-        "social_impact",
-        "newness",
-        "communication_density",
-    }
+    assert body["class_average"] == {}
+    assert body["timeline"] is None
+    assert body["privacy_note"]
     assert body["suggestions"]
-    for window in (body.get("timeline") or {}).get("sliding_5min", []):
-        for stats in window.get("group_metrics", {}).values():
-            assert set(stats) == {"mean"}
+
+
+def test_student_view_shows_average_with_enough_speakers(seeded_ids, monkeypatch):
+    from app.core import database
+    from app.models import User
+    from app.services import gca_service
+
+    result = {
+        "status": "success",
+        "student_metrics": {str(seeded_ids["student_id"]): {"participation": 0.25}},
+        "group_metrics": {"participation": {"mean": 0.25, "min": 0.2, "max": 0.3}},
+        "timeline": {
+            "sliding_5min": [
+                {"center_second": 30, "group_metrics": {"participation": {"mean": 0.25}}}
+            ]
+        },
+        "metadata": {"n_speakers": 4, "n_utterances": 12, "duration_seconds": 600},
+        "warnings": [],
+        "error": None,
+    }
+    monkeypatch.setattr(gca_service, "analyze_meeting_metrics", lambda meeting_id, db: result)
+
+    db = database.SessionLocal()
+    try:
+        student = db.query(User).filter(User.id == seeded_ids["student_id"]).first()
+        view = gca_service.build_gca_student_view(seeded_ids["meeting_id"], student, db)
+    finally:
+        db.close()
+
+    assert view["class_average"] == {"participation": 0.25}
+    assert view["timeline"] is not None
+    assert view["privacy_note"] is None
 
 
 def test_student_gca_view_requires_participation(client, seeded_ids, student_headers):

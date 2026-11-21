@@ -91,7 +91,7 @@ def build_gca_dashboard(meeting_id: int, db: Session) -> Dict[str, Any]:
     )
     users_by_id = {str(user.id): user for user in users}
 
-    count_rows = (
+    count_rows: list[Any] = (
         db.query(Transcript.user_id, func.count(Transcript.id))
         .join(User, User.id == Transcript.user_id)
         .filter(
@@ -138,6 +138,10 @@ def build_gca_dashboard(meeting_id: int, db: Session) -> Dict[str, Any]:
     }
 
 
+# 少于 4 人时，组内均值可以被反推出其他同学的具体指标。
+MIN_ANONYMOUS_SPEAKERS = 4
+
+
 def _class_average(group_metrics: Dict[str, Any]) -> Dict[str, float]:
     """Expose only anonymous means; min/max can reveal classmates in small groups."""
     averages: Dict[str, float] = {}
@@ -178,8 +182,11 @@ def build_gca_student_view(meeting_id: int, student: User, db: Session) -> Dict[
     result = analyze_meeting_metrics(meeting_id, db)
     student_key = str(student.id)
     metrics = (result.get("student_metrics") or {}).get(student_key) or {}
+    metadata = result.get("metadata") or {}
+    student_count = int(metadata.get("n_speakers") or 0)
+    anonymous_visible = student_count >= MIN_ANONYMOUS_SPEAKERS
     group_metrics = result.get("group_metrics") or {}
-    class_average = _class_average(group_metrics)
+    class_average = _class_average(group_metrics) if anonymous_visible else {}
 
     own_utterance_count = int(
         db.query(func.count(Transcript.id))
@@ -190,7 +197,6 @@ def build_gca_student_view(meeting_id: int, student: User, db: Session) -> Dict[
         .scalar()
         or 0
     )
-    metadata = result.get("metadata") or {}
     total_utterance_count = int(metadata.get("n_utterances") or 0)
     status = str(result.get("status") or AnalysisStatus.INTERNAL_ERROR.value)
 
@@ -201,7 +207,7 @@ def build_gca_student_view(meeting_id: int, student: User, db: Session) -> Dict[
         "summary": {
             "own_utterance_count": own_utterance_count,
             "total_utterance_count": total_utterance_count,
-            "student_count": int(metadata.get("n_speakers") or 0),
+            "student_count": student_count,
             "duration_seconds": float(metadata.get("duration_seconds") or 0.0),
         },
         "student": {
@@ -211,7 +217,10 @@ def build_gca_student_view(meeting_id: int, student: User, db: Session) -> Dict[
             "metrics": metrics,
         },
         "class_average": class_average,
-        "timeline": _anonymous_timeline(result.get("timeline")),
+        "timeline": _anonymous_timeline(result.get("timeline")) if anonymous_visible else None,
+        "privacy_note": None
+        if anonymous_visible
+        else f"课堂不足 {MIN_ANONYMOUS_SPEAKERS} 人，匿名均值与趋势暂不展示。",
         "suggestions": build_student_collaboration_feedback(
             status=status,
             student_metrics=metrics,
