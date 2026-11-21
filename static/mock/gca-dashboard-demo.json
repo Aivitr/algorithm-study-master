@@ -1,0 +1,73 @@
+{
+  "demo_data": true,
+  "status": "success",
+  "meeting_id": "demo",
+  "generated_at": "2026-11-17T10:00:00+08:00",
+  "summary": { "student_count": 4, "utterance_count": 24, "duration_seconds": 1830 },
+  "group_metrics": {
+    "participation": { "mean": 0.25, "min": 0.14, "max": 0.38, "count": 4 },
+    "internal_cohesion": { "mean": 0.645, "min": 0.57, "max": 0.74, "count": 4 },
+    "overall_responsivity": { "mean": 0.475, "min": 0.31, "max": 0.62, "count": 4 },
+    "social_impact": { "mean": 0.458, "min": 0.27, "max": 0.68, "count": 4 },
+    "newness": { "mean": 0.59, "min": 0.49, "max": 0.71, "count": 4 },
+    "communication_density": { "mean": 0.65, "min": 0.58, "max": 0.72, "count": 4 }
+  },
+  "students": [
+    {
+      "id": "demo-1", "name": "林同学（演示）", "student_id": "DEMO001", "utterance_count": 9,
+      "metrics": { "participation": 0.38, "internal_cohesion": 0.74, "overall_responsivity": 0.62, "social_impact": 0.68, "newness": 0.71, "communication_density": 0.69 }
+    },
+    {
+      "id": "demo-2", "name": "周同学（演示）", "student_id": "DEMO002", "utterance_count": 7,
+      "metrics": { "participation": 0.30, "internal_cohesion": 0.66, "overall_responsivity": 0.58, "social_impact": 0.55, "newness": 0.64, "communication_density": 0.72 }
+    },
+    {
+      "id": "demo-3", "name": "陈同学（演示）", "student_id": "DEMO003", "utterance_count": 5,
+      "metrics": { "participation": 0.18, "internal_cohesion": 0.61, "overall_responsivity": 0.39, "social_impact": 0.33, "newness": 0.52, "communication_density": 0.61 }
+    },
+    {
+      "id": "demo-4", "name": "许同学（演示）", "student_id": "DEMO004", "utterance_count": 3,
+      "metrics": { "participation": 0.14, "internal_cohesion": 0.57, "overall_responsivity": 0.31, "social_impact": 0.27, "newness": 0.49, "communication_density": 0.58 }
+    }
+  ],
+  "timeline": {
+    "sliding_5min": [
+      { "center_second": 300, "group_metrics": { "overall_responsivity": { "mean": 0.66 }, "newness": { "mean": 0.75 }, "social_impact": { "mean": 0.64 } } },
+      { "center_second": 600, "group_metrics": { "overall_responsivity": { "mean": 0.64 }, "newness": { "mean": 0.71 }, "social_impact": { "mean": 0.62 } } },
+      { "center_second": 900, "group_metrics": { "overall_responsivity": { "mean": 0.61 }, "newness": { "mean": 0.68 }, "social_impact": { "mean": 0.60 } } },
+      { "center_second": 1200, "group_metrics": { "overall_responsivity": { "mean": 0.56 }, "newness": { "mean": 0.62 }, "social_impact": { "mean": 0.55 } } },
+      { "center_second": 1500, "group_metrics": { "overall_responsivity": { "mean": 0.46 }, "newness": { "mean": 0.55 }, "social_impact": { "mean": 0.48 } } },
+      { "center_second": 1800, "group_metrics": { "overall_responsivity": { "mean": 0.38 }, "newness": { "mean": 0.48 }, "social_impact": { "mean": 0.42 } } }
+    ],
+    "fixed_5min": []
+  },
+  "signals": [
+    {
+      "type": "participation_imbalance", "level": "warning", "title": "参与分布较集中",
+      "description": "演示数据中前两名发言者承担了约 68% 的发言。",
+      "evidence": { "top_two_share": 0.68, "speaker_count": 4, "utterance_count": 24 },
+      "suggestion": "可安排一轮依次表达，为其他成员留出发言空间。",
+      "related_student_ids": ["demo-1", "demo-2"]
+    },
+    {
+      "type": "responsivity_decline", "level": "warning", "title": "同伴回应有所减少",
+      "description": "演示课堂后半段中，学生之间相互回应的程度逐渐下降。",
+      "evidence": { "previous_mean": 0.56, "current_mean": 0.38 },
+      "suggestion": "可请成员先复述或评价上一位同学的观点，再补充自己的意见。",
+      "related_student_ids": []
+    },
+    {
+      "type": "newness_decline", "level": "warning", "title": "新观点贡献有所减少",
+      "description": "演示课堂后半段的新观点贡献出现下降。",
+      "evidence": { "previous_mean": 0.62, "current_mean": 0.48 },
+      "suggestion": "可以增加反例、约束条件或新的比较角度，帮助讨论继续推进。",
+      "related_student_ids": []
+    }
+  ],
+  "warnings": [
+    "这是用于界面验收的完全虚构数据，不代表任何真实学生或课堂。",
+    "GCA 指标描述协作行为特征，不应直接作为学生成绩。"
+  ],
+  "error": null,
+  "metadata": { "n_speakers": 4, "n_utterances": 24, "duration_seconds": 1830, "source": "frontend_demo_fixture" }
+}

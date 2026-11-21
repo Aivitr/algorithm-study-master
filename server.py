@@ -39,9 +39,8 @@ if os.path.abspath(_BOOTSTRAP_DIR) != str(PROJECT_ROOT):
 BASE_DIR = str(PROJECT_ROOT)  # 兼容既有的 os.path.join(BASE_DIR, ...) 调用点
 
 # 追加进 sys.path 的目录，登记下来供 tests_safe/test_paths_anchor.py 断言其存在。
-_SERVER_SYSPATH_ADDITIONS = [
-    os.path.join(BASE_DIR, "_tmp_agora_token_builder"),
-]
+# Agora token builder 现已作为正式依赖安装，不再需要仓库内临时兼容目录。
+_SERVER_SYSPATH_ADDITIONS = []
 for _extra_dir in _SERVER_SYSPATH_ADDITIONS:
     if os.path.isdir(_extra_dir):
         sys.path.append(_extra_dir)
@@ -309,6 +308,10 @@ app.include_router(engagement_router)
 from app.routers.emotion_stats import router as emotion_stats_router
 
 app.include_router(emotion_stats_router)
+
+from app.routers.gca import router as gca_router
+
+app.include_router(gca_router)
 
 
 from app.routers.media_context import router as media_context_router

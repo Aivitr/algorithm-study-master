@@ -24,11 +24,11 @@
 正因如此，「路由前缀契约……必须在测试中断言」。
 本文件即该项。
 
-69 这个数字
+71 这个数字
 -----------
-接口契约冻结的是「69 个接口」。实测枚举得 **66 条 HTTP + 3 条 WebSocket = 69**，
+接口契约冻结的是「71 个接口」。实测枚举得 **68 条 HTTP + 3 条 WebSocket = 71**，
 与 `docs/route-inventory.md` 一致。其余 5 条（`/storage` 挂载、`/docs`、
-`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 69，
+`/openapi.json`、`/redoc`、`/docs/oauth2-redirect`）是框架自带的，不计入 71，
 但同样需要钉住——重构时误删 `app.mount("/storage", ...)` 会让所有 OSS 素材 404。
 """
 
@@ -138,6 +138,8 @@ HTTP_ROUTES = [
     ("POST", "/api/end-class"),
     ("GET", "/api/engagement/{meeting_id}"),
     ("GET", "/api/exercises/{report_id}"),
+    ("GET", "/api/gca-dashboard/{meeting_id}"),
+    ("GET", "/api/gca-student-view/{meeting_id}"),
     ("POST", "/api/generate-pdf-report"),
     ("POST", "/api/generate-report"),
     ("POST", "/api/generate-report-stream"),
@@ -212,14 +214,14 @@ def actual_routes(local_app):
     return _enumerate(local_app)
 
 
-def test_frozen_interface_count_is_69():
-    """契约冻结的「69 个接口」= 66 条 HTTP + 3 条 WebSocket。
+def test_frozen_interface_count_is_71():
+    """契约冻结的「71 个接口」= 68 条 HTTP + 3 条 WebSocket。
 
     这条断言把冻结的数字与契约表本身绑在一起：若有人往契约表里加/删一条业务
-    路由，这里会先失败，逼他确认"69"这个对外承诺是否也要改。
+    路由，这里会先失败，逼他确认"71"这个对外承诺是否也要改。
     """
-    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 69, (
-        f"契约冻结 69 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
+    assert len(HTTP_ROUTES) + len(WS_ROUTES) == 71, (
+        f"契约冻结 71 个接口，当前契约表有 {len(HTTP_ROUTES)} HTTP + "
         f"{len(WS_ROUTES)} WS = {len(HTTP_ROUTES) + len(WS_ROUTES)}"
     )
 

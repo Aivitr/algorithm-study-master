@@ -1,0 +1,75 @@
+{
+  "demo_data": true,
+  "status": "success",
+  "meeting_id": "demo",
+  "generated_at": "2026-11-17T10:00:00+08:00",
+  "summary": {
+    "own_utterance_count": 5,
+    "total_utterance_count": 24,
+    "student_count": 4,
+    "duration_seconds": 1830
+  },
+  "student": {
+    "id": "current-demo-student",
+    "name": "当前学生（演示）",
+    "student_id": "DEMO-STUDENT",
+    "metrics": {
+      "participation": 0.18,
+      "internal_cohesion": 0.61,
+      "overall_responsivity": 0.34,
+      "social_impact": 0.32,
+      "newness": 0.48,
+      "communication_density": 0.60
+    }
+  },
+  "class_average": {
+    "participation": 0.25,
+    "internal_cohesion": 0.645,
+    "overall_responsivity": 0.475,
+    "social_impact": 0.458,
+    "newness": 0.59,
+    "communication_density": 0.65
+  },
+  "timeline": {
+    "sliding_5min": [
+      { "center_second": 300, "group_metrics": { "overall_responsivity": { "mean": 0.66 }, "newness": { "mean": 0.75 }, "social_impact": { "mean": 0.64 } } },
+      { "center_second": 600, "group_metrics": { "overall_responsivity": { "mean": 0.64 }, "newness": { "mean": 0.71 }, "social_impact": { "mean": 0.62 } } },
+      { "center_second": 900, "group_metrics": { "overall_responsivity": { "mean": 0.61 }, "newness": { "mean": 0.68 }, "social_impact": { "mean": 0.60 } } },
+      { "center_second": 1200, "group_metrics": { "overall_responsivity": { "mean": 0.56 }, "newness": { "mean": 0.62 }, "social_impact": { "mean": 0.55 } } },
+      { "center_second": 1500, "group_metrics": { "overall_responsivity": { "mean": 0.46 }, "newness": { "mean": 0.55 }, "social_impact": { "mean": 0.48 } } },
+      { "center_second": 1800, "group_metrics": { "overall_responsivity": { "mean": 0.38 }, "newness": { "mean": 0.48 }, "social_impact": { "mean": 0.42 } } }
+    ],
+    "fixed_5min": []
+  },
+  "suggestions": [
+    {
+      "type": "respond_to_peer",
+      "level": "action",
+      "title": "多回应同伴观点",
+      "description": "你的发言与同伴观点的连接目前相对较少。",
+      "suggestion": "先复述上一位同学的核心观点，再说明你的补充或不同意见。",
+      "metric": "overall_responsivity"
+    },
+    {
+      "type": "add_new_angle",
+      "level": "action",
+      "title": "尝试补充一个新角度",
+      "description": "你的发言对已有讨论的新信息补充目前相对较少。",
+      "suggestion": "可以提出反例、适用条件，或者换一个比较维度继续讨论。",
+      "metric": "newness"
+    },
+    {
+      "type": "invite_response",
+      "level": "action",
+      "title": "给同伴留下回应入口",
+      "description": "你的观点目前较少引出后续回应。",
+      "suggestion": "表达后补充一个具体问题，邀请同伴评价或提供证据。",
+      "metric": "social_impact"
+    }
+  ],
+  "warnings": [
+    "这是用于学生端界面验收的虚构数据，不代表任何真实学生。",
+    "这些指标描述当前课堂中的协作行为，不是成绩或能力诊断。"
+  ],
+  "error": null
+}
