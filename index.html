@@ -3083,7 +3083,7 @@
             </div>
             
             <!-- 实时统计模块 -->
-            <div v-show="classroomTab === 'stats'" class="flex-1 overflow-y-auto p-4 bg-white" style="max-height: calc(100vh - 200px);">
+            <div v-show="classroomTab === 'stats'" class="classroom-stats-panel flex-1 min-h-0 overflow-y-auto p-4 bg-white">
                 <div class="flex justify-end items-center mb-4">
                     <button @click="loadRealtimeStats" class="text-xs font-bold" style="color: var(--primary);">
                         <i class="fas fa-sync-alt mr-1"></i>刷新

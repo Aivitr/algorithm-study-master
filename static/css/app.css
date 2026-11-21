@@ -692,7 +692,7 @@
             box-shadow: 0 0 12px var(--glass-primary-glow) !important;
         }
         
-        /* 🏷️ 标签发光动画（仅课堂页面） */
+        /* 🏷️ 标签样式（仅课堂页面） */
         .page-classroom .tag,
         .page-classroom .badge,
         .page-classroom [class*="badge"],
@@ -700,18 +700,6 @@
             background: rgba(94, 168, 171, 0.15) !important;
             border: 1px solid var(--glass-border) !important;
             backdrop-filter: var(--glass-blur) !important;
-            animation: subtlePulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes subtlePulse {
-            0%, 100% {
-                box-shadow: 0 0 8px var(--glass-primary-glow);
-                opacity: 1;
-            }
-            50% {
-                box-shadow: 0 0 16px var(--glass-primary-glow);
-                opacity: 0.9;
-            }
         }
         
         /* 🎭 弹窗玻璃效果（仅课堂页面） */
@@ -1095,6 +1083,11 @@
             background: var(--classroom-card) !important;
             border-left: 1px solid #dbe4e8 !important;
             box-shadow: var(--shadow-panel) !important;
+            min-height: 0;
+        }
+
+        .page-classroom .classroom-stats-panel {
+            max-height: none;
         }
 
         .page-classroom .classroom-tabbar {
