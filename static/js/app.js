@@ -6487,7 +6487,7 @@ new Vue({
                 const signal = this.tdRequestController.signal;
                 // 并行请求统计和情绪数据
                 const [statsRes, emotionRes] = await Promise.all([
-                    axios.get(`/api/realtime-stats/${this.tdMeetingId}`, { timeout: 120000, signal }),
+                    axios.get(`/api/realtime-stats/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal }),
                     axios.get(`/api/emotion-details/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal })
                 ]);
 

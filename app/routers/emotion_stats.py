@@ -28,8 +28,16 @@ from app.services.user_lookup import resolve_user_by_identifier
 router = APIRouter(dependencies=[Depends(require_session)])
 
 
+def _statistics_window(db: Session, meeting_id: int, minutes: int):
+    minutes = minutes if minutes in {0, 5, 15, 30} else 15
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    end = meeting.ended_at if meeting and meeting.ended_at else datetime.now()
+    start = end - timedelta(minutes=minutes) if minutes else None
+    return start, end
+
+
 @router.get("/api/realtime-stats/{meeting_id}")
-async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
+async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db), minutes: int = 0):
     """获取实时统计数据"""
     try:
         import time
@@ -40,11 +48,20 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         # 使用joinedload优化查询
         from sqlalchemy.orm import joinedload
 
+        cutoff_time, window_end = _statistics_window(db, meeting_id, minutes)
+        transcript_query = db.query(Transcript).options(joinedload(Transcript.user)).filter(
+            Transcript.meeting_id == meeting_id, Transcript.timestamp <= window_end
+        )
+        emotion_query = db.query(EmotionLog).options(joinedload(EmotionLog.user)).filter(
+            EmotionLog.meeting_id == meeting_id, EmotionLog.created_at <= window_end
+        )
+        if cutoff_time is not None:
+            transcript_query = transcript_query.filter(Transcript.timestamp >= cutoff_time)
+            emotion_query = emotion_query.filter(EmotionLog.created_at >= cutoff_time)
+
         # [OK] 查询转录
         transcripts = (
-            db.query(Transcript)
-            .options(joinedload(Transcript.user))
-            .filter(Transcript.meeting_id == meeting_id)
+            transcript_query
             .order_by(Transcript.timestamp.desc())
             .all()
         )
@@ -56,9 +73,7 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
 
         # [OK] 查询情绪
         emotions = (
-            db.query(EmotionLog)
-            .options(joinedload(EmotionLog.user))
-            .filter(EmotionLog.meeting_id == meeting_id)
+            emotion_query
             .order_by(EmotionLog.created_at.desc())
             .all()
         )
@@ -222,9 +237,7 @@ async def get_emotion_details(
         allowed_windows = {0, 5, 15, 30}
         if minutes not in allowed_windows:
             minutes = 15
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        window_end = meeting.ended_at if meeting and meeting.ended_at else datetime.now()
-        cutoff_time = window_end - timedelta(minutes=minutes) if minutes > 0 else None
+        cutoff_time, window_end = _statistics_window(db, meeting_id, minutes)
 
         # 使用joinedload避免N+1查询问题
         from sqlalchemy.orm import joinedload
@@ -233,7 +246,7 @@ async def get_emotion_details(
         emotion_query = (
             db.query(EmotionLog)
             .options(joinedload(EmotionLog.user))
-            .filter(EmotionLog.meeting_id == meeting_id)
+            .filter(EmotionLog.meeting_id == meeting_id, EmotionLog.created_at <= window_end)
         )
         if cutoff_time is not None:
             emotion_query = emotion_query.filter(EmotionLog.created_at >= cutoff_time)
@@ -245,7 +258,7 @@ async def get_emotion_details(
         transcript_query = (
             db.query(Transcript)
             .options(joinedload(Transcript.user))
-            .filter(Transcript.meeting_id == meeting_id)
+            .filter(Transcript.meeting_id == meeting_id, Transcript.timestamp <= window_end)
         )
         if cutoff_time is not None:
             transcript_query = transcript_query.filter(Transcript.timestamp >= cutoff_time)
