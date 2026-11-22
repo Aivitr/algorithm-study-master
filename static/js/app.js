@@ -367,7 +367,7 @@ new Vue({
                 title: '实时课堂',
                 icon: 'fas fa-chalkboard-teacher',
                 gradient: 'linear-gradient(135deg, #3E7C86 0%, #4BA3B0 100%)',
-                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和学习状态。'
+                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和情绪趋势。'
             },
             vote: {
                 title: '投票讨论',
@@ -3857,7 +3857,7 @@ new Vue({
                         }
                     }
                     if (d.goals) this.goals = d.goals;
-                    if (d.relevance !== undefined) this.currentRelevance = d.relevance;
+                    if (d.relevance !== undefined && this.currentUser && d.username === this.currentUser.username) this.currentRelevance = d.relevance;
                     if (d.hint && d.username === this.currentUser.username) {
                         this.showClassroomHint(d.hint, 7000, { cooldownMs: this.classroomHintCooldownMs });
                     }
@@ -5330,8 +5330,7 @@ new Vue({
                         const matchedKey = res.data.current_user_key || allKeys.find(key => ownCandidates.includes(String(key)));
                         if (matchedKey && this.allIndividualEmotions[matchedKey]) {
                             this.individualEmotions = { [matchedKey]: this.allIndividualEmotions[matchedKey] };
-                        } else if (allKeys.length === 1) {
-                            this.individualEmotions = { [allKeys[0]]: this.allIndividualEmotions[allKeys[0]] };
+                        
                         }
                     }
 
@@ -6125,7 +6124,7 @@ new Vue({
                 }, false);
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('avgLearningChart');
             if (avgLearningEl) {
                 if (!this.chartInstances.avgLearningChart || this.chartInstances.avgLearningChart.isDisposed()) {
@@ -6137,7 +6136,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
@@ -6165,7 +6164,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 42, right: 20, top: 42, bottom: 36 },
                         xAxis: {
@@ -6181,7 +6180,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 11, color: '#6b7280' },
                             axisLabel: { fontSize: 10, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -6612,7 +6611,7 @@ new Vue({
                 this.setChartEmpty(this.tdChartInstances.barChart, '暂无发言数据');
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('tdAvgLearningChart');
             if (avgLearningEl) {
                 if (!this.tdChartInstances.avgLearningChart || this.tdChartInstances.avgLearningChart.isDisposed()) {
@@ -6624,7 +6623,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 14, fontWeight: 'normal' }
@@ -6652,7 +6651,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 48, right: 24, top: 52, bottom: 42 },
                         xAxis: {
@@ -6668,7 +6667,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 12, color: '#6b7280' },
                             axisLabel: { fontSize: 11, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -7410,7 +7409,7 @@ new Vue({
         // 查看学生报告详情
         viewStudentReport(report) {
             // 在新窗口打开报告详情
-            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n专注度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
+            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n发言相关度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
         },
         // 下载学生报告PDF
         async downloadStudentPDF(report) {

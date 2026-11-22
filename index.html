@@ -569,7 +569,7 @@
                                     </div>
                                     <div class="bg-white p-4 rounded-xl text-center shadow-sm">
                                         <div class="text-3xl font-black" style="color: var(--secondary);">{{ report.data.avg_relevance }}%</div>
-                                        <div class="text-xs text-gray-600 mt-1">🎯 专注度</div>
+                                        <div class="text-xs text-gray-600 mt-1">🎯 发言相关度</div>
                                     </div>
                                     <div class="bg-white p-4 rounded-xl text-center shadow-sm">
                                         <div class="text-3xl font-black" style="color: var(--primary);">{{ report.exercise_count != null ? report.exercise_count : '-' }}</div>
@@ -884,7 +884,7 @@
                                             <div class="text-2xl font-black" :class="report.avg_relevance >= 70 ? 'text-green-500' : report.avg_relevance >= 50 ? 'text-yellow-500' : 'text-red-500'">
                                                 {{ report.avg_relevance }}%
                                             </div>
-                                            <div class="text-xs text-gray-500">专注度</div>
+                                            <div class="text-xs text-gray-500">发言相关度</div>
                                         </div>
                                     </div>
                                     <div class="mb-3">
@@ -1009,7 +1009,7 @@
                                     <div class="flex justify-between items-center">
                                         <div>
                                             <h3 class="text-lg font-bold text-gray-800">课堂整体评价</h3>
-                                            <p class="text-sm text-gray-500">基于发言质量、参与度、互动等维度综合评分</p>
+                                            <p class="text-sm text-gray-500">发言表现评分：平均质量60%＋平均相关度40%</p>
                                         </div>
                                         <div class="text-right">
                                             <div class="text-5xl font-black" :class="selectedClass.score >= 80 ? 'text-green-500' : selectedClass.score >= 60 ? 'text-yellow-500' : 'text-red-500'">
@@ -1158,8 +1158,8 @@
                                                 </div>
                                                 <!-- 分项得分 -->
                                                 <div class="flex justify-between text-[10px] text-gray-400 mt-2">
-                                                    <span>质量:{{ member.avg_quality || 50 }}</span>
-                                                    <span>情绪:{{ member.avg_emotion || 50 }}</span>
+                                                    <span>质量:{{ member.avg_quality == null ? 50 : member.avg_quality }}</span>
+                                                    <span>情绪:{{ member.avg_emotion == null ? 50 : member.avg_emotion }}</span>
                                                     <span>交互:{{ member.interaction_count || 0 }}次</span>
                                                 </div>
                                             </div>
@@ -1189,10 +1189,10 @@
                                         </div>
                                     </div>
 
-                                    <!-- 小组成员平均学习状态曲线 -->
+                                    <!-- 小组成员平均情绪值曲线 -->
                                     <div class="bg-white rounded-2xl shadow-lg p-5 mb-6">
                                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>学习状态
+                                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>情绪趋势
                                         </h4>
                                         <div id="tdAvgLearningChart" class="w-full h-72"></div>
                                     </div>
@@ -1727,7 +1727,7 @@
                                         </div>
                                         <div class="bg-white bg-opacity-60 p-3 rounded-lg text-center">
                                             <div class="text-3xl font-black mb-1" style="color: var(--secondary);">{{ report.data.avg_relevance }}%</div>
-                                            <div class="text-xs text-gray-600 font-medium">📊 专注度</div>
+                                            <div class="text-xs text-gray-600 font-medium">📊 发言相关度</div>
                                         </div>
                                         <div class="bg-white bg-opacity-60 p-3 rounded-lg text-center">
                                             <div class="text-3xl font-black mb-1" style="color: var(--primary);">{{ report.exercise_count != null ? report.exercise_count : '-' }}</div>
@@ -2286,12 +2286,12 @@
                 </div>
             </div>
             
-            <!-- 专注度指标 -->
+            <!-- 发言相关度指标 -->
             <div class="mt-6 pt-6 border-t-2 border-gray-100">
                 <div class="flex justify-between text-xs font-bold text-gray-500 mb-3">
                     <span class="flex items-center">
                         <i class="fas fa-chart-line mr-2"></i>
-                        专注度
+                        发言相关度
                     </span>
                     <span class="text-lg font-extrabold"
                           :class="currentRelevance === null ? 'text-gray-400' : currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
@@ -2304,7 +2304,7 @@
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-400 text-center">
-                    <span v-if="currentRelevance === null">暂无专注度数据</span>
+                    <span v-if="currentRelevance === null">暂无发言相关度数据</span>
                     <span v-else-if="currentRelevance >= 80">😎 状态绝佳!</span>
                     <span v-else-if="currentRelevance >= 60">🙂 保持专注</span>
                     <span v-else>😔 需要加油</span>
@@ -2531,9 +2531,6 @@
                         <button @click="switchGcaTab('overview')" :class="{ active: gcaActiveTab === 'overview' }">
                             <i class="fas fa-chart-line"></i>整体情况
                         </button>
-                        <button @click="switchGcaTab('students')" :class="{ active: gcaActiveTab === 'students' }">
-                            <i class="fas fa-th"></i>学生对比
-                        </button>
                         <button @click="switchGcaTab('individual')" :class="{ active: gcaActiveTab === 'individual' }">
                             <i class="fas fa-user-circle"></i>个人详情
                         </button>
@@ -2615,35 +2612,6 @@
                                         <div><h4>{{ signal.title }}</h4><p>{{ signal.description }}</p></div>
                                     </article>
                                 </div>
-                            </section>
-                        </div>
-
-                        <!-- 学生对比 -->
-                        <div v-else-if="gcaActiveTab === 'students'" class="gca-content">
-                            <section class="gca-panel-card">
-                                <div class="gca-card-title">
-                                    <div><i class="fas fa-th"></i><span>学生 × 六项协作指标</span></div>
-                                    <small>颜色仅帮助识别差异，不代表优秀或不及格</small>
-                                </div>
-                                <div class="gca-table-wrap">
-                                    <table class="gca-heat-table">
-                                        <thead><tr>
-                                            <th>学生</th><th>有效发言</th>
-                                            <th v-for="metric in gcaMetricDefinitions" :key="'head-' + metric.key" :title="metric.description">{{ metric.label }}</th>
-                                        </tr></thead>
-                                        <tbody>
-                                            <tr v-for="student in gcaDashboardData.students" :key="student.id" @click="selectGcaStudent(student.id); switchGcaTab('individual')">
-                                                <th>{{ student.name }}<small v-if="student.student_id">{{ student.student_id }}</small></th>
-                                                <td>{{ student.utterance_count }}</td>
-                                                <td v-for="metric in gcaMetricDefinitions" :key="student.id + '-' + metric.key"
-                                                    :style="gcaHeatStyle(student.metrics[metric.key])">
-                                                    {{ gcaMetricValue(student.metrics[metric.key]) }}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <p class="gca-footnote"><i class="fas fa-info-circle"></i>点击任意学生可查看个人详情；本看板不生成综合分和名次。</p>
                             </section>
                         </div>
 
@@ -3101,10 +3069,10 @@
                         <div id="pieChart" class="w-full h-56"></div>
                     </div>
                     
-                    <!-- 小组成员平均学习状态曲线 -->
+                    <!-- 小组成员平均情绪值曲线 -->
                     <div class="bg-white rounded-xl shadow-lg p-4">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>学习状态
+                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>情绪趋势
                         </h4>
                         <div id="avgLearningChart" class="w-full h-56"></div>
                     </div>
@@ -3191,8 +3159,8 @@
                                 </div>
                                 <!-- 分项得分 -->
                                 <div class="flex justify-between text-[10px] text-gray-400 mt-2">
-                                    <span>质量:{{ member.avg_quality || 50 }}</span>
-                                    <span>情绪:{{ member.avg_emotion || 50 }}</span>
+                                    <span>质量:{{ member.avg_quality == null ? 50 : member.avg_quality }}</span>
+                                    <span>情绪:{{ member.avg_emotion == null ? 50 : member.avg_emotion }}</span>
                                 </div>
                             </div>
                         </div>

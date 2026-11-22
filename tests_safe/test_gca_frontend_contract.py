@@ -14,7 +14,7 @@ def test_teacher_dashboard_markup_and_endpoint_are_wired():
     assert "currentUser.role === 'teacher'" in html
     assert "gcaDashboardVisible" in html
     assert "整体情况" in html
-    assert "学生对比" in html
+    assert "学生对比" not in html
     assert "个人详情" in html
     assert "状态提醒" in html
     assert "/api/gca-dashboard/${this.gcaMeetingId}" in javascript
