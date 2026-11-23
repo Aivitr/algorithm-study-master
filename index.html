@@ -3565,39 +3565,6 @@
                             </button>
                         </div>
 
-                        <!-- Agent 能查哪些数据 -->
-                        <div v-if="isTeacherRole" class="insight-card p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <h4 class="insight-card-title">
-                                    <i class="fas fa-toolbox" style="color: var(--primary);"></i>可用工具
-                                </h4>
-                                <button type="button" class="insight-icon-btn" title="刷新工具清单"
-                                        @click="loadAgentTools(true)" :disabled="agentToolsLoading">
-                                    <i class="fas" :class="agentToolsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
-                                </button>
-                            </div>
-                            
-                            <div v-if="agentToolsError" class="insight-alert error">
-                                <i class="fas fa-circle-exclamation mr-1"></i>{{ agentToolsError }}
-                            </div>
-                            <div v-else-if="agentTools.length" class="space-y-1">
-                                <div v-for="tool in agentTools" :key="'tool-' + tool.name" class="insight-finding">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <span class="text-[10px] font-bold" style="color: var(--primary-dark);">{{ toolLabel(tool.name) }}</span>
-                                        <span class="flex gap-1">
-                                            <span v-for="st in tool.allowed_states" :key="tool.name + st"
-                                                  class="insight-evidence-chip">{{ toolStateLabel(st) }}</span>
-                                        </span>
-                                    </div>
-                                    <p class="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{{ tool.description }}</p>
-                                </div>
-                            </div>
-                            <div v-else class="insight-empty">
-                                <i class="fas fa-toolbox"></i>
-                                <p>尚未加载工具清单</p>
-                            </div>
-                        </div>
-
                         <div v-if="agentLoading" class="insight-loading">
                             <i class="fas fa-spinner fa-spin"></i><span>正在汇总群体证据</span>
                         </div>

@@ -49,10 +49,6 @@
                 agentActionHistory: [],
                 agentActionHistoryLoading: false,
                 agentLastRunAt: '',
-                agentTools: [],
-                agentToolsLoading: false,
-                agentToolsError: '',
-                agentToolsLoaded: false,
                 evidenceOpen: {},
                 quizHistory: null,
                 quizLoading: false,
@@ -390,12 +386,11 @@
                 window.addEventListener('mousemove', move);
                 window.addEventListener('mouseup', up);
             },
-            /** AI 页签入口：Agent 面板所在，进入时补齐证据/成员/工具数据。 */
+            /** AI 页签入口：Agent 面板所在，进入时补齐证据/成员数据。 */
             openAgentTab() {
                 this.classroomTab = 'ai';
                 this._hydrateAgentQuestion();
                 this.restoreStudentState();
-                if (this.isTeacherRole) this.loadAgentTools();
             },
             openInsightPanel(section) {
                 // 「分析」页签已取消：Agent 能力并入 AI 页签
@@ -426,7 +421,7 @@
                     this.insightSection = 'agent';
                 }
                 if (this.insightSection === 'agent') {
-                    this.loadAgentTools();
+                    // 分析内容按需加载，工具清单不再对用户展示。
                 } else if (this.insightSection === 'evidence') {
                     this.loadAgentTranscriptEvidence();
                 }
@@ -443,21 +438,6 @@
                     return metric ? metric.label : '课堂指标';
                 }
                 return value;
-            },
-            /** 工具函数名 → 通俗中文名。 */
-            toolLabel(name) {
-                const map = {
-                    get_classroom_transcripts: '读取课堂发言',
-                    get_classroom_statistics: '读取课堂统计',
-                    get_classroom_knowledge: '读取课堂知识',
-                    get_class_metrics: '读取课堂指标',
-                };
-                return map[name] || '课堂数据';
-            },
-            /** 工具可用状态 → 中文。 */
-            toolStateLabel(state) {
-                const map = { running: '上课中', ended: '已结束', paused: '已暂停' };
-                return map[state] || '可用';
             },
             /** 头像文字：取称呼首字（王同学 → 王）。 */
             shortName(name) {
@@ -979,31 +959,6 @@
                     }],
                 }, true);
             },
-            loadAgentTools(force = false) {
-                if (this.agentToolsLoading) return;
-                if (this.agentToolsLoaded && !force) {
-                    this._drawAgentToolStates();
-                    return;
-                }
-                this.agentToolsLoading = true;
-                this.agentToolsError = '';
-                axios.get('/api/agents/group-analysis/tools')
-                    .then((response) => {
-                        this.agentTools = Array.isArray(response.data && response.data.tools)
-                            ? response.data.tools : [];
-                        this.agentToolsLoaded = true;
-                        this.$nextTick(() => this._drawAgentToolStates());
-                    })
-                    .catch((error) => {
-                        this.agentToolsError = error.response?.data?.detail || error.message || '工具清单加载失败';
-                    })
-                    .finally(() => {
-                        this.agentToolsLoading = false;
-                    });
-            },
-            _drawAgentToolStates() {
-                // 工具清单本身不需要图表，保留钩子以便将来扩展状态门禁可视化
-            },
             toggleEvidence(ref) {
                 if (!ref) return;
                 this.$set(this.evidenceOpen, ref, !this.evidenceOpen[ref]);
@@ -1070,7 +1025,6 @@
                 if (newValue !== 'ai') return;
                 this.restoreStudentState();
                 if (this.isTeacherRole) {
-                    this.loadAgentTools();
                     this.loadAgentActionHistory();
                 }
             },
