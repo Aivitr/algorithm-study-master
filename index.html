@@ -299,8 +299,8 @@
                                         <p class="text-gray-500 text-sm font-medium mb-1">创建课堂数</p>
                                         <p class="text-4xl font-bold text-gray-800">{{ teacherStats.totalClasses || 0 }}</p>
                                     </div>
-                                    <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background: var(--primary-soft);">
-                                        <i class="fas fa-chalkboard text-2xl" style="color: var(--primary);"></i>
+                                    <div class="w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border shadow-sm" style="background: var(--primary-soft); border-color: rgba(62, 124, 134, 0.18);">
+                                        <i class="fas fa-chalkboard-user text-2xl" style="color: var(--primary-dark);"></i>
                                     </div>
                                 </div>
                             </div>
@@ -310,8 +310,8 @@
                                         <p class="text-gray-500 text-sm font-medium mb-1">参与学生</p>
                                         <p class="text-4xl font-bold text-gray-800">{{ teacherStats.totalStudents || 0 }}</p>
                                     </div>
-                                    <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                                        <i class="fas fa-user-graduate text-2xl text-green-600"></i>
+                                    <div class="w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border border-green-100 bg-green-50 shadow-sm">
+                                        <i class="fas fa-user-graduate text-2xl text-green-700"></i>
                                     </div>
                                 </div>
                             </div>
@@ -321,7 +321,7 @@
                                         <p class="text-gray-500 text-sm font-medium mb-1">平均评分</p>
                                         <p class="text-4xl font-bold" :class="teacherStats.avgScore === null ? 'text-gray-400' : teacherStats.avgScore >= 70 ? 'text-green-600' : teacherStats.avgScore >= 50 ? 'text-yellow-600' : 'text-red-600'">{{ teacherStats.avgScore === null ? '—' : teacherStats.avgScore }}</p>
                                     </div>
-                                    <div class="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center">
+                                    <div class="w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border border-yellow-100 bg-yellow-50 shadow-sm">
                                         <i class="fas fa-star text-2xl text-yellow-600"></i>
                                     </div>
                                 </div>
@@ -332,8 +332,8 @@
                                         <p class="text-gray-500 text-sm font-medium mb-1">风险小组</p>
                                         <p class="text-4xl font-bold text-red-600">{{ teacherStats.riskGroups || 0 }}</p>
                                     </div>
-                                    <div class="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
-                                        <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
+                                    <div class="w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border border-red-100 bg-red-50 shadow-sm">
+                                        <i class="fas fa-triangle-exclamation text-2xl text-red-600"></i>
                                     </div>
                                 </div>
                             </div>
@@ -2328,61 +2328,64 @@
         <!-- 视频区域 -->
         <div class="flex-1 relative classroom-stage flex flex-col p-4">
             <!-- 顶部状态栏（浮于视频网格上方） -->
-            <div class="classroom-statusbar absolute top-6 left-6 flex space-x-2 items-center z-50" style="pointer-events:none;">
-                <div v-if="!isPaused" class="status-badge text-white flex items-center space-x-2 shadow-2xl" style="pointer-events:auto;">
-                    <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
-                    <span>{{ asrUnavailable ? 'ASR 不可用' : statusText }}</span>
+            <div class="classroom-statusbar absolute top-6 left-6 z-50">
+                <div class="classroom-status-info">
+                    <div v-if="!isPaused" class="status-chip status-chip--live">
+                        <span class="w-2 h-2 bg-white rounded-full recording-dot"></span>
+                        <span>{{ asrUnavailable ? 'ASR 不可用' : statusText }}</span>
+                    </div>
+                    <div v-else class="status-chip">
+                        <i class="fas fa-pause"></i>
+                        <span>已暂停</span>
+                    </div>
+                    <div class="status-chip">
+                        <i class="fas fa-clock"></i>
+                        <span id="timer">00:00</span>
+                    </div>
+                    <div class="status-chip">
+                        <i class="fas fa-users"></i>
+                        <span>{{ onlineMembers.length }} 人在线</span>
+                    </div>
+                    <div v-if="viewingGroupId" class="status-chip status-chip--warning">
+                        <i class="fas fa-eye"></i>
+                        <span>小组查看模式 · 不发布本地音视频</span>
+                    </div>
                 </div>
-                <div v-else class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                    <i class="fas fa-pause mr-2"></i>
-                    <span>已暂停</span>
-                </div>
-                <div class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                    <i class="fas fa-clock mr-2"></i>
-                    <span id="timer">00:00</span>
-                </div>
-                <div class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                    <i class="fas fa-users mr-2"></i>
-                    <span>{{ onlineMembers.length }} 人在线</span>
-                </div>
-                <template v-if="!viewingGroupId && currentUser && currentUser.role === 'teacher'">
+                <div v-if="!viewingGroupId && currentUser && currentUser.role === 'teacher'" class="classroom-media-actions">
+                    <span v-if="mediaMode !== 'none'" class="classroom-media-mode">
+                        <i :class="mediaMode === 'screen' ? 'fas fa-desktop' : 'fas fa-video'"></i>
+                        <span>{{ mediaMode === 'screen' ? '正在共享屏幕' : '正在使用摄像头' }}</span>
+                    </span>
                     <button v-if="mediaMode === 'none'" @click="startScreenShare" :disabled="mediaSwitching"
-                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                        <i class="fas fa-desktop mr-2"></i>
+                            class="classroom-media-btn classroom-media-btn--primary">
+                        <i class="fas fa-desktop"></i>
                         <span>共享屏幕</span>
                     </button>
                     <button v-if="mediaMode === 'none'" @click="startCameraShare" :disabled="mediaSwitching"
-                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                        <i class="fas fa-video mr-2"></i>
+                            class="classroom-media-btn classroom-media-btn--ghost">
+                        <i class="fas fa-video"></i>
                         <span>使用摄像头</span>
                     </button>
                     <button v-else @click="switchVideoSource" :disabled="mediaSwitching"
-                            class="status-badge text-white shadow-2xl" style="pointer-events:auto;">
-                        <i :class="mediaSwitching ? 'fas fa-spinner fa-spin mr-2' : (mediaMode === 'screen' ? 'fas fa-video mr-2' : 'fas fa-desktop mr-2')"></i>
+                            class="classroom-media-btn classroom-media-btn--ghost">
+                        <i :class="mediaSwitching ? 'fas fa-spinner fa-spin' : (mediaMode === 'screen' ? 'fas fa-video' : 'fas fa-desktop')"></i>
                         <span>{{ mediaSwitching ? '切换中...' : (mediaMode === 'screen' ? '切换摄像头' : '共享屏幕') }}</span>
                     </button>
                     <button v-if="mediaMode !== 'none'" @click="stopVideoShare" :disabled="mediaSwitching"
-                            class="status-badge text-white shadow-2xl"
-                            style="pointer-events:auto; background: var(--danger-bg);">
-                        <i class="fas fa-stop-circle mr-2"></i>
+                            class="classroom-media-btn classroom-media-btn--danger">
+                        <i class="fas fa-stop-circle"></i>
                         <span>停止分享</span>
                     </button>
-                </template>
-                <div v-if="viewingGroupId" class="status-badge text-white shadow-2xl" style="pointer-events:auto; background: var(--warning-bg);">
-                    <i class="fas fa-eye mr-2"></i>
-                    <span>小组查看模式 · 不发布本地音视频</span>
                 </div>
                 <button @click="toggleClassroomPanel"
-                        class="classroom-mobile-only status-badge text-white shadow-2xl"
-                        style="pointer-events:auto;">
-                    <i class="fas fa-columns mr-2"></i>
+                        class="classroom-mobile-only status-chip">
+                    <i class="fas fa-columns"></i>
                     <span>{{ classroomPanelCollapsed ? '展开面板' : '收起面板' }}</span>
                 </button>
                 <button v-if="currentUser && currentUser.role !== 'teacher'"
                         @click="endClass"
-                        class="classroom-mobile-only status-badge text-white shadow-2xl"
-                        style="pointer-events:auto; background: var(--danger-bg);">
-                    <i class="fas fa-door-open mr-2"></i>
+                        class="classroom-mobile-only classroom-media-btn classroom-media-btn--danger">
+                    <i class="fas fa-door-open"></i>
                     <span>退出课堂</span>
                 </button>
             </div>
@@ -3064,7 +3067,7 @@
             </div>
             
             <!-- 实时统计模块 -->
-            <div v-show="classroomTab === 'stats'" class="flex-1 overflow-y-auto p-4 bg-white insight-pane-fill">
+            <div v-show="classroomTab === 'stats'" class="classroom-stats-panel flex-1 min-h-0 overflow-y-auto p-4 bg-white">
                 <div class="flex justify-end items-center mb-4">
                     <button @click="loadRealtimeStats" class="text-xs font-bold" style="color: var(--primary);">
                         <i class="fas fa-sync-alt mr-1"></i>刷新

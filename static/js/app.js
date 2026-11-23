@@ -4487,7 +4487,11 @@ new Vue({
             formData.append('student_answer', text);
             formData.append('question_type', q.question_type || '简答题');
 
-            fetch('/api/grade-short-answer', { method: 'POST', body: formData })
+            fetch('/api/grade-short-answer', {
+                method: 'POST',
+                body: formData,
+                headers: { 'Authorization': `Bearer ${this.sessionToken}` }
+            })
                 .then(r => r.json())
                 .then(data => {
                     const isCorrect = data.is_correct;
@@ -4637,8 +4641,21 @@ new Vue({
             return new Promise((resolve) => {
                 fetch('/api/ai-tutor-stream', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: { 'Authorization': `Bearer ${self.sessionToken}` }
                 }).then(response => {
+                    if (!response.ok) {
+                        aiMsg.streaming = false;
+                        aiMsg.content = response.status === 401
+                            ? '登录已失效，请重新登录后再试。'
+                            : `AI 服务暂时不可用（${response.status}），请稍后重试。`;
+                        self.$forceUpdate();
+                        resolve();
+                        return null;
+                    }
+                    return response;
+                }).then(response => {
+                    if (!response) return;
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
