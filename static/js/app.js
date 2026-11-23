@@ -160,7 +160,7 @@ new Vue({
         // 目标完成弹窗
         goalCompletePopup: { show: false, goals: [], allDone: false },
         // 话题建议弹窗
-        topicSuggestion: { show: false, text: '', reason: '' },
+        topicSuggestion: { show: false, text: '', reason: '', hintId: null },
         classroomHintTimer: null,
         lastClassroomHintAt: 0,
         lastClassroomHintText: '',
@@ -1193,14 +1193,14 @@ new Vue({
             }, duration);
             return true;
         },
-        showTopicSuggestionNotice(text, reason = '') {
+        showTopicSuggestionNotice(text, reason = '', hintId = null) {
             const clean = String(text || '').trim();
             if (!clean) return false;
             if (this.shouldThrottleClassroomNotice(clean, this.lastTopicSuggestionAt, this.lastTopicSuggestionText, this.topicSuggestionCooldownMs)) {
                 console.log('⏳ 话题建议冷却中，已静默:', clean);
                 return false;
             }
-            this.topicSuggestion = { show: true, text: clean, reason };
+            this.topicSuggestion = { show: true, text: clean, reason, hintId };
             this.lastTopicSuggestionAt = Date.now();
             this.lastTopicSuggestionText = clean;
             if (this.topicSuggestionTimer) clearTimeout(this.topicSuggestionTimer);
@@ -1209,6 +1209,17 @@ new Vue({
                 this.topicSuggestionTimer = null;
             }, 10000);
             return true;
+        },
+        async respondHint(value) {
+            const hintId = this.topicSuggestion && this.topicSuggestion.hintId;
+            this.topicSuggestion.show = false;
+            if (!hintId) return;
+            try {
+                await axios.post(`/api/hint-logs/${hintId}/response`, { response: value });
+                this.showClassroomHint('已记录你的反馈', 4000, { force: true });
+            } catch (error) {
+                console.warn('提示回应记录失败', error);
+            }
         },
         showConfirm(message, title = '确认操作', confirmText = '确定', cancelText = '取消') {
             return new Promise(resolve => {
@@ -4094,7 +4105,7 @@ new Vue({
                 // === 11. 话题建议推送 ===
                 else if (d.type === 'topic_suggestion') {
                     console.log('💬 话题建议:', d);
-                    this.showTopicSuggestionNotice(d.suggestion || '', d.reason || '');
+                    this.showTopicSuggestionNotice(d.suggestion || '', d.reason || '', d.hint_id || null);
                 }
             }
         },

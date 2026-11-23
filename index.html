@@ -1334,6 +1334,19 @@
                                     <p v-if="topicSuggestion.reason === 'low_participation'" class="text-xs mt-2" style="color: var(--primary);">
                                         <i class="fas fa-heart mr-1"></i>你的观点对小组讨论很重要，勇敢发言吧！
                                     </p>
+                                    <div v-if="currentUser && currentUser.role === 'student' && topicSuggestion.hintId"
+                                         class="flex gap-2 mt-3">
+                                        <button @click="respondHint('acknowledged')"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-bold"
+                                                style="background: var(--primary-soft); color: var(--primary-dark);">
+                                            <i class="fas fa-check mr-1"></i>收到
+                                        </button>
+                                        <button @click="respondHint('need_help')"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-bold"
+                                                style="background: #fff7ed; color: #9a3412;">
+                                            <i class="fas fa-hand mr-1"></i>需要帮助
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

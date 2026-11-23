@@ -333,3 +333,119 @@ def test_check_quiet_members_targets_student(
     assert log.target_type == "student"
     assert log.target_user_id == str(seeded_ids["student_id"])
     assert log.text == "测试建议"
+
+
+def _hint_log(meeting_id, target_type="student", target_user_id="2"):
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        row = HintLog(
+            meeting_id=meeting_id,
+            dedupe_key=f"{target_type}:{target_user_id}:test",
+            hint_type="low_participation" if target_type == "student" else "discussion_stall",
+            target_type=target_type,
+            target_user_id=target_user_id,
+            trigger_reason="测试",
+            evidence={},
+            evidence_ids=[],
+            text="测试建议",
+            status="sent",
+            created_by=1,
+            sent_at=datetime.now(),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row.id
+    finally:
+        db.close()
+
+
+def _delete_hint_log(hint_id):
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        db.query(HintLog).filter(HintLog.id == hint_id).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_hint_response_personal_target(client, seeded_ids, student_headers):
+    hint_id = _hint_log(seeded_ids["meeting_id"])
+    try:
+        response = client.post(
+            f"/api/hint-logs/{hint_id}/response",
+            json={"response": "acknowledged"},
+            headers=student_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["response"] == "acknowledged"
+
+        from app.core import database
+
+        db = database.SessionLocal()
+        try:
+            assert db.query(HintLog).filter(HintLog.id == hint_id).one().response == "acknowledged"
+        finally:
+            db.close()
+    finally:
+        _delete_hint_log(hint_id)
+
+
+def test_hint_response_rejects_other_student(client, seeded_ids):
+    from app.core import database
+    from app.services.session_service import create_session
+
+    hint_id = _hint_log(seeded_ids["meeting_id"])
+    db = database.SessionLocal()
+    try:
+        token, _ = create_session(db, seeded_ids["student_id_b"], device_id="hint-other")
+    finally:
+        db.close()
+    try:
+        response = client.post(
+            f"/api/hint-logs/{hint_id}/response",
+            json={"response": "acknowledged"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 403
+    finally:
+        _delete_hint_log(hint_id)
+
+
+def test_hint_response_rejects_teacher(client, seeded_ids, teacher_headers):
+    hint_id = _hint_log(seeded_ids["meeting_id"])
+    try:
+        response = client.post(
+            f"/api/hint-logs/{hint_id}/response",
+            json={"response": "acknowledged"},
+            headers=teacher_headers,
+        )
+        assert response.status_code == 403
+    finally:
+        _delete_hint_log(hint_id)
+
+
+def test_hint_response_group_target_requires_participation(client, seeded_ids, student_headers):
+    hint_id = _hint_log(seeded_ids["meeting_id"], target_type="group", target_user_id=None)
+    try:
+        response = client.post(
+            f"/api/hint-logs/{hint_id}/response",
+            json={"response": "need_help"},
+            headers=student_headers,
+        )
+        assert response.status_code == 200
+    finally:
+        _delete_hint_log(hint_id)
+
+
+def test_hint_response_missing_is_404(client, student_headers):
+    response = client.post(
+        "/api/hint-logs/999999/response",
+        json={"response": "acknowledged"},
+        headers=student_headers,
+    )
+    assert response.status_code == 404

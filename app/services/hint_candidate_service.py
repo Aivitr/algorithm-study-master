@@ -44,7 +44,7 @@ def record_sent_hint(
     created_by: int,
     model: str = "llm",
     evidence_ids: list[str] | None = None,
-) -> None:
+) -> int | None:
     """记录一次已发送的 Hint；写库失败只打日志，不影响课堂主流程。"""
     row = HintLog(
         meeting_id=meeting_id,
@@ -65,9 +65,11 @@ def record_sent_hint(
     db.add(row)
     try:
         db.commit()
+        return int(row.id)
     except Exception as exc:
         db.rollback()
         print(f"[ERROR] Hint 记录写入失败: meeting_id={meeting_id}: {exc}")
+        return None
 
 
 def _send_cooldown_seconds(target_type: str) -> int:
