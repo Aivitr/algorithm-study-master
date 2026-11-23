@@ -58,9 +58,7 @@ def test_full_classroom_flow(
     scheduled = []
     engagement_scheduled = []
     monkeypatch.setattr(classroom_ops, "schedule_class_reports", scheduled.append)
-    monkeypatch.setattr(
-        classroom_ops, "schedule_engagement_curves", engagement_scheduled.append
-    )
+    monkeypatch.setattr(classroom_ops, "schedule_engagement_curves", engagement_scheduled.append)
 
     started = client.post(
         "/api/start-class",

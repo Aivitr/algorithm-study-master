@@ -127,9 +127,7 @@ def _rebuild_engagement_curves_sync(meeting_id: int) -> None:
 
 def schedule_engagement_curves(meeting_id: int) -> None:
     """结束课堂后触发一次三维投入落库（测试可替换此函数）。"""
-    task = asyncio.create_task(
-        asyncio.to_thread(_rebuild_engagement_curves_sync, meeting_id)
-    )
+    task = asyncio.create_task(asyncio.to_thread(_rebuild_engagement_curves_sync, meeting_id))
     _engagement_tasks.add(task)
     task.add_done_callback(_engagement_tasks.discard)
 
