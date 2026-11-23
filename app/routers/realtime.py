@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import RUNNING, meeting_status_error
-from app.models import Meeting, Transcript
+from app.models import Meeting, Transcript, User
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
 from app.realtime.speech import _create_realtime_transcript_entry
@@ -48,6 +48,7 @@ from app.realtime.state import (
     REALTIME_ASR_VOICEPRINT_DISABLED,
 )
 from app.realtime.stream import process_user_stream_generator
+from app.services.hint_candidate_service import evaluate_hint_candidates
 from app.services.llm_service import llm
 from app.services.session_service import (
     SessionContext,
@@ -432,25 +433,29 @@ async def check_silence(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查课堂是否沉默超过2分钟，如果是则生成话题建议"""
+    """检查课堂是否讨论停滞，如果是则生成话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        if not manager.is_group_silent(meeting_id, silence_seconds=120):
-            return {"status": "ok", "silent": False}
 
-        if manager.silence_notified.get(meeting_id):
-            return {"status": "ok", "silent": True, "already_notified": True}
-
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
+        evaluation = evaluate_hint_candidates(meeting_id, db)
+        if evaluation["status"] == "not_found":
             return {"status": "error", "message": "课堂不存在"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
+        if evaluation["status"] != "success":
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
+
+        candidates = [
+            item for item in evaluation["candidates"] if item["hint_type"] == "discussion_stall"
+        ]
+        if not candidates:
+            return {"status": "ok", "silent": False}
+        candidate = candidates[0]
 
         # 获取最近讨论上下文
         recents = (
@@ -474,11 +479,17 @@ async def check_silence(
                 "target": "all",
                 "suggestion": suggestion,
                 "reason": "group_silence",
+                "trigger_reason": candidate["trigger_reason"],
+                "evidence": candidate["evidence"],
             },
         )
-        manager.silence_notified[meeting_id] = True
 
-        return {"status": "success", "silent": True, "suggestion": suggestion}
+        return {
+            "status": "success",
+            "silent": True,
+            "suggestion": suggestion,
+            "trigger_reason": candidate["trigger_reason"],
+        }
     except Exception as e:
         print(f"[ERROR] check-silence: {e}")
         return {"status": "error", "message": str(e)}
@@ -497,11 +508,32 @@ async def check_quiet_members(
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
 
-        quiet_members = manager.get_quiet_members(meeting_id, threshold=2)
+        evaluation = evaluate_hint_candidates(meeting_id, db)
+        if evaluation["status"] == "not_found":
+            return {"status": "error", "message": "课堂不存在"}
+        if evaluation["status"] != "success":
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
+
+        candidates = [
+            item for item in evaluation["candidates"] if item["hint_type"] == "low_participation"
+        ]
+        if not candidates:
+            return {"status": "ok", "quiet_members": []}
+
+        target_ids = [
+            int(item["target_user_id"]) for item in candidates if item.get("target_user_id")
+        ]
+        users = db.query(User).filter(User.id.in_(target_ids)).all() if target_ids else []
+        name_by_id = {str(user.id): user.username for user in users}
+        quiet_members = [
+            name_by_id[item["target_user_id"]]
+            for item in candidates
+            if item.get("target_user_id") in name_by_id
+        ]
         if not quiet_members:
             return {"status": "ok", "quiet_members": []}
 
@@ -519,8 +551,11 @@ async def check_quiet_members(
             meeting.topic, ctx, meeting.knowledge_points, target_type="quiet"
         )
 
-        # 只推送给沉默的成员
-        for member in quiet_members:
+        # 只推送给被判定低参与的成员
+        for item in candidates:
+            member = name_by_id.get(item.get("target_user_id"))
+            if not member:
+                continue
             await manager.send_to_user(
                 meeting_id,
                 member,
@@ -529,6 +564,8 @@ async def check_quiet_members(
                     "target": "personal",
                     "suggestion": suggestion,
                     "reason": "low_participation",
+                    "trigger_reason": item["trigger_reason"],
+                    "evidence": item["evidence"],
                 },
             )
 
