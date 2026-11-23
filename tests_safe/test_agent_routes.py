@@ -62,9 +62,7 @@ def _confirm_payload(meeting_id: int = 1) -> dict:
 
 
 def test_confirm_action_requires_session(client):
-    response = client.post(
-        "/api/agents/group-analysis/actions/confirm", json=_confirm_payload()
-    )
+    response = client.post("/api/agents/group-analysis/actions/confirm", json=_confirm_payload())
     assert response.status_code == 401
 
 
@@ -94,9 +92,7 @@ def test_confirm_action_writes_audit_insight(client, seeded_ids, teacher_headers
 
     db = database.SessionLocal()
     try:
-        insight = (
-            db.query(AIInsight).filter(AIInsight.id == body["confirmation_id"]).one()
-        )
+        insight = db.query(AIInsight).filter(AIInsight.id == body["confirmation_id"]).one()
         payload = json.loads(insight.content)
     finally:
         db.query(AIInsight).filter(AIInsight.id == body["confirmation_id"]).delete()
