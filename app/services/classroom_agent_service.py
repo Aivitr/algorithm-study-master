@@ -213,6 +213,60 @@ class ClassroomAgentService:
             payload["reason"] = result.get("error") or result["status"]
         return payload
 
+    def record_action(
+        self,
+        db: Session,
+        meeting_id: int,
+        *,
+        status: str,
+        target: str,
+        action: str,
+        script: str,
+        expected: str,
+        risk: str,
+        evidence: list[str],
+        operator_id: int | None = None,
+    ) -> dict[str, Any]:
+        """记录教师对干预动作的确认/忽略；只写审计，不向学生下发。"""
+        type_name = {
+            "confirmed": "agent_action_confirm",
+            "ignored": "agent_action_ignore",
+        }.get(status)
+        if type_name is None:
+            return {"ok": False, "reason": "不支持的动作状态"}
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if meeting is None:
+            return {"ok": False, "reason": "课堂不存在"}
+        if not action.strip():
+            return {"ok": False, "reason": "动作内容不能为空"}
+        payload = {
+            "meeting_id": meeting_id,
+            "status": status,
+            "target": target.strip(),
+            "action": action.strip(),
+            "script": script.strip(),
+            "expected": expected.strip(),
+            "risk": risk.strip(),
+            "evidence": evidence,
+            "confirmation_source": "teacher",
+            "operator_id": operator_id,
+        }
+        insight = AIInsight(
+            meeting_id=meeting_id,
+            target_user=target.strip() or "小组",
+            content=json.dumps(payload, ensure_ascii=False),
+            type=type_name,
+        )
+        db.add(insight)
+        db.commit()
+        db.refresh(insight)
+        return {
+            "ok": True,
+            "audit_id": insight.id,
+            "confirmation_id": insight.id,
+            "status": status,
+        }
+
     def confirm_action(
         self,
         db: Session,
@@ -226,33 +280,79 @@ class ClassroomAgentService:
         evidence: list[str],
         confirmed_by: int | None = None,
     ) -> dict[str, Any]:
-        """教师确认一条干预动作：只落一条 AIInsight 审计记录，不向学生下发。"""
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if meeting is None:
-            return {"ok": False, "reason": "课堂不存在"}
-        if not action.strip():
-            return {"ok": False, "reason": "动作内容不能为空"}
-        payload = {
-            "meeting_id": meeting_id,
-            "target": target.strip(),
-            "action": action.strip(),
-            "script": script.strip(),
-            "expected": expected.strip(),
-            "risk": risk.strip(),
-            "evidence": evidence,
-            "confirmation_source": "teacher",
-            "confirmed_by": confirmed_by,
-        }
-        insight = AIInsight(
-            meeting_id=meeting_id,
-            target_user=target.strip() or "小组",
-            content=json.dumps(payload, ensure_ascii=False),
-            type="agent_action_confirm",
+        return self.record_action(
+            db,
+            meeting_id,
+            status="confirmed",
+            target=target,
+            action=action,
+            script=script,
+            expected=expected,
+            risk=risk,
+            evidence=evidence,
+            operator_id=confirmed_by,
         )
-        db.add(insight)
-        db.commit()
-        db.refresh(insight)
-        return {"ok": True, "confirmation_id": insight.id}
+
+    def ignore_action(
+        self,
+        db: Session,
+        meeting_id: int,
+        *,
+        target: str,
+        action: str,
+        script: str,
+        expected: str,
+        risk: str,
+        evidence: list[str],
+        ignored_by: int | None = None,
+    ) -> dict[str, Any]:
+        return self.record_action(
+            db,
+            meeting_id,
+            status="ignored",
+            target=target,
+            action=action,
+            script=script,
+            expected=expected,
+            risk=risk,
+            evidence=evidence,
+            operator_id=ignored_by,
+        )
+
+    def list_action_audits(self, db: Session, meeting_id: int, limit: int = 50) -> dict[str, Any]:
+        limit = max(1, min(int(limit), 200))
+        rows = (
+            db.query(AIInsight)
+            .filter(
+                AIInsight.meeting_id == meeting_id,
+                AIInsight.type.in_(("agent_action_confirm", "agent_action_ignore")),
+            )
+            .order_by(AIInsight.id.desc())
+            .limit(limit)
+            .all()
+        )
+        items = []
+        for row in rows:
+            try:
+                payload = json.loads(row.content or "{}")
+            except (TypeError, ValueError):
+                payload = {}
+            items.append(
+                {
+                    "audit_id": row.id,
+                    "status": payload.get(
+                        "status",
+                        "confirmed" if row.type == "agent_action_confirm" else "ignored",
+                    ),
+                    "target": payload.get("target") or row.target_user,
+                    "action": payload.get("action", ""),
+                    "script": payload.get("script", ""),
+                    "evidence": payload.get("evidence", []),
+                    "operator_id": payload.get("operator_id"),
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+            )
+        return {"ok": True, "meeting_id": meeting_id, "count": len(items), "items": items}
 
 
 classroom_agent_service = ClassroomAgentService()

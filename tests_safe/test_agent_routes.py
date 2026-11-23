@@ -104,7 +104,7 @@ def test_confirm_action_writes_audit_insight(client, seeded_ids, teacher_headers
     assert insight.type == "agent_action_confirm"
     assert insight.target_user == "李同学"
     assert payload["action"] == "点名发言"
-    assert payload["confirmed_by"] == seeded_ids["teacher_id"]
+    assert payload["operator_id"] == seeded_ids["teacher_id"]
     assert payload["evidence"] == ["T#1"]
 
 
@@ -155,3 +155,46 @@ def test_confirm_action_missing_meeting_is_404(client, teacher_headers):
         headers=teacher_headers,
     )
     assert response.status_code == 404
+
+
+def test_ignore_action_and_history(client, seeded_ids, teacher_headers):
+    response = client.post(
+        "/api/agents/group-analysis/actions/ignore",
+        json=_confirm_payload(seeded_ids["meeting_id"]),
+        headers=teacher_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"
+
+    history = client.get(
+        f"/api/agents/group-analysis/actions/{seeded_ids['meeting_id']}",
+        headers=teacher_headers,
+    )
+    assert history.status_code == 200
+    items = history.json()["items"]
+    assert items[0]["status"] == "ignored"
+    assert items[0]["action"] == "点名发言"
+    assert items[0]["operator_id"] == seeded_ids["teacher_id"]
+
+    from app.core import database
+    from app.models import AIInsight
+
+    db = database.SessionLocal()
+    try:
+        db.query(AIInsight).filter(AIInsight.id == items[0]["audit_id"]).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_action_history_is_teacher_only(client, seeded_ids, student_headers):
+    response = client.get(
+        f"/api/agents/group-analysis/actions/{seeded_ids['meeting_id']}",
+        headers=student_headers,
+    )
+    assert response.status_code == 403
+
+
+def test_action_history_requires_session(client, seeded_ids):
+    response = client.get(f"/api/agents/group-analysis/actions/{seeded_ids['meeting_id']}")
+    assert response.status_code == 401
