@@ -176,3 +176,14 @@ def test_transcripts_carry_quality_evidence_ids(seeded_ids):
 
     assert result["items"]
     assert all(item["quality_evidence_id"].startswith("Q#") for item in result["items"])
+
+
+def test_statistics_carry_emotion_evidence_ids(seeded_ids):
+    db = database.SessionLocal()
+    try:
+        result = classroom_agent_service.get_statistics(db, seeded_ids["meeting_id"])
+    finally:
+        db.close()
+
+    assert result["emotion_evidence_ids"]
+    assert all(ref.startswith("E#") for ref in result["emotion_evidence_ids"])

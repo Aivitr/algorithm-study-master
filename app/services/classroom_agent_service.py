@@ -10,9 +10,10 @@ import json
 from collections import Counter
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AIInsight, EngagementCurve, HintLog, Meeting
+from app.models import AIInsight, EmotionLog, EngagementCurve, HintLog, Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.gca_service import analyze_meeting_metrics
 from app.services.knowledge_trace_service import KnowledgeTraceService
@@ -73,6 +74,15 @@ class ClassroomAgentService:
             if left["speaker"] and right["speaker"] and left["speaker"] != right["speaker"]
         )
         emotion_distribution = ClassStatsService(db).emotion_counts(meeting_id)
+        emotion_rows: list[Any] = list(
+            db.scalars(
+                select(EmotionLog.id)
+                .where(EmotionLog.meeting_id == meeting_id)
+                .order_by(EmotionLog.id.desc())
+                .limit(100)
+            )
+        )
+        emotion_ids = [f"E#{value}" for value in emotion_rows]
         return {
             "ok": True,
             "meeting_id": meeting_id,
@@ -88,6 +98,7 @@ class ClassroomAgentService:
             "quality_sample_size": len(qualities),
             "emotion_count": sum(emotion_distribution.values()),
             "emotion_distribution": emotion_distribution,
+            "emotion_evidence_ids": emotion_ids,
             "truncated": len(transcripts) == 1000,
         }
 
