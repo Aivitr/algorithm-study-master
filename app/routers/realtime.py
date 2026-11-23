@@ -480,15 +480,19 @@ async def check_silence(
         discussion_context = "\n".join(
             [f"{t.user.username}: {t.content}" for t in reversed(recents)]
         )
-        discussion_context += (
-            f"\n\n触发原因：{candidate['trigger_reason']}"
-            f"\n证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
+        hint_context = (
+            f"触发原因：{candidate['trigger_reason']}\n"
+            f"证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
         )
 
         hint_model = "llm"
         try:
             suggestion = llm.generate_topic_suggestion(
-                meeting.topic, discussion_context, meeting.knowledge_points, target_type="group"
+                meeting.topic,
+                discussion_context,
+                meeting.knowledge_points,
+                target_type="group",
+                hint_context=hint_context,
             )
         except Exception as exc:
             print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
@@ -584,7 +588,7 @@ async def check_quiet_members(
         discussion_context = "\n".join(
             [f"{t.user.username}: {t.content}" for t in reversed(recents)]
         )
-        discussion_context += "\n\n低参与触发依据：\n" + "\n".join(
+        hint_context = "\n".join(
             f"{item['target_user_id']}: {item['trigger_reason']} "
             f"{json.dumps(item['evidence'], ensure_ascii=False)}"
             for item in candidates
@@ -593,7 +597,11 @@ async def check_quiet_members(
         hint_model = "llm"
         try:
             suggestion = llm.generate_topic_suggestion(
-                meeting.topic, discussion_context, meeting.knowledge_points, target_type="quiet"
+                meeting.topic,
+                discussion_context,
+                meeting.knowledge_points,
+                target_type="quiet",
+                hint_context=hint_context,
             )
         except Exception as exc:
             print(f"[WARN] 生成话题建议失败，使用模板: {exc}")

@@ -1030,11 +1030,17 @@ JSON 结构：
             return {"main_viewpoint": "", "sub_goals": [], "guidance": ""}
 
     def generate_topic_suggestion(
-        self, topic: str, recent_context: str, current_goals: list, target_type: str = "quiet"
+        self,
+        topic: str,
+        recent_context: str,
+        current_goals: list,
+        target_type: str = "quiet",
+        hint_context: str = "",
     ) -> str:
         """为沉默成员或全组生成话题建议"""
         topic = self._normalize_text(topic, 120)
         recent_context = self._normalize_text(recent_context, 500)
+        hint_context = self._normalize_text(hint_context, 300)
 
         if target_type == "quiet":
             role_desc = "一位需要鼓励参与的同学"
@@ -1050,6 +1056,7 @@ JSON 结构：
 待完成目标：{goals_text}
 最近讨论：
 {recent_context}
+{"触发依据：" + hint_context if hint_context else ""}
 
 请为{role_desc}生成话题建议。{instruction}
 要求：直接给出建议内容，不超过80字，不要加前缀标签。"""

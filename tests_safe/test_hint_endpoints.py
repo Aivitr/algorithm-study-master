@@ -55,6 +55,7 @@ def hint_mocks(monkeypatch):
     broadcasts = []
     personal = []
     suggestions = []
+    hint_contexts = []
 
     async def fake_broadcast(meeting_id, payload):
         broadcasts.append((meeting_id, payload))
@@ -62,14 +63,15 @@ def hint_mocks(monkeypatch):
     async def fake_send(meeting_id, username, payload):
         personal.append((meeting_id, username, payload))
 
-    def fake_suggestion(topic, context, knowledge_points, target_type="group"):
+    def fake_suggestion(topic, context, knowledge_points, target_type="group", hint_context=""):
         suggestions.append(target_type)
+        hint_contexts.append(hint_context)
         return "测试建议"
 
     monkeypatch.setattr(realtime.manager, "broadcast_to_meeting", fake_broadcast)
     monkeypatch.setattr(realtime.manager, "send_to_user", fake_send)
     monkeypatch.setattr(realtime.llm, "generate_topic_suggestion", fake_suggestion)
-    return broadcasts, personal, suggestions
+    return broadcasts, personal, suggestions, hint_contexts
 
 
 def test_check_silence_consumes_stall_candidate(
@@ -77,7 +79,7 @@ def test_check_silence_consumes_stall_candidate(
 ):
     import app.routers.realtime as realtime
 
-    broadcasts, _personal, suggestions = hint_mocks
+    broadcasts, _personal, suggestions, hint_contexts = hint_mocks
     monkeypatch.setattr(
         realtime,
         "evaluate_hint_candidates",
@@ -97,6 +99,7 @@ def test_check_silence_consumes_stall_candidate(
     assert response.json()["status"] == "success"
     assert response.json()["suggestion"] == "测试建议"
     assert suggestions == ["group"]
+    assert "触发原因：测试触发原因" in hint_contexts[0]
     assert broadcasts[0][1]["reason"] == "group_silence"
     assert broadcasts[0][1]["trigger_reason"] == "测试触发原因"
 
@@ -187,7 +190,7 @@ def test_check_silence_respects_recent_sent_log(
 ):
     import app.routers.realtime as realtime
 
-    broadcasts, _personal, _suggestions = hint_mocks
+    broadcasts, _personal, _suggestions, _hint_contexts = hint_mocks
     from app.core import database
 
     db = database.SessionLocal()
@@ -235,7 +238,7 @@ def test_check_silence_falls_back_to_template(
 ):
     import app.routers.realtime as realtime
 
-    broadcasts, _personal, _suggestions = hint_mocks
+    broadcasts, _personal, _suggestions, _hint_contexts = hint_mocks
 
     def boom(*args, **kwargs):
         raise RuntimeError("llm down")
@@ -276,7 +279,7 @@ def test_check_quiet_members_targets_student(
 ):
     import app.routers.realtime as realtime
 
-    _broadcasts, personal, suggestions = hint_mocks
+    _broadcasts, personal, suggestions, hint_contexts = hint_mocks
     monkeypatch.setattr(
         realtime,
         "evaluate_hint_candidates",
@@ -296,6 +299,7 @@ def test_check_quiet_members_targets_student(
     assert body["status"] == "success"
     assert body["quiet_members"] == ["李同学"]
     assert suggestions == ["quiet"]
+    assert "测试触发原因" in hint_contexts[0]
     assert personal[0][1] == "李同学"
     assert personal[0][2]["reason"] == "low_participation"
     assert personal[0][2]["trigger_reason"] == "测试触发原因"
