@@ -45,6 +45,9 @@
                 agentTranscriptMap: {},
                 agentEvidenceLoading: false,
                 agentConfirming: {},
+                agentIgnoring: {},
+                agentActionHistory: [],
+                agentActionHistoryLoading: false,
                 agentLastRunAt: '',
                 agentTools: [],
                 agentToolsLoading: false,
@@ -744,6 +747,7 @@
                     }, { headers: { 'Content-Type': 'application/json' } });
                     this.$set(action, 'confirmed', true);
                     this.$set(action, 'confirmationId', response.data.confirmation_id);
+                    await this.loadAgentActionHistory();
                     await this.showAlert('动作已确认并记录', 'success', '确认成功');
                 } catch (error) {
                     await this.showAlert(
@@ -754,6 +758,59 @@
                 } finally {
                     this.$set(this.agentConfirming, index, false);
                 }
+            },
+            async ignoreAgentAction(action, index) {
+                if (!this.meetingId || this.agentIgnoring[index]) return;
+                const ok = await this.showConfirm(
+                    `忽略“${action.action || '干预动作'}”吗？忽略也会记录审计，不会向学生发送。`,
+                    '忽略干预动作'
+                );
+                if (!ok) return;
+                this.$set(this.agentIgnoring, index, true);
+                try {
+                    await axios.post('/api/agents/group-analysis/actions/ignore', {
+                        meeting_id: this.meetingId,
+                        target: action.target || '',
+                        action: action.action || '',
+                        script: action.script || '',
+                        expected: action.expected || '',
+                        risk: action.risk || '',
+                        evidence: action.evidence || [],
+                    }, { headers: { 'Content-Type': 'application/json' } });
+                    this.$set(action, 'ignored', true);
+                    await this.loadAgentActionHistory();
+                    await this.showAlert('动作已忽略并记录', 'success', '操作成功');
+                } catch (error) {
+                    await this.showAlert(
+                        error.response?.data?.detail || error.response?.data?.message || error.message || '忽略失败',
+                        'error',
+                        '忽略失败'
+                    );
+                } finally {
+                    this.$set(this.agentIgnoring, index, false);
+                }
+            },
+            async loadAgentActionHistory() {
+                if (!this.isTeacherRole || !this.meetingId) return;
+                this.agentActionHistoryLoading = true;
+                try {
+                    const response = await axios.get(
+                        `/api/agents/group-analysis/actions/${this.meetingId}`,
+                        { params: { limit: 20 } }
+                    );
+                    this.agentActionHistory = response.data.items || [];
+                } catch (error) {
+                    console.warn('动作历史加载失败', error);
+                } finally {
+                    this.agentActionHistoryLoading = false;
+                }
+            },
+            formatAuditTime(value) {
+                if (!value) return '';
+                const date = new Date(value);
+                return Number.isNaN(date.getTime())
+                    ? String(value)
+                    : date.toLocaleString('zh-CN', { hour12: false });
             },
             _describeEvidence(ref) {
                 const value = String(ref || '');
@@ -1012,12 +1069,16 @@
             classroomTab(newValue) {
                 if (newValue !== 'ai') return;
                 this.restoreStudentState();
-                if (this.isTeacherRole) this.loadAgentTools();
+                if (this.isTeacherRole) {
+                    this.loadAgentTools();
+                    this.loadAgentActionHistory();
+                }
             },
             meetingId() {
                 this.gcaLoaded = false;
                 this.agentResult = null;
                 this.followUpHistory = [];
+                this.agentActionHistory = [];
             },
         },
     };

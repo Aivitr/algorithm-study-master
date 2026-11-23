@@ -3692,8 +3692,8 @@
                                                 <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
                                             </p>
                                         </div>
-                                        <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
-                                            {{ action.confirmed ? '已确认' : '待确认' }}
+                                        <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : action.ignored ? 'background:#f3f4f6;color:#6b7280;' : ''">
+                                            {{ action.confirmed ? '已确认' : action.ignored ? '已忽略' : '待确认' }}
                                         </span>
                                     </div>
                                     <div v-if="!editingScript[index]" class="insight-code mt-2 insight-code-editable"
@@ -3711,12 +3711,41 @@
                                                 @click="copyText(action.script, '话术')">
                                             <i class="far fa-copy"></i>复制话术
                                         </button>
+                                        <button v-if="!action.confirmed && !action.ignored" type="button"
+                                                class="insight-secondary-btn flex-1"
+                                                :disabled="agentIgnoring[index]"
+                                                @click="ignoreAgentAction(action, index)">
+                                            <i class="fas fa-xmark"></i>{{ agentIgnoring[index] ? '忽略中' : '忽略' }}
+                                        </button>
                                         <button type="button" class="insight-primary-btn flex-1"
-                                                :disabled="action.confirmed || agentConfirming[index]"
+                                                :disabled="action.confirmed || action.ignored || agentConfirming[index]"
                                                 @click="confirmAgentAction(action, index)">
                                             <i class="fas" :class="action.confirmed ? 'fa-circle-check' : 'fa-check'"></i>
                                             {{ action.confirmed ? '已记录' : '确认记录' }}
                                         </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="isTeacherRole && agentActionHistory.length" class="insight-card p-4 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-clock-rotate-left" style="color: var(--primary);"></i>已记录动作
+                                    </h4>
+                                    <span class="text-[9px] text-gray-400">{{ agentActionHistory.length }} 条</span>
+                                </div>
+                                <div v-for="item in agentActionHistory" :key="'ah-' + item.audit_id" class="insight-action-card">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ item.action }}</p>
+                                            <p class="text-[9px] text-gray-400 mt-0.5">
+                                                {{ item.target || '小组' }} · {{ formatAuditTime(item.created_at) }}
+                                            </p>
+                                        </div>
+                                        <span class="insight-status-chip"
+                                              :style="item.status === 'ignored' ? 'background:#f3f4f6;color:#6b7280;' : 'background:#e4f5ea;color:#26734d;'">
+                                            {{ item.status === 'ignored' ? '已忽略' : '已确认' }}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -3972,8 +4001,8 @@
                                             <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
                                         </p>
                                     </div>
-                                    <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : ''">
-                                        {{ action.confirmed ? '已确认' : '待确认' }}
+                                    <span class="insight-status-chip" :style="action.confirmed ? 'background:#e4f5ea;color:#26734d;' : action.ignored ? 'background:#f3f4f6;color:#6b7280;' : ''">
+                                        {{ action.confirmed ? '已确认' : action.ignored ? '已忽略' : '待确认' }}
                                     </span>
                                 </div>
                                 <div class="insight-code mt-3">{{ action.script }}</div>
@@ -3984,15 +4013,45 @@
                                 <div v-if="action.evidence && action.evidence.length" class="flex flex-wrap gap-1 mt-2">
                                     <span v-for="ref in action.evidence" :key="ref" class="insight-evidence-chip">{{ refLabel(ref) }}</span>
                                 </div>
-                                <button v-if="isTeacherRole" type="button" class="insight-primary-btn w-full mt-3"
-                                        :disabled="action.confirmed || agentConfirming[index]"
-                                        @click="confirmAgentAction(action, index)">
-                                    <i class="fas" :class="action.confirmed ? 'fa-circle-check' : agentConfirming[index] ? 'fa-spinner fa-spin' : 'fa-check'"></i>
-                                    {{ action.confirmed ? '已确认并记录' : '确认并记录动作' }}
-                                </button>
+                                <div v-if="isTeacherRole" class="flex gap-1 mt-3">
+                                    <button v-if="!action.confirmed && !action.ignored" type="button"
+                                            class="insight-secondary-btn flex-1"
+                                            :disabled="agentIgnoring[index]"
+                                            @click="ignoreAgentAction(action, index)">
+                                        <i class="fas fa-xmark"></i>{{ agentIgnoring[index] ? '忽略中' : '忽略' }}
+                                    </button>
+                                    <button type="button" class="insight-primary-btn flex-1"
+                                            :disabled="action.confirmed || action.ignored || agentConfirming[index]"
+                                            @click="confirmAgentAction(action, index)">
+                                        <i class="fas" :class="action.confirmed ? 'fa-circle-check' : agentConfirming[index] ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                                        {{ action.confirmed ? '已确认并记录' : '确认并记录动作' }}
+                                    </button>
+                                </div>
                                 <p v-else class="text-[9px] text-gray-400 mt-3 text-center">
                                     <i class="fas fa-lock mr-1"></i>确认与记录由教师完成
                                 </p>
+                            </div>
+                            <div v-if="isTeacherRole && agentActionHistory.length" class="insight-card p-4 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="insight-card-title">
+                                        <i class="fas fa-clock-rotate-left" style="color: var(--primary);"></i>已记录动作
+                                    </h4>
+                                    <span class="text-[9px] text-gray-400">{{ agentActionHistory.length }} 条</span>
+                                </div>
+                                <div v-for="item in agentActionHistory" :key="'mah-' + item.audit_id" class="insight-action-card">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ item.action }}</p>
+                                            <p class="text-[9px] text-gray-400 mt-0.5">
+                                                {{ item.target || '小组' }} · {{ formatAuditTime(item.created_at) }}
+                                            </p>
+                                        </div>
+                                        <span class="insight-status-chip"
+                                              :style="item.status === 'ignored' ? 'background:#f3f4f6;color:#6b7280;' : 'background:#e4f5ea;color:#26734d;'">
+                                            {{ item.status === 'ignored' ? '已忽略' : '已确认' }}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                             <div v-if="isTeacherRole && !agentInterventions.length" class="insight-empty insight-card">
                                 <i class="fas fa-clipboard-check"></i>

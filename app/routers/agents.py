@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 
@@ -70,20 +70,24 @@ def list_classroom_group_tools():
     }
 
 
+def _require_action_meeting(db: Session, ctx: SessionContext, meeting_id: int) -> Meeting:
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="课堂不存在")
+    if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
+        raise HTTPException(status_code=403, detail="只有本课堂教师可以操作干预动作")
+    if meeting.status == CREATED:
+        raise HTTPException(status_code=409, detail="课堂尚未开始")
+    return meeting
+
+
 @router.post("/api/agents/group-analysis/actions/confirm")
 def confirm_group_analysis_action(
     payload: ActionConfirmationRequest,
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    meeting = db.query(Meeting).filter(Meeting.id == payload.meeting_id).first()
-    if meeting is None:
-        raise HTTPException(status_code=404, detail="课堂不存在")
-    if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
-        raise HTTPException(status_code=403, detail="只有本课堂教师可以确认干预动作")
-    if meeting.status == CREATED:
-        raise HTTPException(status_code=409, detail="课堂尚未开始")
-
+    _require_action_meeting(db, ctx, payload.meeting_id)
     result = classroom_agent_service.confirm_action(
         db,
         payload.meeting_id,
@@ -98,3 +102,37 @@ def confirm_group_analysis_action(
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("reason", "动作确认失败"))
     return result
+
+
+@router.post("/api/agents/group-analysis/actions/ignore")
+def ignore_group_analysis_action(
+    payload: ActionConfirmationRequest,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
+    _require_action_meeting(db, ctx, payload.meeting_id)
+    result = classroom_agent_service.ignore_action(
+        db,
+        payload.meeting_id,
+        target=payload.target,
+        action=payload.action,
+        script=payload.script,
+        expected=payload.expected,
+        risk=payload.risk,
+        evidence=payload.evidence,
+        ignored_by=int(ctx.user.id),
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("reason", "动作忽略失败"))
+    return result
+
+
+@router.get("/api/agents/group-analysis/actions/{meeting_id}")
+def list_group_analysis_actions(
+    meeting_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
+):
+    _require_action_meeting(db, ctx, meeting_id)
+    return classroom_agent_service.list_action_audits(db, meeting_id, limit)
