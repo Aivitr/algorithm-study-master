@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from agents import Agent, AgentOutputSchema, ModelSettings
+from agents import Agent, ModelSettings
 from pydantic import BaseModel, Field
 
 from app.agents.model import deepseek_model
@@ -111,7 +111,17 @@ INSTRUCTIONS = """你是课堂小组分析 Agent。只根据工具返回的数�
 6. 工具返回 allowed=false 时说明边界，不得绕过门禁。
 7. interventions 必须是可执行动作卡：对象、动作、话术、预期、风险、证据。
 8. engagement 来自 get_engagement，只记录已落库窗口；hint_recommendations 只建议、
-   不自动发送；validation 本期没有对比数据时保持空数组。"""
+   不自动发送；validation 本期没有对比数据时保持空数组。
+9. 最终回答只输出一个 JSON 对象，不要 Markdown 代码块。字段：
+   {"summary": "字符串",
+    "structure": {"groups": [], "bridges": [], "isolates": []},
+    "metrics_reading": [{"metric": "字符串", "layer": "facts|quality",
+                         "value": 0, "reading": "字符串", "evidence": ["T#1"]}],
+    "findings": [{"finding": "字符串", "evidence": [], "confidence": "high|medium|low"}],
+    "interventions": [{"target": "字符串", "action": "字符串", "script": "字符串",
+                       "expected": "字符串", "risk": "字符串", "evidence": []}],
+    "engagement": [], "hint_recommendations": [], "validation": [],
+    "product_metrics": [], "data_gaps": [], "unsupported_claims": []}"""
 
 
 group_analysis_agent = Agent[ClassroomToolContext](
@@ -120,6 +130,4 @@ group_analysis_agent = Agent[ClassroomToolContext](
     model=deepseek_model,
     model_settings=ModelSettings(temperature=0.2, max_tokens=1600),
     tools=list(CLASSROOM_TOOLS),
-    # GroupAnalysisOutput 含 dict[str, Any]，严格 schema 会抛 additionalProperties
-    output_type=AgentOutputSchema(GroupAnalysisOutput, strict_json_schema=False),
 )
