@@ -6,6 +6,7 @@
 `create_all()` 都属此类。
 """
 
+from app.models.analysis_run import AnalysisRun
 from app.models.base import Base
 from app.models.classroom import Meeting, MemberConnection
 from app.models.emotion import EmotionLog, MentalHealthAssessment
@@ -23,6 +24,7 @@ __all__ = [
     "Base",
     "AIInsight",
     "ActiveClassroomSession",
+    "AnalysisRun",
     "EmotionLog",
     "EngagementCurve",
     "Exercise",

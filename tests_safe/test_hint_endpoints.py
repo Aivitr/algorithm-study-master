@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from app.models import HintLog, Meeting
+from app.models import AnalysisRun, HintLog, Meeting
 
 
 def _candidate(hint_type, target_user_id=None):
@@ -42,6 +42,7 @@ def running_meeting(seeded_ids):
         db.refresh(meeting)
         yield meeting
         db.query(HintLog).filter(HintLog.meeting_id == meeting.id).delete()
+        db.query(AnalysisRun).filter(AnalysisRun.meeting_id == meeting.id).delete()
         db.query(Meeting).filter(Meeting.id == meeting.id).delete()
         db.commit()
     finally:
@@ -66,11 +67,11 @@ def hint_mocks(monkeypatch):
     def fake_suggestion(topic, context, knowledge_points, target_type="group", hint_context=""):
         suggestions.append(target_type)
         hint_contexts.append(hint_context)
-        return "测试建议"
+        return "测试建议", {"prompt_tokens": 10, "completion_tokens": 5}
 
     monkeypatch.setattr(realtime.manager, "broadcast_to_meeting", fake_broadcast)
     monkeypatch.setattr(realtime.manager, "send_to_user", fake_send)
-    monkeypatch.setattr(realtime.llm, "generate_topic_suggestion", fake_suggestion)
+    monkeypatch.setattr(realtime.llm, "generate_topic_suggestion_with_usage", fake_suggestion)
     return broadcasts, personal, suggestions, hint_contexts
 
 
@@ -116,6 +117,23 @@ def test_check_silence_consumes_stall_candidate(
     assert log.text == "测试建议"
     assert log.status == "sent"
     assert log.created_by == 1
+    assert f"M:{running_meeting.id}" in log.evidence_ids
+
+    db = database.SessionLocal()
+    try:
+        run = (
+            db.query(AnalysisRun)
+            .filter(
+                AnalysisRun.meeting_id == running_meeting.id,
+                AnalysisRun.kind == "hint_llm",
+            )
+            .one()
+        )
+    finally:
+        db.close()
+    assert run.status == "success"
+    assert run.prompt_tokens == 10
+    assert run.latency_ms is not None
 
 
 def test_check_silence_returns_false_without_candidate(
@@ -243,7 +261,7 @@ def test_check_silence_falls_back_to_template(
     def boom(*args, **kwargs):
         raise RuntimeError("llm down")
 
-    monkeypatch.setattr(realtime.llm, "generate_topic_suggestion", boom)
+    monkeypatch.setattr(realtime.llm, "generate_topic_suggestion_with_usage", boom)
     monkeypatch.setattr(
         realtime,
         "evaluate_hint_candidates",

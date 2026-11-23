@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from time import perf_counter
 from typing import Any, cast
 
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.emotions import normalize_emotion_label
 from app.models import EmotionLog, EngagementCurve, Meeting, Transcript
 from app.services.gca_service import analyze_meeting_metrics
+from app.services.observability_service import record_run
 from gca_engine.adapters.classroom import transcripts_to_utterances
 from gca_engine.engagement import (
     ENGAGEMENT_PROTOCOL_VERSION,
@@ -223,6 +225,7 @@ def rebuild_engagement_curves(meeting_id: int, db: Session) -> dict[str, Any]:
     origin = _meeting_origin(meeting, transcripts)
     end = meeting.ended_at or datetime.now()
     duration = max(0.0, (end - origin).total_seconds())
+    started = perf_counter()
     rows = _curve_rows(meeting_id, result, duration)
 
     try:
@@ -231,15 +234,39 @@ def rebuild_engagement_curves(meeting_id: int, db: Session) -> dict[str, Any]:
         )
         db.add_all(rows)
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        record_run(
+            db,
+            meeting_id=meeting_id,
+            kind="engagement",
+            source="gca",
+            status="error",
+            model="gca",
+            version=ENGAGEMENT_PROTOCOL_VERSION,
+            latency_ms=int((perf_counter() - started) * 1000),
+            error=str(exc),
+        )
         raise
+
+    dimension_status = {name: dim.status for name, dim in result.dimensions.items()}
+    record_run(
+        db,
+        meeting_id=meeting_id,
+        kind="engagement",
+        source="gca",
+        status=result.status,
+        model="gca",
+        version=ENGAGEMENT_PROTOCOL_VERSION,
+        latency_ms=int((perf_counter() - started) * 1000),
+        result={"rows": len(rows), "dimension_status": dimension_status},
+    )
 
     return {
         "status": "success",
         "meeting_id": meeting_id,
         "analysis_status": result.status,
-        "dimension_status": {name: dim.status for name, dim in result.dimensions.items()},
+        "dimension_status": dimension_status,
         "rows": len(rows),
         "protocol_version": ENGAGEMENT_PROTOCOL_VERSION,
         "warnings": result.warnings,
