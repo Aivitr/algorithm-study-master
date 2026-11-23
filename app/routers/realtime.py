@@ -524,19 +524,7 @@ async def check_silence(
         )
         evidence_ids = [f"T#{t.id}" for t in recents] + [f"M:{meeting_id}"]
 
-        # 广播给所有在线成员
-        await manager.broadcast_to_meeting(
-            meeting_id,
-            {
-                "type": "topic_suggestion",
-                "target": "all",
-                "suggestion": suggestion,
-                "reason": "group_silence",
-                "trigger_reason": candidate["trigger_reason"],
-                "evidence": candidate["evidence"],
-            },
-        )
-        record_sent_hint(
+        hint_id = record_sent_hint(
             db,
             meeting_id=meeting_id,
             candidate=candidate,
@@ -544,6 +532,20 @@ async def check_silence(
             created_by=int(ctx.user.id),
             model=hint_model,
             evidence_ids=evidence_ids,
+        )
+
+        # 广播给所有在线成员
+        await manager.broadcast_to_meeting(
+            meeting_id,
+            {
+                "type": "topic_suggestion",
+                "target": "all",
+                "hint_id": hint_id,
+                "suggestion": suggestion,
+                "reason": "group_silence",
+                "trigger_reason": candidate["trigger_reason"],
+                "evidence": candidate["evidence"],
+            },
         )
         record_run(
             db,
@@ -641,19 +643,7 @@ async def check_quiet_members(
             member = name_by_id.get(item.get("target_user_id"))
             if not member:
                 continue
-            await manager.send_to_user(
-                meeting_id,
-                member,
-                {
-                    "type": "topic_suggestion",
-                    "target": "personal",
-                    "suggestion": suggestion,
-                    "reason": "low_participation",
-                    "trigger_reason": item["trigger_reason"],
-                    "evidence": item["evidence"],
-                },
-            )
-            record_sent_hint(
+            hint_id = record_sent_hint(
                 db,
                 meeting_id=meeting_id,
                 candidate=item,
@@ -661,6 +651,19 @@ async def check_quiet_members(
                 created_by=int(ctx.user.id),
                 model=hint_model,
                 evidence_ids=evidence_ids,
+            )
+            await manager.send_to_user(
+                meeting_id,
+                member,
+                {
+                    "type": "topic_suggestion",
+                    "target": "personal",
+                    "hint_id": hint_id,
+                    "suggestion": suggestion,
+                    "reason": "low_participation",
+                    "trigger_reason": item["trigger_reason"],
+                    "evidence": item["evidence"],
+                },
             )
 
         record_run(

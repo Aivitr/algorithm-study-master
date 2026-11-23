@@ -46,6 +46,16 @@
 
 ## 2. 发送记录
 
+### `POST /api/hint-logs/{hint_id}/response`
+
+学生回应收到的提示。个人提示只有目标学生能回应；小组提示要求是课堂参与者。
+
+```json
+{"response": "acknowledged"}
+```
+
+允许值：`acknowledged` / `need_help` / `dismissed`。响应写入 `hint_logs.response`。
+
 ### `GET /api/hint-logs/{meeting_id}`
 
 教师查看本课堂的提示记录，按时间倒序。
