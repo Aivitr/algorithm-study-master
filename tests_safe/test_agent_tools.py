@@ -161,4 +161,18 @@ def test_output_contract_has_layers_and_reserved_product_metrics():
         "quality",
     }
     assert payload["product_metrics"] == []
+    assert payload["engagement"] == []
+    assert payload["hint_recommendations"] == []
+    assert payload["validation"] == []
     assert payload["structure"] == {"groups": [], "bridges": [], "isolates": []}
+
+
+def test_transcripts_carry_quality_evidence_ids(seeded_ids):
+    db = database.SessionLocal()
+    try:
+        result = classroom_agent_service.get_transcripts(db, seeded_ids["meeting_id"])
+    finally:
+        db.close()
+
+    assert result["items"]
+    assert all(item["quality_evidence_id"].startswith("Q#") for item in result["items"])

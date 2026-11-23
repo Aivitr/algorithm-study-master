@@ -50,6 +50,7 @@ class ClassroomAgentService:
                 "timestamp": _milliseconds(row.created_at or row.timestamp),
                 "relevance_score": row.relevance_score,
                 "quality_score": row.quality_score,
+                "quality_evidence_id": f"Q#{row.id}",
                 "emotion": row.emotion_tag,
                 "body_action": row.body_action,
                 "audio_tone": row.audio_tone,
