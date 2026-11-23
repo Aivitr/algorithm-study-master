@@ -1929,7 +1929,7 @@
                         </div>
 
                         <!-- AI辅导老师 -->
-                        <div v-if="false" class="bg-white p-8 rounded-2xl shadow-lg">
+                        <div class="bg-white p-8 rounded-2xl shadow-lg">
                             <div class="flex justify-between items-center mb-6">
                                 <h2 class="text-2xl font-bold text-gray-800">
                                     <i class="fas fa-robot text-green-600 mr-2"></i>AI辅导老师
@@ -3609,7 +3609,7 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <h4 class="insight-card-title">
                                         <i class="fas fa-quote-left" style="color: var(--primary);"></i>群体结论
-                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">示例</span>
+                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">未分析</span>
                                     </h4>
                                     <div class="flex gap-1">
                                         <button type="button" class="insight-icon-btn" :class="{ 'is-on': isStarred('group-summary') }"
@@ -3814,7 +3814,7 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <h4 class="insight-card-title">
                                         <i class="fas fa-quote-left" style="color: var(--primary);"></i>给我的反馈
-                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">示例</span>
+                                        <span v-if="isDemoAnalysis" class="insight-tag-soft ml-1">未分析</span>
                                     </h4>
                                     <div class="flex gap-1">
                                         <button type="button" class="insight-icon-btn" :class="{ 'is-on': isStarred('my-summary') }"

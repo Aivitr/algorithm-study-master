@@ -91,6 +91,8 @@ _FORBIDDEN_HOSTS = (
 _FIRST_PARTY = {
     "css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
     "js/app.js",  # index.html 原 <script> 块（阶段 7 外移）
+    "css/classroom-insights.css",  # 课堂右栏组件样式
+    "js/classroom-insights.js",  # 课堂右栏 mixin
 }
 
 _ABSOLUTE_URL_RE = re.compile(r"https?://([^/\"'\s)>]+)")
@@ -129,6 +131,8 @@ def _index_html() -> str:
 _PAGE_LOADED_FIRST_PARTY = (
     "static/css/app.css",  # index.html 原 <style> 块（阶段 7 外移）
     "static/js/app.js",  # index.html 原 <script> 块（阶段 7 外移）
+    "static/css/classroom-insights.css",  # 课堂右栏组件样式
+    "static/js/classroom-insights.js",  # 课堂右栏 mixin
     "pcm-processor.js",  # 音频工作线程（app.js:1220 加载）
 )
 
@@ -181,7 +185,8 @@ def _index_local_refs() -> set[str]:
     for pattern in _REF_PATTERNS:
         for raw in pattern.findall(html):
             if raw.startswith(URL_PREFIX + "/"):
-                refs.add(raw)
+                # 去掉 ?v=… 缓存版本号；它不参与文件定位。
+                refs.add(raw.split("#", 1)[0].split("?", 1)[0])
     return refs
 
 

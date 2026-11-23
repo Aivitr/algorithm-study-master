@@ -43,6 +43,7 @@ router = APIRouter()
 
 
 _report_tasks: set[asyncio.Task] = set()
+_engagement_tasks: set[asyncio.Task] = set()
 
 
 def _teacher_only(ctx: SessionContext, meeting: Meeting, action: str) -> Optional[dict]:
@@ -104,6 +105,31 @@ def schedule_class_reports(meeting_id: int) -> None:
     # 事件循环只持弱引用；不留强引用的话任务可能在执行中被回收。
     _report_tasks.add(task)
     task.add_done_callback(_report_tasks.discard)
+
+
+def _rebuild_engagement_curves_sync(meeting_id: int) -> None:
+    """在线程里重算三维投入并写曲线；失败只记录，不影响课堂结束。"""
+    from app.core.database import SessionLocal
+    from app.services.engagement_service import rebuild_engagement_curves
+
+    db = SessionLocal()
+    try:
+        result = rebuild_engagement_curves(meeting_id, db)
+        print(
+            f"[ENGAGEMENT] meeting {meeting_id}: {result.get('status')} "
+            f"rows={result.get('rows', 0)}"
+        )
+    except Exception as exc:
+        print(f"[ERROR] 三维投入落库失败: meeting_id={meeting_id}: {exc}")
+    finally:
+        db.close()
+
+
+def schedule_engagement_curves(meeting_id: int) -> None:
+    """结束课堂后触发一次三维投入落库（测试可替换此函数）。"""
+    task = asyncio.create_task(asyncio.to_thread(_rebuild_engagement_curves_sync, meeting_id))
+    _engagement_tasks.add(task)
+    task.add_done_callback(_engagement_tasks.discard)
 
 
 @router.get("/api/agora-token")
@@ -343,6 +369,7 @@ async def end_class(
 
         # 课后报告由后端触发一次（CAS 已保证只有结束执行者走到这里）
         schedule_class_reports(meeting_id)
+        schedule_engagement_curves(meeting_id)
 
         print(f"[OK] 课堂 {meeting_id} 已被教师 {ctx.user.student_id} 结束")
         return {

@@ -43,6 +43,10 @@ from gca_engine.schemas import AnalysisStatus
 # 三个维度的正式名字（全项目唯一，整合层与前端按这个名字读）
 DIMENSIONS = ("emotional", "behavioral", "cognitive")
 
+# 契约版本（docs/engagement_agent_contract.md 第 6 节）：
+# v1 内只允许新增可选字段；重命名指标、改状态语义、改时间基准都要升主版本。
+ENGAGEMENT_PROTOCOL_VERSION = "1.0"
+
 # 单维度数据状态：与整体 AnalysisStatus 7 种互不替代
 DIMENSION_STATUS = ("ok", "insufficient", "unavailable")
 

@@ -71,6 +71,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/voiceprint_register` | 只读本地 |  |
 | GET | `/api/agora-token` | 外部服务：Agora |  |
 | POST | `/api/agents/group-analysis` | 外部服务：LLM |  |
+| POST | `/api/agents/group-analysis/actions/confirm` | 写操作 |  |
 | POST | `/api/ai-tutor` | 外部服务：LLM |  |
 | POST | `/api/ai-tutor-stream` | 外部服务：LLM |  |
 | POST | `/api/check-quiet-members` | 外部服务：LLM |  |
@@ -96,7 +97,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 71 条（其中 `/voiceprint_register` 是死路由，可调用路由 70 条）：{'WebSocket': 3, '写操作': 12, '写操作（有副作用）': 1, '只读本地': 29, '外部服务': 20, '本地模型推理': 6}
+总计 72 条（其中 `/voiceprint_register` 是死路由，可调用路由 71 条）：{'WebSocket': 3, '写操作': 13, '写操作（有副作用）': 1, '只读本地': 29, '外部服务': 20, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖
@@ -123,9 +124,9 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | 3 条 WebSocket | 长连接，非请求-响应语义 |
 | `/voiceprint_register` | **死路由**：`FileResponse` 指向的 `voiceprint_register.html` 全仓不存在，任何调用抛 `RuntimeError` |
 
-**覆盖率：25 / 70 ≈ 36%**（分母为剔除死路由后的 70 条）。
+**覆盖率：25 / 71 ≈ 35%**（分母为剔除死路由后的 71 条）。
 
-但这个分母没有意义——70 条中还包含写操作、WebSocket、20 条外部服务依赖和
+但这个分母没有意义——71 条中还包含写操作、WebSocket、20 条外部服务依赖和
 本地模型推理路由，它们本来就不可纳入。按"可纳入"的口径算：
 
 - 两条 GCA 只读接口 `/api/gca-dashboard/{meeting_id}` 与

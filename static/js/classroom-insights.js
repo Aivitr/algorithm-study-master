@@ -108,89 +108,27 @@
                         `本组 ${stats.speakers || 0} 名学生已产生 ${stats.speeches || 0} 条发言，`
                         + `平均质量 ${stats.avgQuality === '—' ? '暂无' : stats.avgQuality} 分。`
                         + (silent.length ? `其中 ${silent.join('、')} 尚未开口。` : '')
-                        + '讨论已覆盖光反应与暗反应的关系，但结论仍停在并列观点上，建议推进一次收口。',
-                    findings: [
-                        {
-                            finding: '参与面已经铺开，但发言集中在少数人身上，需要点一次沉默成员。',
-                            evidence: this.sampleRefs(2),
-                            confidence: 'high',
-                        },
-                        {
-                            finding: '多数发言在补充事实，缺少把观点收敛成结论的动作。',
-                            evidence: this.sampleRefs(3),
-                            confidence: 'medium',
-                        },
-                        {
-                            finding: '实验设计讨论较多，但还没有落到可执行的分工。',
-                            evidence: this.sampleRefs(2).slice(0, 1),
-                            confidence: 'medium',
-                        },
-                    ],
-                    interventions: [
-                        {
-                            target: silent[0] || '小组',
-                            action: '引导沉默成员发言',
-                            script: `${silent[0] || '同学'}，你刚才一直在听，能就刚才讨论的实验设计补一句你的判断吗？`,
-                            expected: '让参与面覆盖到全部成员',
-                            risk: '突然点名可能让对方紧张，给一点思考时间',
-                            evidence: this.sampleRefs(2),
-                        },
-                        {
-                            target: '小组',
-                            action: '追加一个反例讨论',
-                            script: '如果光照骤降，暗反应会怎样？请用你们的实验数据说明依据。',
-                            expected: '把并列观点收敛成一条结论',
-                            risk: '可能重新打开已经收敛的分歧',
-                            evidence: this.sampleRefs(2),
-                        },
-                    ],
+                        + '尚未运行 AI 分析，点击分析按钮后生成基于真实发言的结论。',
+                    findings: [],
+                    interventions: [],
                     metrics_reading: [],
-                    data_gaps: [],
+                    data_gaps: ['尚未运行 AI 分析'],
                     unsupported_claims: [],
                 };
             },
-            /** 学生：个体示例，编号取自「我自己的发言」。 */
+            /** 学生：尚未分析时只展示真实统计，不编造结论。 */
             demoPersonalAnalysis() {
                 const stats = this.myStats || {};
-                const refs = (this.myTranscripts || []).map((item) => item.ref);
                 return {
                     summary:
                         `你在本组共发言 ${stats.count || 0} 条，占全组 ${stats.share || '—'}，`
                         + `平均质量 ${stats.avgQuality === '—' ? '暂无' : stats.avgQuality} 分，`
                         + `主要情绪是 ${stats.topEmotion || '—'}。`
-                        + '内容基本围绕课堂目标，但多为补充事实，缺少把观点讲成结论、并回应他人的动作。',
-                    findings: [
-                        {
-                            finding: '你的发言以事实补充为主，可以先给判断、再给依据，让别人更容易接话。',
-                            evidence: refs.slice(0, 2),
-                            confidence: 'high',
-                        },
-                        {
-                            finding: '有一次追问没有等到回应就被新话题带走了，可以主动把问题再抛一次。',
-                            evidence: refs.slice(2, 4),
-                            confidence: 'medium',
-                        },
-                    ],
-                    interventions: [
-                        {
-                            target: this.currentUser ? this.currentUser.username : '我',
-                            action: '给观点加一句结论',
-                            script: '我同意这个方向，因为……，所以我认为下一步应该……',
-                            expected: '让发言从补充事实变成可被引用的结论',
-                            risk: '如果依据不足，可能被同学追问细节',
-                            evidence: refs.slice(0, 2),
-                        },
-                        {
-                            target: '小组',
-                            action: '把追问再抛一次',
-                            script: '刚才那个问题还没结论，我们先把这一条讨论清楚再往下走。',
-                            expected: '把没被回应的疑问变成小组结论',
-                            risk: '可能拖慢进度，需要控制在一分钟内',
-                            evidence: refs.slice(1, 3),
-                        },
-                    ],
+                        + '尚未生成个人反馈，点击“分析我的表现”查看。',
+                    findings: [],
+                    interventions: [],
                     metrics_reading: [],
-                    data_gaps: [],
+                    data_gaps: ['尚未生成个人反馈'],
                     unsupported_claims: [],
                 };
             },
@@ -283,12 +221,7 @@
                 }
                 return ['我的发言质量如何', '我的观点被回应了吗', '我下一步能做什么'];
             },
-            /** 取前 n 条真实证据编号的函数（computed 返回函数，供示例数据调用）。 */
-            sampleRefs() {
-                const items = this.transcriptItems || [];
-                return (n) => items.slice(0, n || 2).map((item) => item.ref);
-            },
-            /** 一条发言都没有的成员（教师示例里用来点名）。 */
+            /** 一条发言都没有的成员（教师视图里用来点名）。 */
             silentMembers() {
                 const spoken = new Set((this.transcriptItems || []).map((item) => item.username));
                 const all = (this.onlineMembers || [])
@@ -426,19 +359,6 @@
                     speeches: items.length,
                     avgQuality: avg === null ? '—' : avg,
                 };
-            },
-        },
-        watch: {
-            // 切到 AI 页签（Agent 面板所在）时补一次数据：证据/成员/工具清单
-            classroomTab(tab) {
-                if (tab !== 'ai') return;
-                this.restoreStudentState();
-                if (this.isTeacherRole) this.loadAgentTools();
-            },
-            meetingId() {
-                this.gcaLoaded = false;
-                this.agentResult = null;
-                this.followUpHistory = [];
             },
         },
         methods: {
@@ -1090,9 +1010,14 @@
                 }
             },
             classroomTab(newValue) {
-                if (newValue === 'insight') {
-                    this.$nextTick(() => setTimeout(() => this._ensureInsightSection(), 120));
-                }
+                if (newValue !== 'ai') return;
+                this.restoreStudentState();
+                if (this.isTeacherRole) this.loadAgentTools();
+            },
+            meetingId() {
+                this.gcaLoaded = false;
+                this.agentResult = null;
+                this.followUpHistory = [];
             },
         },
     };

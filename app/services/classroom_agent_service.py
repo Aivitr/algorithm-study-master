@@ -146,6 +146,7 @@ class ClassroomAgentService:
         expected: str,
         risk: str,
         evidence: list[str],
+        confirmed_by: int | None = None,
     ) -> dict[str, Any]:
         """教师确认一条干预动作：只落一条 AIInsight 审计记录，不向学生下发。"""
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -162,6 +163,7 @@ class ClassroomAgentService:
             "risk": risk.strip(),
             "evidence": evidence,
             "confirmation_source": "teacher",
+            "confirmed_by": confirmed_by,
         }
         insight = AIInsight(
             meeting_id=meeting_id,

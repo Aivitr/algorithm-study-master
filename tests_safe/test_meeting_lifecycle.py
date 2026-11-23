@@ -70,6 +70,21 @@ def lifecycle_report_schedules(monkeypatch):
     return scheduled
 
 
+@pytest.fixture
+def lifecycle_engagement_schedules(monkeypatch):
+    """拦截三维投入落库任务，避免测试里起后台线程。"""
+    import app.routers.classroom_ops as classroom_ops
+
+    scheduled = []
+    monkeypatch.setattr(classroom_ops, "schedule_engagement_curves", scheduled.append)
+    return scheduled
+
+
+@pytest.fixture(autouse=True)
+def _block_engagement_schedules(lifecycle_engagement_schedules):
+    return lifecycle_engagement_schedules
+
+
 def _start(client, meeting_id):
     return client.post(
         "/api/start-class",
@@ -226,7 +241,11 @@ def test_login_requires_session(client, seeded_ids):
 
 
 def test_end_class_is_idempotent(
-    client, lifecycle_meeting, lifecycle_broadcasts, lifecycle_report_schedules
+    client,
+    lifecycle_meeting,
+    lifecycle_broadcasts,
+    lifecycle_report_schedules,
+    lifecycle_engagement_schedules,
 ):
     from app.core.database import SessionLocal
     from app.models import Meeting
@@ -262,6 +281,7 @@ def test_end_class_is_idempotent(
     assert [payload["type"] for _, payload in lifecycle_broadcasts] == ["class_ended"]
     # 课后报告任务只在第一次结束时触发一次
     assert lifecycle_report_schedules == [lifecycle_meeting]
+    assert lifecycle_engagement_schedules == [lifecycle_meeting]
 
 
 def test_end_class_freezes_active_votes(
