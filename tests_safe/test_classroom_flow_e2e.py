@@ -56,7 +56,11 @@ def test_full_classroom_flow(
     from app.routers import classroom_ops
 
     scheduled = []
+    engagement_scheduled = []
     monkeypatch.setattr(classroom_ops, "schedule_class_reports", scheduled.append)
+    monkeypatch.setattr(
+        classroom_ops, "schedule_engagement_curves", engagement_scheduled.append
+    )
 
     started = client.post(
         "/api/start-class",
@@ -118,6 +122,7 @@ def test_full_classroom_flow(
     assert ended.json()["status"] == "success"
     assert ended.json()["meeting_status"] == "ended"
     assert scheduled == [flow_meeting]
+    assert engagement_scheduled == [flow_meeting]
 
     reports = client.get(f"/api/meeting-reports/{flow_meeting}", headers=teacher_headers)
     assert reports.status_code == 200
