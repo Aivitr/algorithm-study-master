@@ -339,6 +339,11 @@ from app.routers.realtime import router as realtime_router
 app.include_router(realtime_router)
 
 
+from app.routers.hints import router as hints_router
+
+app.include_router(hints_router)
+
+
 from app.routers.agents import router as agents_router
 
 app.include_router(agents_router)

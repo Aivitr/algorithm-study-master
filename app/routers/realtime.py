@@ -27,6 +27,7 @@
 """
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, Form, WebSocket
 from fastapi.responses import StreamingResponse
@@ -34,7 +35,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import RUNNING, meeting_status_error
-from app.models import Meeting, Transcript
+from app.models import Meeting, Transcript, User
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
 from app.realtime.speech import _create_realtime_transcript_entry
@@ -48,6 +49,11 @@ from app.realtime.state import (
     REALTIME_ASR_VOICEPRINT_DISABLED,
 )
 from app.realtime.stream import process_user_stream_generator
+from app.services.hint_candidate_service import (
+    evaluate_hint_candidates,
+    filter_recent_sends,
+    record_sent_hint,
+)
 from app.services.llm_service import llm
 from app.services.session_service import (
     SessionContext,
@@ -56,6 +62,12 @@ from app.services.session_service import (
 )
 
 router = APIRouter()
+
+
+def _template_suggestion(topic: str, target_type: str) -> str:
+    if target_type == "quiet":
+        return f"可以请这位同学围绕「{topic}」补充一个例子或提出一个问题。"
+    return f"课堂暂时安静，可以围绕「{topic}」提出一个具体问题，邀请学生回应。"
 
 
 def _meeting_is_running(meeting_id: int) -> bool:
@@ -432,25 +444,30 @@ async def check_silence(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查课堂是否沉默超过2分钟，如果是则生成话题建议"""
+    """检查课堂是否讨论停滞，如果是则生成话题建议"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        if not manager.is_group_silent(meeting_id, silence_seconds=120):
-            return {"status": "ok", "silent": False}
 
-        if manager.silence_notified.get(meeting_id):
-            return {"status": "ok", "silent": True, "already_notified": True}
-
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
+        evaluation = evaluate_hint_candidates(meeting_id, db)
+        if evaluation["status"] == "not_found":
             return {"status": "error", "message": "课堂不存在"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
+        if evaluation["status"] != "success":
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
+
+        candidates = [
+            item for item in evaluation["candidates"] if item["hint_type"] == "discussion_stall"
+        ]
+        candidates = filter_recent_sends(db, meeting_id, candidates)
+        if not candidates:
+            return {"status": "ok", "silent": False}
+        candidate = candidates[0]
 
         # 获取最近讨论上下文
         recents = (
@@ -460,11 +477,30 @@ async def check_silence(
             .limit(5)
             .all()
         )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
-
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="group"
+        discussion_context = "\n".join(
+            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
         )
+        hint_context = (
+            f"触发原因：{candidate['trigger_reason']}\n"
+            f"证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
+        )
+
+        hint_model = "llm"
+        try:
+            suggestion = llm.generate_topic_suggestion(
+                meeting.topic,
+                discussion_context,
+                meeting.knowledge_points,
+                target_type="group",
+                hint_context=hint_context,
+            )
+        except Exception as exc:
+            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
+            suggestion = _template_suggestion(meeting.topic, "group")
+            hint_model = "template"
+        if not (suggestion or "").strip():
+            suggestion = _template_suggestion(meeting.topic, "group")
+            hint_model = "template"
 
         # 广播给所有在线成员
         await manager.broadcast_to_meeting(
@@ -474,11 +510,25 @@ async def check_silence(
                 "target": "all",
                 "suggestion": suggestion,
                 "reason": "group_silence",
+                "trigger_reason": candidate["trigger_reason"],
+                "evidence": candidate["evidence"],
             },
         )
-        manager.silence_notified[meeting_id] = True
+        record_sent_hint(
+            db,
+            meeting_id=meeting_id,
+            candidate=candidate,
+            text=suggestion,
+            created_by=int(ctx.user.id),
+            model=hint_model,
+        )
 
-        return {"status": "success", "silent": True, "suggestion": suggestion}
+        return {
+            "status": "success",
+            "silent": True,
+            "suggestion": suggestion,
+            "trigger_reason": candidate["trigger_reason"],
+        }
     except Exception as e:
         print(f"[ERROR] check-silence: {e}")
         return {"status": "error", "message": str(e)}
@@ -497,11 +547,33 @@ async def check_quiet_members(
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
 
-        quiet_members = manager.get_quiet_members(meeting_id, threshold=2)
+        evaluation = evaluate_hint_candidates(meeting_id, db)
+        if evaluation["status"] == "not_found":
+            return {"status": "error", "message": "课堂不存在"}
+        if evaluation["status"] != "success":
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
+
+        candidates = [
+            item for item in evaluation["candidates"] if item["hint_type"] == "low_participation"
+        ]
+        candidates = filter_recent_sends(db, meeting_id, candidates)
+        if not candidates:
+            return {"status": "ok", "quiet_members": []}
+
+        target_ids = [
+            int(item["target_user_id"]) for item in candidates if item.get("target_user_id")
+        ]
+        users = db.query(User).filter(User.id.in_(target_ids)).all() if target_ids else []
+        name_by_id = {str(user.id): user.username for user in users}
+        quiet_members = [
+            name_by_id[item["target_user_id"]]
+            for item in candidates
+            if item.get("target_user_id") in name_by_id
+        ]
         if not quiet_members:
             return {"status": "ok", "quiet_members": []}
 
@@ -513,14 +585,37 @@ async def check_quiet_members(
             .limit(5)
             .all()
         )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
-
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="quiet"
+        discussion_context = "\n".join(
+            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
+        )
+        hint_context = "\n".join(
+            f"{item['target_user_id']}: {item['trigger_reason']} "
+            f"{json.dumps(item['evidence'], ensure_ascii=False)}"
+            for item in candidates
         )
 
-        # 只推送给沉默的成员
-        for member in quiet_members:
+        hint_model = "llm"
+        try:
+            suggestion = llm.generate_topic_suggestion(
+                meeting.topic,
+                discussion_context,
+                meeting.knowledge_points,
+                target_type="quiet",
+                hint_context=hint_context,
+            )
+        except Exception as exc:
+            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
+            suggestion = _template_suggestion(meeting.topic, "quiet")
+            hint_model = "template"
+        if not (suggestion or "").strip():
+            suggestion = _template_suggestion(meeting.topic, "quiet")
+            hint_model = "template"
+
+        # 只推送给被判定低参与的成员
+        for item in candidates:
+            member = name_by_id.get(item.get("target_user_id"))
+            if not member:
+                continue
             await manager.send_to_user(
                 meeting_id,
                 member,
@@ -529,7 +624,17 @@ async def check_quiet_members(
                     "target": "personal",
                     "suggestion": suggestion,
                     "reason": "low_participation",
+                    "trigger_reason": item["trigger_reason"],
+                    "evidence": item["evidence"],
                 },
+            )
+            record_sent_hint(
+                db,
+                meeting_id=meeting_id,
+                candidate=item,
+                text=suggestion,
+                created_by=int(ctx.user.id),
+                model=hint_model,
             )
 
         return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
