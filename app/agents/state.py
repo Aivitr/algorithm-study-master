@@ -25,6 +25,7 @@ TOOL_STATES = {
     "get_classroom_statistics": READ_STATES,
     "get_classroom_knowledge": READ_STATES,
     "get_class_metrics": READ_STATES,
+    "get_engagement": READ_STATES,
     "get_hint_history": READ_STATES,
 }
 

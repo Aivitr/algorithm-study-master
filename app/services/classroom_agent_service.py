@@ -11,7 +11,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import HintLog, Meeting
+from app.models import EngagementCurve, HintLog, Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.gca_service import analyze_meeting_metrics
 from app.services.knowledge_trace_service import KnowledgeTraceService
@@ -114,6 +114,49 @@ class ClassroomAgentService:
             ),
             "graph": graph,
             "data_gaps": [] if graph.get("nodes") else ["课堂尚无知识图谱"],
+        }
+
+    def get_engagement(
+        self,
+        db: Session,
+        meeting_id: int,
+        dimension: str | None = None,
+        user_id: int | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        limit = max(1, min(int(limit), 500))
+        query = db.query(EngagementCurve).filter(
+            EngagementCurve.meeting_id == meeting_id
+        )
+        if dimension:
+            query = query.filter(EngagementCurve.dimension == dimension)
+        if user_id is not None:
+            query = query.filter(EngagementCurve.user_id == user_id)
+        rows = (
+            query.order_by(
+                EngagementCurve.window_start_second,
+                EngagementCurve.dimension,
+                EngagementCurve.user_id,
+            )
+            .limit(limit)
+            .all()
+        )
+        return {
+            "ok": True,
+            "meeting_id": meeting_id,
+            "count": len(rows),
+            "rows": [
+                {
+                    "dimension": row.dimension,
+                    "user_id": row.user_id,
+                    "window_start_second": row.window_start_second,
+                    "window_end_second": row.window_end_second,
+                    "metrics": row.metrics or {},
+                    "status": row.status,
+                    "protocol_version": row.protocol_version,
+                }
+                for row in rows
+            ],
         }
 
     def get_hint_history(

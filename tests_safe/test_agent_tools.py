@@ -10,7 +10,7 @@ from app.agents.group_analysis_agent import (
 )
 from app.agents.state import require_tool_state
 from app.core import database
-from app.models import HintLog, Meeting
+from app.models import EngagementCurve, HintLog, Meeting
 from app.services.classroom_agent_service import classroom_agent_service
 
 
@@ -62,6 +62,39 @@ def test_get_metrics_returns_quality_layer(seeded_ids):
     assert result["ok"] is True
     assert result["layer"] == "quality"
     assert set(result["student_metrics"]) == {"2", "3"}
+
+
+def test_get_engagement_returns_stored_curves(seeded_ids):
+    db = database.SessionLocal()
+    try:
+        db.add(
+            EngagementCurve(
+                meeting_id=seeded_ids["meeting_id"],
+                user_id=seeded_ids["student_id"],
+                dimension="behavioral",
+                window_start_second=0.0,
+                window_end_second=300.0,
+                metrics={"utterance_count": 2},
+                status="ok",
+                protocol_version="1.0",
+            )
+        )
+        db.commit()
+
+        result = classroom_agent_service.get_engagement(
+            db, seeded_ids["meeting_id"], dimension="behavioral"
+        )
+    finally:
+        db.query(EngagementCurve).filter(
+            EngagementCurve.meeting_id == seeded_ids["meeting_id"]
+        ).delete()
+        db.commit()
+        db.close()
+
+    assert result["ok"] is True
+    assert result["count"] == 1
+    assert result["rows"][0]["metrics"] == {"utterance_count": 2}
+    assert result["rows"][0]["user_id"] == seeded_ids["student_id"]
 
 
 def test_get_hint_history_returns_h_evidence(seeded_ids):

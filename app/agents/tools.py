@@ -61,6 +61,21 @@ def get_class_metrics(
 
 
 @function_tool
+def get_engagement(
+    ctx: RunContextWrapper[ClassroomToolContext],
+    meeting_id: int,
+    dimension: str | None = None,
+    user_id: int | None = None,
+) -> dict[str, Any]:
+    """读取已落库的三维投入曲线（按窗口）。"""
+    if denied := require_tool_state("get_engagement", ctx.context.db, meeting_id):
+        return denied
+    return classroom_agent_service.get_engagement(
+        ctx.context.db, meeting_id, dimension, user_id
+    )
+
+
+@function_tool
 def get_hint_history(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -77,5 +92,6 @@ CLASSROOM_TOOLS = (
     get_classroom_statistics,
     get_classroom_knowledge,
     get_class_metrics,
+    get_engagement,
     get_hint_history,
 )
