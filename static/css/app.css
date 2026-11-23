@@ -692,7 +692,7 @@
             box-shadow: 0 0 12px var(--glass-primary-glow) !important;
         }
         
-        /* 🏷️ 标签发光动画（仅课堂页面） */
+        /* 🏷️ 标签样式（仅课堂页面） */
         .page-classroom .tag,
         .page-classroom .badge,
         .page-classroom [class*="badge"],
@@ -700,18 +700,6 @@
             background: rgba(94, 168, 171, 0.15) !important;
             border: 1px solid var(--glass-border) !important;
             backdrop-filter: var(--glass-blur) !important;
-            animation: subtlePulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes subtlePulse {
-            0%, 100% {
-                box-shadow: 0 0 8px var(--glass-primary-glow);
-                opacity: 1;
-            }
-            50% {
-                box-shadow: 0 0 16px var(--glass-primary-glow);
-                opacity: 0.9;
-            }
         }
         
         /* 🎭 弹窗玻璃效果（仅课堂页面） */
@@ -980,6 +968,112 @@
             text-transform: none;
         }
 
+        /* 顶部信息与操作分组：状态只读，分享操作单独成组 */
+        .page-classroom .classroom-statusbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: calc(100% - 120px);
+            pointer-events: none;
+        }
+
+        .page-classroom .classroom-status-info,
+        .page-classroom .classroom-media-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: auto;
+        }
+
+        .page-classroom .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: var(--radius-pill);
+            background: rgba(15, 23, 42, 0.52);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #e8eef2;
+            font-size: var(--font-xs);
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+        }
+
+        .page-classroom .status-chip--live .recording-dot {
+            background: #f87171;
+            box-shadow: 0 0 6px rgba(248, 113, 113, 0.8);
+        }
+
+        .page-classroom .status-chip--warning {
+            background: rgba(146, 64, 14, 0.55);
+            border-color: rgba(251, 191, 36, 0.45);
+            color: #fde68a;
+        }
+
+        .page-classroom .classroom-media-actions {
+            gap: 8px;
+            padding-left: 10px;
+            border-left: 1px solid rgba(255, 255, 255, 0.22);
+        }
+
+        .page-classroom .classroom-media-mode {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: var(--radius-pill);
+            background: rgba(13, 148, 136, 0.20);
+            border: 1px solid rgba(94, 234, 212, 0.45);
+            color: #99f6e4;
+            font-size: var(--font-xs);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .page-classroom .classroom-media-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: var(--radius-pill);
+            font-size: var(--font-xs);
+            font-weight: 700;
+            border: 1px solid transparent;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .page-classroom .classroom-media-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .page-classroom .classroom-media-btn:not(:disabled):hover {
+            transform: translateY(-1px);
+        }
+
+        .page-classroom .classroom-media-btn--primary {
+            background: var(--classroom-accent);
+            color: #ffffff;
+            box-shadow: 0 6px 18px rgba(13, 119, 122, 0.35);
+        }
+
+        .page-classroom .classroom-media-btn--ghost {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.38);
+            color: #ffffff;
+        }
+
+        .page-classroom .classroom-media-btn--danger {
+            background: var(--danger);
+            color: #ffffff;
+            box-shadow: 0 6px 18px rgba(214, 101, 101, 0.3);
+        }
+
         .page-classroom .classroom-stage .vol-bar {
             background: linear-gradient(to top, #0f8b8d, #12a0a2) !important;
             box-shadow: none !important;
@@ -989,6 +1083,11 @@
             background: var(--classroom-card) !important;
             border-left: 1px solid #dbe4e8 !important;
             box-shadow: var(--shadow-panel) !important;
+            min-height: 0;
+        }
+
+        .page-classroom .classroom-stats-panel {
+            max-height: none;
         }
 
         .page-classroom .classroom-tabbar {
@@ -1144,7 +1243,22 @@
                 margin-left: 0 !important;
             }
 
+            .page-classroom .classroom-status-info,
+            .page-classroom .classroom-media-actions {
+                flex-wrap: wrap;
+            }
+
+            .page-classroom .classroom-media-actions {
+                padding-left: 0;
+                border-left: none;
+            }
+
             .page-classroom .classroom-statusbar .status-badge {
+                max-width: 100%;
+                white-space: normal;
+            }
+
+            .page-classroom .classroom-statusbar .status-chip {
                 max-width: 100%;
                 white-space: normal;
             }
@@ -1176,7 +1290,8 @@
                 max-height: none;
             }
 
-            .page-classroom .classroom-statusbar .status-badge {
+            .page-classroom .classroom-statusbar .status-badge,
+            .page-classroom .classroom-statusbar .status-chip {
                 font-size: 11px;
                 padding: 6px 8px;
             }
@@ -2108,4 +2223,233 @@
         /* 话题建议弹窗 */
         .topic-suggestion-bar { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 9980; max-width: 480px; width: 90%; animation: topicSlideDown 0.4s ease; }
         @keyframes topicSlideDown { from { transform: translateX(-50%) translateY(-100%); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+
+        /* 教师端 GCA 协作分析 */
+        .gca-fab {
+            position: absolute; right: 24px; top: 84px; z-index: 50;
+            width: 72px; height: 72px; border: 0; border-radius: 50%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+            color: #fff; background: linear-gradient(145deg, #0f8b8d, #2f6670);
+            box-shadow: 0 14px 30px rgba(15, 139, 141, .34), inset 0 1px 0 rgba(255,255,255,.25);
+            cursor: pointer; transition: transform .2s ease, box-shadow .2s ease;
+            font-size: 12px; font-weight: 800; line-height: 1.05;
+        }
+        .gca-fab:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 18px 34px rgba(15,139,141,.42); }
+        .gca-fab > i { font-size: 20px; margin-bottom: 2px; }
+        .student-gca-fab { background: linear-gradient(145deg, #2563eb, #4f46e5); box-shadow: 0 14px 30px rgba(37,99,235,.32), inset 0 1px 0 rgba(255,255,255,.25); }
+        .student-gca-fab:hover { box-shadow: 0 18px 34px rgba(37,99,235,.42); }
+        .gca-fab.has-stale-data::after {
+            content: ''; position: absolute; right: 4px; bottom: 7px; width: 10px; height: 10px;
+            border-radius: 50%; background: #f59e0b; border: 2px solid #fff;
+        }
+        .gca-fab-badge {
+            position: absolute; right: -2px; top: -3px; min-width: 22px; height: 22px; padding: 0 5px;
+            border-radius: 999px; display: flex; align-items: center; justify-content: center;
+            color: #fff; background: #dc2626; border: 2px solid #fff; font-style: normal; font-size: 11px;
+        }
+        .gca-modal-overlay {
+            position: fixed; inset: 0; z-index: 9994; display: flex; align-items: center; justify-content: center;
+            padding: 28px; background: rgba(12, 31, 40, .66); backdrop-filter: blur(7px);
+        }
+        .gca-modal {
+            width: min(1400px, 92vw); height: min(880px, 88vh); min-height: 590px;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #f4f8f8; border: 1px solid rgba(255,255,255,.45); border-radius: 24px;
+            box-shadow: 0 28px 80px rgba(0,0,0,.32);
+        }
+        .gca-modal-header {
+            min-height: 82px; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px;
+            color: #fff; background: linear-gradient(120deg, #173f48, #0f7378 68%, #15989a);
+        }
+        .gca-modal-title-wrap, .gca-modal-actions { display: flex; align-items: center; gap: 12px; }
+        .gca-modal-icon {
+            width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.22); font-size: 20px;
+        }
+        .gca-modal-title-wrap h2 { margin: 0; font-size: 21px; font-weight: 900; letter-spacing: .02em; }
+        .gca-modal-title-wrap p { margin: 3px 0 0; color: rgba(255,255,255,.76); font-size: 12px; }
+        .gca-demo-badge {
+            display: inline-flex; margin-left: 8px; padding: 4px 8px; vertical-align: middle;
+            border: 1px solid rgba(255,255,255,.58); border-radius: 999px;
+            color: #5a3700; background: #fde68a; font-size: 10px; font-weight: 900; letter-spacing: 0;
+        }
+        .gca-updated-at { color: rgba(255,255,255,.74); font-size: 12px; }
+        .gca-stale-note { color: #fef3c7; font-size: 12px; font-weight: 700; }
+        .gca-stale-note i { margin-right: 5px; font-size: 7px; color: #f59e0b; }
+        .gca-icon-btn {
+            width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.22); border-radius: 11px;
+            color: #fff; background: rgba(255,255,255,.12); cursor: pointer; transition: .2s;
+        }
+        .gca-icon-btn:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); }
+        .gca-icon-btn:disabled { opacity: .55; cursor: wait; }
+        .gca-summary-strip {
+            padding: 10px 22px; display: flex; align-items: center; flex-wrap: wrap; gap: 20px;
+            color: #53666b; background: #fff; border-bottom: 1px solid #dce7e7; font-size: 12px;
+        }
+        .gca-summary-strip > span { display: inline-flex; align-items: center; gap: 6px; }
+        .gca-summary-strip > span > i { color: #0f8b8d; }
+        .gca-summary-strip .gca-demo-summary {
+            padding: 5px 10px; border-radius: 999px; color: #8a5700; background: #fff3c4; font-weight: 800;
+        }
+        .gca-summary-strip .gca-demo-summary > i { color: #d97706; }
+        .gca-status-pill { padding: 5px 10px; border-radius: 999px; font-weight: 800; background: #e7f5f2; color: #0f766e; }
+        .gca-status-pill > i { font-size: 7px; }
+        .gca-status-pill.status-empty_transcript,
+        .gca-status-pill.status-single_speaker,
+        .gca-status-pill.status-insufficient_data { background: #fff7df; color: #a16207; }
+        .gca-status-pill.status-invalid_input,
+        .gca-status-pill.status-internal_error,
+        .gca-status-pill.status-not_found { background: #feecec; color: #b91c1c; }
+        .gca-tabs {
+            padding: 0 22px; display: flex; gap: 4px; background: #fff; border-bottom: 1px solid #dce7e7;
+        }
+        .gca-tabs button {
+            position: relative; min-width: 128px; padding: 13px 17px 12px; border: 0; border-bottom: 3px solid transparent;
+            color: #64777c; background: transparent; font-size: 13px; font-weight: 800; cursor: pointer;
+        }
+        .gca-tabs button i { margin-right: 7px; }
+        .gca-tabs button:hover { color: #0f7378; background: #f4f9f8; }
+        .gca-tabs button.active { color: #0f7378; border-bottom-color: #0f8b8d; }
+        .gca-tab-count {
+            display: inline-flex; min-width: 18px; height: 18px; margin-left: 5px; padding: 0 5px; align-items: center; justify-content: center;
+            border-radius: 999px; color: #fff; background: #d97706; font-size: 10px;
+        }
+        .gca-modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 22px 26px; }
+        .gca-state-view {
+            min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #64777c; text-align: center;
+        }
+        .gca-state-view > i { margin-bottom: 16px; color: #0f8b8d; font-size: 45px; }
+        .gca-state-view h3 { margin: 0 0 8px; color: #29454c; font-size: 19px; }
+        .gca-state-view p { max-width: 560px; margin: 0; line-height: 1.7; }
+        .gca-state-view.is-error > i { color: #dc2626; }
+        .gca-primary-btn { margin-top: 18px; padding: 9px 18px; border: 0; border-radius: 10px; color: #fff; background: #0f8b8d; font-weight: 800; cursor: pointer; }
+        .gca-empty-signal { max-width: 560px; margin-top: 18px; padding: 12px 16px; border-radius: 12px; background: #fff7df; color: #8a5a0a; }
+        .gca-content { display: flex; flex-direction: column; gap: 18px; }
+        .gca-metric-grid { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 12px; }
+        .gca-metric-card {
+            min-width: 0; padding: 15px; border: 1px solid #dce8e8; border-radius: 15px; background: #fff;
+            box-shadow: 0 5px 14px rgba(35, 73, 79, .06);
+        }
+        .gca-metric-head { display: flex; align-items: center; justify-content: space-between; color: #31545b; font-size: 13px; font-weight: 900; }
+        .gca-metric-head i { color: #9ab1b5; cursor: help; }
+        .gca-metric-card > strong { display: block; margin: 10px 0 5px; color: #0f7378; font-size: 27px; line-height: 1; }
+        .gca-metric-card > p { min-height: 34px; margin: 0; color: #71858a; font-size: 11px; line-height: 1.5; }
+        .gca-metric-range { margin-top: 10px; padding-top: 8px; display: flex; justify-content: space-between; gap: 5px; border-top: 1px dashed #d9e5e5; color: #8a9b9f; font-size: 9px; }
+        .gca-overview-grid, .gca-individual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .gca-panel-card { padding: 17px; border: 1px solid #dce8e8; border-radius: 17px; background: #fff; box-shadow: 0 6px 18px rgba(35,73,79,.06); }
+        .gca-card-title { min-height: 28px; display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+        .gca-card-title > div { display: flex; align-items: center; gap: 8px; color: #294d54; font-size: 14px; font-weight: 900; }
+        .gca-card-title > div i { color: #0f8b8d; }
+        .gca-card-title small { color: #8a9b9f; font-size: 10px; text-align: right; }
+        .gca-card-title button { border: 0; color: #0f8b8d; background: none; font-size: 11px; font-weight: 800; cursor: pointer; }
+        .gca-chart { width: 100%; height: 310px; }
+        .gca-radar-chart { height: 390px; }
+        .gca-overview-signals { padding-bottom: 18px; }
+        .gca-signal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+        .gca-signal-card { padding: 13px; display: flex; gap: 10px; border-radius: 12px; border: 1px solid #dbe8e8; background: #f7fbfb; }
+        .gca-signal-card > i { margin-top: 2px; color: #0f8b8d; }
+        .gca-signal-card h4 { margin: 0 0 4px; color: #294d54; font-size: 12px; }
+        .gca-signal-card p { margin: 0; color: #6e8388; font-size: 10px; line-height: 1.5; }
+        .gca-signal-warning { border-color: #f4d9a4 !important; background: #fffbeb !important; }
+        .gca-signal-warning > i, .gca-signal-warning .gca-signal-detail-icon { color: #d97706 !important; }
+        .gca-signal-success { border-color: #bfe4d6 !important; background: #f0fdf7 !important; }
+        .gca-signal-success > i, .gca-signal-success .gca-signal-detail-icon { color: #16845b !important; }
+        .gca-table-wrap { margin-top: 12px; overflow: auto; border: 1px solid #dce8e8; border-radius: 12px; }
+        .gca-heat-table { width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+        .gca-heat-table th, .gca-heat-table td { padding: 11px 12px; border-right: 1px solid #e3eded; border-bottom: 1px solid #e3eded; text-align: center; }
+        .gca-heat-table thead th { position: sticky; top: 0; z-index: 2; color: #31545b; background: #edf6f5; font-weight: 900; }
+        .gca-heat-table tbody th { min-width: 125px; color: #294d54; background: #fff; text-align: left; }
+        .gca-heat-table tbody th small { display: block; margin-top: 3px; color: #94a3a8; font-weight: 500; }
+        .gca-heat-table tbody tr { cursor: pointer; }
+        .gca-heat-table tbody tr:hover th, .gca-heat-table tbody tr:hover td { box-shadow: inset 0 0 0 2px rgba(15,139,141,.18); }
+        .gca-footnote { margin: 12px 0 0; color: #7d9095; font-size: 11px; }
+        .gca-footnote i { margin-right: 5px; color: #0f8b8d; }
+        .gca-student-picker { display: flex; align-items: center; gap: 12px; }
+        .gca-student-picker label { color: #31545b; font-size: 13px; font-weight: 900; }
+        .gca-student-picker select { min-width: 260px; padding: 9px 12px; border: 1px solid #bfd2d4; border-radius: 10px; color: #294d54; background: #fff; outline: none; }
+        .gca-person-metrics { margin-top: 10px; }
+        .gca-person-metrics > div { display: grid; grid-template-columns: minmax(190px, 1fr) 80px 125px; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid #e5eeee; }
+        .gca-person-metrics span { color: #294d54; }
+        .gca-person-metrics span b { display: block; font-size: 12px; }
+        .gca-person-metrics span small { display: block; margin-top: 2px; color: #8a9b9f; font-size: 9px; }
+        .gca-person-metrics strong { color: #0f7378; font-size: 17px; text-align: right; }
+        .gca-person-metrics em { color: #8a6a25; font-size: 10px; font-style: normal; text-align: right; }
+        .gca-interpretation-note { margin-top: 16px; padding: 12px; display: flex; gap: 10px; border-radius: 12px; color: #536b70; background: #edf6f5; font-size: 11px; line-height: 1.6; }
+        .gca-interpretation-note i { color: #0f8b8d; margin-top: 3px; }
+        .gca-interpretation-note p { margin: 0; }
+        .gca-signal-list { display: flex; flex-direction: column; gap: 13px; }
+        .gca-signal-detail { padding: 17px; display: flex; gap: 14px; border: 1px solid #dce8e8; border-radius: 15px; background: #fff; }
+        .gca-signal-detail-icon { width: 38px; height: 38px; flex: 0 0 38px; display: flex; align-items: center; justify-content: center; border-radius: 11px; color: #0f8b8d; background: rgba(15,139,141,.1); }
+        .gca-signal-detail-body { flex: 1; min-width: 0; }
+        .gca-signal-detail h3 { margin: 0 0 5px; color: #294d54; font-size: 14px; }
+        .gca-signal-detail p { margin: 0; color: #687e83; font-size: 12px; line-height: 1.6; }
+        .gca-evidence, .gca-suggestion { margin-top: 10px; padding: 9px 11px; display: flex; flex-wrap: wrap; gap: 7px 14px; border-radius: 10px; background: rgba(255,255,255,.72); font-size: 10px; }
+        .gca-evidence b, .gca-suggestion b { color: #31545b; }
+        .gca-evidence span, .gca-suggestion span { color: #687e83; }
+        .gca-signal-detail button { margin-top: 10px; padding: 6px 10px; border: 1px solid #7bb8b9; border-radius: 8px; color: #0f7378; background: #fff; font-size: 10px; font-weight: 800; cursor: pointer; }
+        .gca-engine-warnings { padding: 15px; border: 1px solid #e4d6b4; border-radius: 14px; background: #fffdf5; }
+        .gca-engine-warnings h3 { margin: 0 0 8px; color: #806023; font-size: 13px; }
+        .gca-engine-warnings p { margin: 4px 0; color: #8b7446; font-size: 11px; }
+        /* 学生端 GCA：复用教师弹窗框架，但采用个人学习视角 */
+        .student-gca-modal { max-width: 1180px; }
+        .student-gca-header { background: linear-gradient(120deg, #1e3a8a, #2563eb 62%, #4f46e5); }
+        .student-gca-tabs button.active { color: #2563eb; border-bottom-color: #2563eb; }
+        .student-gca-tabs button:hover { color: #2563eb; background: #f3f6ff; }
+        .student-gca-tab-count {
+            display: inline-flex; min-width: 18px; height: 18px; margin-left: 5px; padding: 0 5px;
+            align-items: center; justify-content: center; border-radius: 999px;
+            color: #fff; background: #2563eb; font-size: 10px;
+        }
+        .student-gca-privacy-note {
+            padding: 12px 15px; display: flex; align-items: flex-start; gap: 10px;
+            border: 1px solid #c7d7fe; border-radius: 13px; color: #365486; background: #eff4ff;
+            font-size: 12px; line-height: 1.6;
+        }
+        .student-gca-privacy-note i { margin-top: 3px; color: #2563eb; }
+        .student-gca-metrics strong { color: #2563eb; }
+        .student-gca-trend-card { min-height: 430px; }
+        .student-gca-trend { height: 360px; }
+        .student-gca-suggestion-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .student-gca-suggestion {
+            min-height: 230px; padding: 19px; display: flex; align-items: flex-start; gap: 13px;
+            border: 1px solid #d7e1f6; border-radius: 17px; background: #fff;
+            box-shadow: 0 7px 20px rgba(30,58,138,.07);
+        }
+        .student-gca-suggestion-icon {
+            width: 42px; height: 42px; flex: 0 0 42px; display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; color: #2563eb; background: #e8efff; font-size: 17px;
+        }
+        .student-gca-suggestion h3 { margin: 2px 0 8px; color: #253f70; font-size: 15px; }
+        .student-gca-suggestion p { margin: 0; color: #66758d; font-size: 12px; line-height: 1.65; }
+        .student-gca-next-step {
+            margin-top: 14px; padding: 11px; display: flex; flex-direction: column; gap: 5px;
+            border-radius: 11px; color: #38547f; background: #f1f5ff; font-size: 11px; line-height: 1.6;
+        }
+        .student-gca-next-step b { color: #2563eb; }
+        .student-gca-suggestion-success { border-color: #bde5d3; }
+        .student-gca-suggestion-success .student-gca-suggestion-icon { color: #16845b; background: #eaf9f1; }
+        .student-gca-suggestion-info { border-color: #dbe3eb; }
+        .student-gca-suggestion-info .student-gca-suggestion-icon { color: #64748b; background: #f1f5f9; }
+        @media (max-width: 1180px) {
+            .gca-fab { right: 24px; top: 84px; }
+            .gca-metric-grid { grid-template-columns: repeat(3, 1fr); }
+            .gca-modal { width: 96vw; height: 92vh; }
+            .student-gca-suggestion-list { grid-template-columns: 1fr; }
+            .student-gca-suggestion { min-height: 0; }
+        }
+        @media (max-width: 760px) {
+            .gca-fab { right: 24px; top: 82px; width: 64px; height: 64px; font-size: 11px; }
+            .gca-modal-overlay { padding: 8px; }
+            .gca-modal { width: 100%; height: 96vh; min-height: 0; border-radius: 16px; }
+            .gca-modal-header { padding: 12px; }
+            .gca-updated-at, .gca-stale-note { display: none; }
+            .gca-summary-strip { gap: 10px; padding: 8px 12px; }
+            .gca-tabs { padding: 0 8px; overflow-x: auto; }
+            .gca-tabs button { min-width: 112px; padding: 11px 8px; }
+            .gca-modal-body { padding: 12px; }
+            .gca-metric-grid { grid-template-columns: repeat(2, 1fr); }
+            .gca-overview-grid, .gca-individual-grid, .gca-signal-grid { grid-template-columns: 1fr; }
+            .gca-chart { height: 280px; }
+        }
 

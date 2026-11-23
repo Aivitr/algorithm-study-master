@@ -315,13 +315,12 @@ def test_video_processor_looks_for_cascade_in_project_root(monkeypatch):
 
 # server.py 追加进 sys.path 的目录名（相对仓库根）。
 #
-# 原有三条：`1/`、`2/`、`_tmp_agora_token_builder`。前两条已在阶段 3 移除——
-# `1/` 归档到 archive/prototypes/legacy-1/（不含任何被导入的模块），`2/` 则
-# **从未存在**过（原代码无条件 append，一直是空操作）。
+# 原有三条：`1/`、`2/`、`_tmp_agora_token_builder`，现均已移除。
+# Agora token builder 已改为正式依赖，不再需要仓库内临时兼容目录。
 #
 # 这条断言正是促使那次清理的原因：它在本目录被归档时立刻失败，逼那一步显式
 # 处理这段 append，而不是留下指向虚空的路径。
-_EXPECTED_SYSPATH_DIRS = {"_tmp_agora_token_builder"}
+_EXPECTED_SYSPATH_DIRS: set[str] = set()
 _KNOWN_ABSENT_SYSPATH_DIRS: set[str] = set()
 
 
