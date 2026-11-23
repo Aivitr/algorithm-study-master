@@ -349,6 +349,11 @@ from app.routers.agents import router as agents_router
 app.include_router(agents_router)
 
 
+from app.routers.observability import router as observability_router
+
+app.include_router(observability_router)
+
+
 # 空 router：这个模块里的两个处理器**没有**装饰器，所以不贡献任何路由。
 # 仍然要 include——app/routers/ 下有文件却没被装配，test_routers_layout 会报红。
 # 详情见 app/routers/unrouted.py 的文件头。

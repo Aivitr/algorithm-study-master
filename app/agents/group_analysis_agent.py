@@ -103,7 +103,8 @@ INSTRUCTIONS = """你是课堂小组分析 Agent。只根据工具返回的数�
 1. 结论必须挂证据：事实层引用 T# 发言编号、Q# 质量分编号；质量层暂用
    M:<指标名>（如 M:newness）；三维投入曲线引用 M:engagement:<维度>；
    已发送的提示引用 H# 提示编号。
-2. 两层冲突时以事实层为准，并在 data_gaps 说明原因。
+2. 两层冲突时以事实层为准，并在 data_gaps 说明原因；新旧模型不一致时并列展示、
+   不取平均；数据缺失写 data_gaps，不用猜测填充。
 3. GCA 数据不足（status 不是 success/single_speaker）时不要编造，退回事实层。
 4. structure 目前没有数据来源时保持空数组，并在 data_gaps 注明“小组结构发现未实现”。
 5. product_metrics 本期不要填写，保持空数组。

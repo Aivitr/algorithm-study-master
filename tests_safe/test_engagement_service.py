@@ -7,7 +7,7 @@ from datetime import timedelta
 import pytest
 from fixtures import BASE_TIME
 
-from app.models import EmotionLog, EngagementCurve, Meeting, Transcript
+from app.models import AnalysisRun, EmotionLog, EngagementCurve, Meeting, Transcript
 from app.services.engagement_service import rebuild_engagement_curves
 
 
@@ -88,6 +88,7 @@ def meeting(seeded_ids):
     try:
         row = _make_meeting(db, seeded_ids["teacher_id"])
         yield row
+        db.query(AnalysisRun).filter(AnalysisRun.meeting_id == row.id).delete()
         db.query(EngagementCurve).filter(EngagementCurve.meeting_id == row.id).delete()
         db.query(EmotionLog).filter(EmotionLog.meeting_id == row.id).delete()
         db.query(Transcript).filter(Transcript.meeting_id == row.id).delete()
@@ -123,6 +124,21 @@ def test_rebuild_writes_group_and_student_rows(meeting):
     assert all(row.protocol_version == "1.0" for row in rows)
     assert all(row.window_end_second >= row.window_start_second for row in rows)
     assert all(row.status in {"ok", "insufficient", "unavailable"} for row in rows)
+
+    db = database.SessionLocal()
+    try:
+        run = (
+            db.query(AnalysisRun)
+            .filter(
+                AnalysisRun.meeting_id == meeting.id,
+                AnalysisRun.kind == "engagement",
+            )
+            .one()
+        )
+    finally:
+        db.close()
+    assert run.status == "success"
+    assert run.latency_ms is not None
 
 
 def test_rebuild_is_idempotent(meeting):

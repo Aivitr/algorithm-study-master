@@ -28,6 +28,7 @@
 
 import asyncio
 import json
+import time
 
 from fastapi import APIRouter, Depends, Form, WebSocket
 from fastapi.responses import StreamingResponse
@@ -55,6 +56,7 @@ from app.services.hint_candidate_service import (
     record_sent_hint,
 )
 from app.services.llm_service import llm
+from app.services.observability_service import record_run
 from app.services.session_service import (
     SessionContext,
     require_session,
@@ -68,6 +70,38 @@ def _template_suggestion(topic: str, target_type: str) -> str:
     if target_type == "quiet":
         return f"可以请这位同学围绕「{topic}」补充一个例子或提出一个问题。"
     return f"课堂暂时安静，可以围绕「{topic}」提出一个具体问题，邀请学生回应。"
+
+
+def _generate_suggestion(
+    meeting: Meeting,
+    discussion_context: str,
+    target_type: str,
+    hint_context: str,
+) -> tuple[str, str, dict, int, str | None]:
+    """生成提示文案并返回 (文案, 来源, token 用量, 耗时毫秒, 错误)。"""
+    started = time.perf_counter()
+    usage: dict = {}
+    error = None
+    hint_model = "llm"
+    try:
+        suggestion, usage = llm.generate_topic_suggestion_with_usage(
+            meeting.topic,
+            discussion_context,
+            meeting.knowledge_points,
+            target_type=target_type,
+            hint_context=hint_context,
+        )
+    except Exception as exc:
+        print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
+        suggestion = _template_suggestion(meeting.topic, target_type)
+        hint_model = "template"
+        error = str(exc)
+    if not (suggestion or "").strip():
+        suggestion = _template_suggestion(meeting.topic, target_type)
+        hint_model = "template"
+        error = error or "empty response"
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    return suggestion, hint_model, usage, latency_ms, error
 
 
 def _meeting_is_running(meeting_id: int) -> bool:
@@ -485,22 +519,10 @@ async def check_silence(
             f"证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
         )
 
-        hint_model = "llm"
-        try:
-            suggestion = llm.generate_topic_suggestion(
-                meeting.topic,
-                discussion_context,
-                meeting.knowledge_points,
-                target_type="group",
-                hint_context=hint_context,
-            )
-        except Exception as exc:
-            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
-            suggestion = _template_suggestion(meeting.topic, "group")
-            hint_model = "template"
-        if not (suggestion or "").strip():
-            suggestion = _template_suggestion(meeting.topic, "group")
-            hint_model = "template"
+        suggestion, hint_model, usage, latency_ms, llm_error = _generate_suggestion(
+            meeting, discussion_context, "group", hint_context
+        )
+        evidence_ids = [f"T#{t.id}" for t in recents] + [f"M:{meeting_id}"]
 
         # 广播给所有在线成员
         await manager.broadcast_to_meeting(
@@ -521,6 +543,21 @@ async def check_silence(
             text=suggestion,
             created_by=int(ctx.user.id),
             model=hint_model,
+            evidence_ids=evidence_ids,
+        )
+        record_run(
+            db,
+            meeting_id=meeting_id,
+            kind="hint_llm",
+            source=hint_model,
+            status="success" if hint_model == "llm" else "fallback",
+            model="deepseek-chat" if hint_model == "llm" else "template",
+            version="topic_suggestion_v1",
+            latency_ms=latency_ms,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            result={"hint_type": "discussion_stall"},
+            error=llm_error,
         )
 
         return {
@@ -594,22 +631,10 @@ async def check_quiet_members(
             for item in candidates
         )
 
-        hint_model = "llm"
-        try:
-            suggestion = llm.generate_topic_suggestion(
-                meeting.topic,
-                discussion_context,
-                meeting.knowledge_points,
-                target_type="quiet",
-                hint_context=hint_context,
-            )
-        except Exception as exc:
-            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
-            suggestion = _template_suggestion(meeting.topic, "quiet")
-            hint_model = "template"
-        if not (suggestion or "").strip():
-            suggestion = _template_suggestion(meeting.topic, "quiet")
-            hint_model = "template"
+        suggestion, hint_model, usage, latency_ms, llm_error = _generate_suggestion(
+            meeting, discussion_context, "quiet", hint_context
+        )
+        evidence_ids = [f"T#{t.id}" for t in recents] + [f"M:{meeting_id}"]
 
         # 只推送给被判定低参与的成员
         for item in candidates:
@@ -635,7 +660,26 @@ async def check_quiet_members(
                 text=suggestion,
                 created_by=int(ctx.user.id),
                 model=hint_model,
+                evidence_ids=evidence_ids,
             )
+
+        record_run(
+            db,
+            meeting_id=meeting_id,
+            kind="hint_llm",
+            source=hint_model,
+            status="success" if hint_model == "llm" else "fallback",
+            model="deepseek-chat" if hint_model == "llm" else "template",
+            version="topic_suggestion_v1",
+            latency_ms=latency_ms,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            result={
+                "hint_type": "low_participation",
+                "candidate_count": len(candidates),
+            },
+            error=llm_error,
+        )
 
         return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
     except Exception as e:
