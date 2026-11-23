@@ -60,9 +60,22 @@ def get_class_metrics(
     return classroom_agent_service.get_metrics(ctx.context.db, meeting_id)
 
 
+@function_tool
+def get_hint_history(
+    ctx: RunContextWrapper[ClassroomToolContext],
+    meeting_id: int,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """读取已发送的 Hint 记录，返回带 H# 编号的证据。"""
+    if denied := require_tool_state("get_hint_history", ctx.context.db, meeting_id):
+        return denied
+    return classroom_agent_service.get_hint_history(ctx.context.db, meeting_id, limit)
+
+
 CLASSROOM_TOOLS = (
     get_classroom_transcripts,
     get_classroom_statistics,
     get_classroom_knowledge,
     get_class_metrics,
+    get_hint_history,
 )

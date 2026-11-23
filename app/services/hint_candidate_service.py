@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Lock
 
 from sqlalchemy import or_
@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 from app.models import HintLog, Meeting, User
 from app.realtime.registry import manager
 from app.services.engagement_service import build_utterances
-from gca_engine.engagement import HintTriggerState, compute_hint_candidates
+from gca_engine.engagement import (
+    HintTriggerConfig,
+    HintTriggerState,
+    compute_hint_candidates,
+)
+
+_HINT_CONFIG = HintTriggerConfig()
 
 # 每个课堂一份候选冷却状态；进程内单 worker，重启会丢失（已写入契约）。
 _states: dict[int, HintTriggerState] = {}
@@ -60,6 +66,45 @@ def record_sent_hint(
     except Exception as exc:
         db.rollback()
         print(f"[ERROR] Hint 记录写入失败: meeting_id={meeting_id}: {exc}")
+
+
+def _send_cooldown_seconds(target_type: str) -> int:
+    if target_type == "student":
+        return _HINT_CONFIG.student_cooldown_seconds
+    return _HINT_CONFIG.group_cooldown_seconds
+
+
+def recently_sent(
+    db: Session,
+    meeting_id: int,
+    dedupe_key: str,
+    target_type: str,
+) -> bool:
+    """跨进程重启的发送级冷却：同一 dedupe_key 冷却期内不再发送。"""
+    cutoff = datetime.now() - timedelta(seconds=_send_cooldown_seconds(target_type))
+    return (
+        db.query(HintLog.id)
+        .filter(
+            HintLog.meeting_id == meeting_id,
+            HintLog.dedupe_key == dedupe_key,
+            HintLog.sent_at >= cutoff,  # type: ignore[arg-type]
+        )
+        .first()
+        is not None
+    )
+
+
+def filter_recent_sends(db: Session, meeting_id: int, candidates: list[dict]) -> list[dict]:
+    return [
+        candidate
+        for candidate in candidates
+        if not recently_sent(
+            db,
+            meeting_id,
+            str(candidate.get("dedupe_key") or ""),
+            str(candidate.get("target_type") or "group"),
+        )
+    ]
 
 
 def online_member_ids(meeting_id: int, db: Session) -> list[str]:

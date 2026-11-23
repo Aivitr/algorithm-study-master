@@ -25,6 +25,7 @@ TOOL_STATES = {
     "get_classroom_statistics": READ_STATES,
     "get_classroom_knowledge": READ_STATES,
     "get_class_metrics": READ_STATES,
+    "get_hint_history": READ_STATES,
 }
 
 
@@ -33,7 +34,7 @@ def resolve_classroom_state(db: Session, meeting_id: int) -> ClassroomState | No
     if meeting is None:
         return None
     try:
-        return ClassroomState(meeting.status)
+        return ClassroomState(str(meeting.status))
     except ValueError:
         return None
 

@@ -11,7 +11,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import Meeting
+from app.models import HintLog, Meeting
 from app.services.class_stats_service import ClassStatsService
 from app.services.gca_service import analyze_meeting_metrics
 from app.services.knowledge_trace_service import KnowledgeTraceService
@@ -114,6 +114,42 @@ class ClassroomAgentService:
             ),
             "graph": graph,
             "data_gaps": [] if graph.get("nodes") else ["课堂尚无知识图谱"],
+        }
+
+    def get_hint_history(
+        self,
+        db: Session,
+        meeting_id: int,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        limit = max(1, min(int(limit), 200))
+        rows = (
+            db.query(HintLog)
+            .filter(HintLog.meeting_id == meeting_id)
+            .order_by(HintLog.id.desc())
+            .limit(limit)
+            .all()
+        )
+        return {
+            "ok": True,
+            "meeting_id": meeting_id,
+            "count": len(rows),
+            "items": [
+                {
+                    "evidence_id": f"H#{row.id}",
+                    "hint_id": row.id,
+                    "hint_type": row.hint_type,
+                    "target_type": row.target_type,
+                    "target_user_id": row.target_user_id,
+                    "trigger_reason": row.trigger_reason,
+                    "evidence": row.evidence or {},
+                    "text": row.text,
+                    "status": row.status,
+                    "sent_at": _milliseconds(row.sent_at),
+                    "created_at": _milliseconds(row.created_at),
+                }
+                for row in rows
+            ],
         }
 
     def get_metrics(self, db: Session, meeting_id: int) -> dict[str, Any]:

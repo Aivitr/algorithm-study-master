@@ -27,6 +27,7 @@
 """
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, Form, WebSocket
 from fastapi.responses import StreamingResponse
@@ -50,6 +51,7 @@ from app.realtime.state import (
 from app.realtime.stream import process_user_stream_generator
 from app.services.hint_candidate_service import (
     evaluate_hint_candidates,
+    filter_recent_sends,
     record_sent_hint,
 )
 from app.services.llm_service import llm
@@ -456,6 +458,7 @@ async def check_silence(
         candidates = [
             item for item in evaluation["candidates"] if item["hint_type"] == "discussion_stall"
         ]
+        candidates = filter_recent_sends(db, meeting_id, candidates)
         if not candidates:
             return {"status": "ok", "silent": False}
         candidate = candidates[0]
@@ -470,6 +473,10 @@ async def check_silence(
         )
         discussion_context = "\n".join(
             [f"{t.user.username}: {t.content}" for t in reversed(recents)]
+        )
+        discussion_context += (
+            f"\n\n触发原因：{candidate['trigger_reason']}"
+            f"\n证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
         )
 
         suggestion = llm.generate_topic_suggestion(
@@ -533,6 +540,7 @@ async def check_quiet_members(
         candidates = [
             item for item in evaluation["candidates"] if item["hint_type"] == "low_participation"
         ]
+        candidates = filter_recent_sends(db, meeting_id, candidates)
         if not candidates:
             return {"status": "ok", "quiet_members": []}
 
@@ -559,6 +567,11 @@ async def check_quiet_members(
         )
         discussion_context = "\n".join(
             [f"{t.user.username}: {t.content}" for t in reversed(recents)]
+        )
+        discussion_context += "\n\n低参与触发依据：\n" + "\n".join(
+            f"{item['target_user_id']}: {item['trigger_reason']} "
+            f"{json.dumps(item['evidence'], ensure_ascii=False)}"
+            for item in candidates
         )
 
         suggestion = llm.generate_topic_suggestion(

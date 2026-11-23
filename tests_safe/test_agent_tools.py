@@ -10,7 +10,7 @@ from app.agents.group_analysis_agent import (
 )
 from app.agents.state import require_tool_state
 from app.core import database
-from app.models import Meeting
+from app.models import HintLog, Meeting
 from app.services.classroom_agent_service import classroom_agent_service
 
 
@@ -62,6 +62,38 @@ def test_get_metrics_returns_quality_layer(seeded_ids):
     assert result["ok"] is True
     assert result["layer"] == "quality"
     assert set(result["student_metrics"]) == {"2", "3"}
+
+
+def test_get_hint_history_returns_h_evidence(seeded_ids):
+    db = database.SessionLocal()
+    try:
+        row = HintLog(
+            meeting_id=seeded_ids["meeting_id"],
+            dedupe_key="discussion_stall:test",
+            hint_type="discussion_stall",
+            target_type="group",
+            trigger_reason="测试原因",
+            evidence={"silence_seconds": 130},
+            evidence_ids=[],
+            text="测试建议",
+            status="sent",
+            created_by=seeded_ids["teacher_id"],
+            sent_at=datetime.now(),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        result = classroom_agent_service.get_hint_history(db, seeded_ids["meeting_id"])
+    finally:
+        db.query(HintLog).filter(HintLog.meeting_id == seeded_ids["meeting_id"]).delete()
+        db.commit()
+        db.close()
+
+    assert result["ok"] is True
+    assert result["items"][0]["evidence_id"] == f"H#{row.id}"
+    assert result["items"][0]["trigger_reason"] == "测试原因"
+    assert result["items"][0]["evidence"] == {"silence_seconds": 130}
 
 
 def test_output_contract_has_layers_and_reserved_product_metrics():

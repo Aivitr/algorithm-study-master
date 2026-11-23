@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from app.models import HintLog, Meeting
@@ -131,6 +133,101 @@ def test_check_silence_returns_false_without_candidate(
     )
 
     assert response.json() == {"status": "ok", "silent": False}
+
+
+def test_hint_logs_are_teacher_only(
+    client, running_meeting, seeded_ids, teacher_headers, student_headers
+):
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        db.add(
+            HintLog(
+                meeting_id=running_meeting.id,
+                dedupe_key="discussion_stall:test",
+                hint_type="discussion_stall",
+                target_type="group",
+                trigger_reason="测试原因",
+                evidence={"silence_seconds": 130},
+                evidence_ids=[],
+                text="测试建议",
+                model="llm",
+                prompt_version="topic_suggestion_v1",
+                status="sent",
+                created_by=seeded_ids["teacher_id"],
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    anonymous = client.get(f"/api/hint-logs/{running_meeting.id}")
+    assert anonymous.status_code == 401
+
+    forbidden = client.get(f"/api/hint-logs/{running_meeting.id}", headers=student_headers)
+    assert forbidden.status_code == 403
+
+    response = client.get(f"/api/hint-logs/{running_meeting.id}", headers=teacher_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["logs"][0]["evidence_id"].startswith("H#")
+    assert body["logs"][0]["trigger_reason"] == "测试原因"
+    assert body["logs"][0]["evidence"] == {"silence_seconds": 130}
+
+
+def test_hint_logs_missing_meeting_is_404(client, teacher_headers):
+    response = client.get("/api/hint-logs/999999", headers=teacher_headers)
+    assert response.status_code == 404
+
+
+def test_check_silence_respects_recent_sent_log(
+    client, running_meeting, seeded_ids, teacher_headers, hint_mocks, monkeypatch
+):
+    import app.routers.realtime as realtime
+
+    broadcasts, _personal, _suggestions = hint_mocks
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        db.add(
+            HintLog(
+                meeting_id=running_meeting.id,
+                dedupe_key="discussion_stall:test",
+                hint_type="discussion_stall",
+                target_type="group",
+                trigger_reason="刚发过",
+                evidence={},
+                evidence_ids=[],
+                text="上一条建议",
+                status="sent",
+                created_by=seeded_ids["teacher_id"],
+                sent_at=datetime.now(),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(
+        realtime,
+        "evaluate_hint_candidates",
+        lambda meeting_id, db: {
+            "status": "success",
+            "candidates": [_candidate("discussion_stall")],
+        },
+    )
+
+    response = client.post(
+        "/api/check-silence",
+        data={"meeting_id": running_meeting.id},
+        headers=teacher_headers,
+    )
+
+    assert response.json() == {"status": "ok", "silent": False}
+    assert broadcasts == []
 
 
 def test_check_quiet_members_targets_student(
