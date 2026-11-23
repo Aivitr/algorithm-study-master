@@ -279,6 +279,7 @@ algorithm-study-master/
 | 上线部署/回滚/告警 | `deploy/RUNBOOK.md` |
 | 视觉规范（色板/字体/间距） | `docs/style-guide.md` |
 | 接口清单 + 测试基线覆盖 | `docs/route-inventory.md` |
+| Hint / 三维投入接口 | `docs/hint_api.md` |
 | 测试为什么这么写、边界在哪 | `tests_safe/README.md` |
 | 功能层面（面向使用者） | `docs/功能介绍文档.md` |
 | 安装与使用（含容器部署步骤） | `docs/安装及使用.md` |

@@ -50,11 +50,7 @@ def _student_transcripts(meeting_id: int, db: Session) -> list[Transcript]:
     return [row for row in rows if getattr(row.user, "role", None) != "teacher"]
 
 
-def _build_inputs(
-    meeting: Meeting, transcripts: list[Transcript], db: Session
-) -> tuple[list[Utterance], list[SpeechQualityRecord], list[EmotionRecord]]:
-    origin = _meeting_origin(meeting, transcripts)
-
+def _transcript_records(transcripts: list[Transcript], origin: datetime) -> list[dict[str, Any]]:
     records = []
     for item in transcripts:
         occurred_at = item.created_at or item.timestamp
@@ -69,7 +65,28 @@ def _build_inputs(
                 "timestamp": seconds,
             }
         )
-    utterances = transcripts_to_utterances(records, str(meeting.id))
+    return records
+
+
+def build_utterances(meeting_id: int, db: Session) -> tuple[Meeting | None, list[Utterance]]:
+    """取课堂的学生发言（教师已排除），按 meeting.started_at 换算相对秒数。"""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if meeting is None:
+        return None, []
+    transcripts = _student_transcripts(meeting_id, db)
+    origin = _meeting_origin(meeting, transcripts)
+    return meeting, transcripts_to_utterances(
+        _transcript_records(transcripts, origin), str(meeting_id)
+    )
+
+
+def _build_inputs(
+    meeting: Meeting, transcripts: list[Transcript], db: Session
+) -> tuple[list[Utterance], list[SpeechQualityRecord], list[EmotionRecord]]:
+    origin = _meeting_origin(meeting, transcripts)
+    utterances = transcripts_to_utterances(
+        _transcript_records(transcripts, origin), str(meeting.id)
+    )
 
     quality = [
         SpeechQualityRecord(

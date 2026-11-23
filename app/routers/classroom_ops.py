@@ -34,6 +34,7 @@ from app.core.meeting_state import CREATED, ENDED, RUNNING, meeting_status_error
 from app.models import Meeting, Transcript, User, ViewpointVote
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
+from app.services.hint_candidate_service import reset_hint_state
 from app.services.llm_service import llm
 from app.services.meeting_lifecycle import claim_end, claim_start
 from app.services.research_runtime import research_runtime
@@ -366,6 +367,7 @@ async def end_class(
 
         # 课堂结束后释放所有服务端课堂占用锁
         release_all_for_meeting(db, meeting_id)
+        reset_hint_state(meeting_id)
 
         # 课后报告由后端触发一次（CAS 已保证只有结束执行者走到这里）
         schedule_class_reports(meeting_id)

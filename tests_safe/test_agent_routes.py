@@ -27,6 +27,8 @@ def test_group_analysis_tools_endpoint(client):
         "get_classroom_statistics",
         "get_classroom_knowledge",
         "get_class_metrics",
+        "get_engagement",
+        "get_hint_history",
     ]
     assert all(tool["allowed_states"] == ["ended", "running"] for tool in tools)
 
