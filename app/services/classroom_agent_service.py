@@ -125,9 +125,7 @@ class ClassroomAgentService:
         limit: int = 200,
     ) -> dict[str, Any]:
         limit = max(1, min(int(limit), 500))
-        query = db.query(EngagementCurve).filter(
-            EngagementCurve.meeting_id == meeting_id
-        )
+        query = db.query(EngagementCurve).filter(EngagementCurve.meeting_id == meeting_id)
         if dimension:
             query = query.filter(EngagementCurve.dimension == dimension)
         if user_id is not None:

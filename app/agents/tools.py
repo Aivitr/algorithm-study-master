@@ -70,9 +70,7 @@ def get_engagement(
     """读取已落库的三维投入曲线（按窗口）。"""
     if denied := require_tool_state("get_engagement", ctx.context.db, meeting_id):
         return denied
-    return classroom_agent_service.get_engagement(
-        ctx.context.db, meeting_id, dimension, user_id
-    )
+    return classroom_agent_service.get_engagement(ctx.context.db, meeting_id, dimension, user_id)
 
 
 @function_tool
