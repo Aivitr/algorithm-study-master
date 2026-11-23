@@ -3559,7 +3559,7 @@
                             </div>
                             <textarea v-model="agentQuestion" class="insight-agent-textarea"
                                       :disabled="agentLoading" placeholder="也可以自己描述要看的群体问题"></textarea>
-                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent">
+                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent()">
                                 <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-play'"></i>
                                 {{ agentLoading ? '分析中' : '分析群体' }}
                             </button>
@@ -3792,7 +3792,7 @@
                             </div>
                             <textarea v-model="agentQuestion" class="insight-agent-textarea"
                                       :disabled="agentLoading" placeholder="也可以自己描述想看的角度"></textarea>
-                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent">
+                            <button type="button" class="insight-primary-btn w-full mt-2" :disabled="agentLoading" @click="runClassroomAgent()">
                                 <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                                 {{ agentLoading ? '分析中' : '分析我的表现' }}
                             </button>

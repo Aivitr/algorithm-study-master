@@ -665,7 +665,8 @@
             async runClassroomAgent(overrideQuestion, options) {
                 if (!this.meetingId || this.agentLoading) return;
                 const silent = !!(options && options.silent);
-                const question = String(overrideQuestion || this.agentQuestion || '').trim();
+                const override = typeof overrideQuestion === 'string' ? overrideQuestion.trim() : '';
+                const question = (override || String(this.agentQuestion || '').trim()).trim();
                 if (!question) {
                     return this.showAlert('请输入希望 Agent 分析的问题', 'warning', '提示');
                 }
