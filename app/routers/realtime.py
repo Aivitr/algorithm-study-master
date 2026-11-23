@@ -48,7 +48,10 @@ from app.realtime.state import (
     REALTIME_ASR_VOICEPRINT_DISABLED,
 )
 from app.realtime.stream import process_user_stream_generator
-from app.services.hint_candidate_service import evaluate_hint_candidates
+from app.services.hint_candidate_service import (
+    evaluate_hint_candidates,
+    record_sent_hint,
+)
 from app.services.llm_service import llm
 from app.services.session_service import (
     SessionContext,
@@ -465,10 +468,12 @@ async def check_silence(
             .limit(5)
             .all()
         )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
+        discussion_context = "\n".join(
+            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
+        )
 
         suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="group"
+            meeting.topic, discussion_context, meeting.knowledge_points, target_type="group"
         )
 
         # 广播给所有在线成员
@@ -482,6 +487,13 @@ async def check_silence(
                 "trigger_reason": candidate["trigger_reason"],
                 "evidence": candidate["evidence"],
             },
+        )
+        record_sent_hint(
+            db,
+            meeting_id=meeting_id,
+            candidate=candidate,
+            text=suggestion,
+            created_by=int(ctx.user.id),
         )
 
         return {
@@ -545,10 +557,12 @@ async def check_quiet_members(
             .limit(5)
             .all()
         )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
+        discussion_context = "\n".join(
+            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
+        )
 
         suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="quiet"
+            meeting.topic, discussion_context, meeting.knowledge_points, target_type="quiet"
         )
 
         # 只推送给被判定低参与的成员
@@ -567,6 +581,13 @@ async def check_quiet_members(
                     "trigger_reason": item["trigger_reason"],
                     "evidence": item["evidence"],
                 },
+            )
+            record_sent_hint(
+                db,
+                meeting_id=meeting_id,
+                candidate=item,
+                text=suggestion,
+                created_by=int(ctx.user.id),
             )
 
         return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}

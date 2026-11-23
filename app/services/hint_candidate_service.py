@@ -8,7 +8,7 @@ from threading import Lock
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import Meeting, User
+from app.models import HintLog, Meeting, User
 from app.realtime.registry import manager
 from app.services.engagement_service import build_utterances
 from gca_engine.engagement import HintTriggerState, compute_hint_candidates
@@ -27,6 +27,39 @@ def reset_hint_state(meeting_id: int) -> None:
     """课堂结束后清理状态，避免内存长期累积。"""
     with _states_lock:
         _states.pop(meeting_id, None)
+
+
+def record_sent_hint(
+    db: Session,
+    *,
+    meeting_id: int,
+    candidate: dict,
+    text: str,
+    created_by: int,
+) -> None:
+    """记录一次已发送的 Hint；写库失败只打日志，不影响课堂主流程。"""
+    row = HintLog(
+        meeting_id=meeting_id,
+        dedupe_key=str(candidate.get("dedupe_key") or ""),
+        hint_type=str(candidate.get("hint_type") or ""),
+        target_type=str(candidate.get("target_type") or ""),
+        target_user_id=candidate.get("target_user_id"),
+        trigger_reason=candidate.get("trigger_reason"),
+        evidence=candidate.get("evidence") or {},
+        evidence_ids=[],
+        text=text,
+        model="llm",
+        prompt_version="topic_suggestion_v1",
+        status="sent",
+        created_by=created_by,
+        sent_at=datetime.now(),
+    )
+    db.add(row)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"[ERROR] Hint 记录写入失败: meeting_id={meeting_id}: {exc}")
 
 
 def online_member_ids(meeting_id: int, db: Session) -> list[str]:

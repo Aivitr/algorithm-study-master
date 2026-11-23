@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import Meeting
+from app.models import HintLog, Meeting
 
 
 def _candidate(hint_type, target_user_id=None):
@@ -39,6 +39,7 @@ def running_meeting(seeded_ids):
         db.commit()
         db.refresh(meeting)
         yield meeting
+        db.query(HintLog).filter(HintLog.meeting_id == meeting.id).delete()
         db.query(Meeting).filter(Meeting.id == meeting.id).delete()
         db.commit()
     finally:
@@ -97,6 +98,20 @@ def test_check_silence_consumes_stall_candidate(
     assert broadcasts[0][1]["reason"] == "group_silence"
     assert broadcasts[0][1]["trigger_reason"] == "测试触发原因"
 
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        log = db.query(HintLog).filter(HintLog.meeting_id == running_meeting.id).one()
+    finally:
+        db.close()
+    assert log.hint_type == "discussion_stall"
+    assert log.target_type == "group"
+    assert log.target_user_id is None
+    assert log.text == "测试建议"
+    assert log.status == "sent"
+    assert log.created_by == 1
+
 
 def test_check_silence_returns_false_without_candidate(
     client, running_meeting, teacher_headers, hint_mocks, monkeypatch
@@ -146,3 +161,15 @@ def test_check_quiet_members_targets_student(
     assert personal[0][1] == "李同学"
     assert personal[0][2]["reason"] == "low_participation"
     assert personal[0][2]["trigger_reason"] == "测试触发原因"
+
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        log = db.query(HintLog).filter(HintLog.meeting_id == running_meeting.id).one()
+    finally:
+        db.close()
+    assert log.hint_type == "low_participation"
+    assert log.target_type == "student"
+    assert log.target_user_id == str(seeded_ids["student_id"])
+    assert log.text == "测试建议"
