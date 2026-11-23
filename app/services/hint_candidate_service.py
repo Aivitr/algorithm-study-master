@@ -42,6 +42,7 @@ def record_sent_hint(
     candidate: dict,
     text: str,
     created_by: int,
+    model: str = "llm",
 ) -> None:
     """记录一次已发送的 Hint；写库失败只打日志，不影响课堂主流程。"""
     row = HintLog(
@@ -54,7 +55,7 @@ def record_sent_hint(
         evidence=candidate.get("evidence") or {},
         evidence_ids=[],
         text=text,
-        model="llm",
+        model=model,
         prompt_version="topic_suggestion_v1",
         status="sent",
         created_by=created_by,

@@ -230,6 +230,47 @@ def test_check_silence_respects_recent_sent_log(
     assert broadcasts == []
 
 
+def test_check_silence_falls_back_to_template(
+    client, running_meeting, teacher_headers, hint_mocks, monkeypatch
+):
+    import app.routers.realtime as realtime
+
+    broadcasts, _personal, _suggestions = hint_mocks
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(realtime.llm, "generate_topic_suggestion", boom)
+    monkeypatch.setattr(
+        realtime,
+        "evaluate_hint_candidates",
+        lambda meeting_id, db: {
+            "status": "success",
+            "candidates": [_candidate("discussion_stall")],
+        },
+    )
+
+    response = client.post(
+        "/api/check-silence",
+        data={"meeting_id": running_meeting.id},
+        headers=teacher_headers,
+    )
+
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["suggestion"]
+    assert broadcasts[0][1]["suggestion"] == body["suggestion"]
+
+    from app.core import database
+
+    db = database.SessionLocal()
+    try:
+        log = db.query(HintLog).filter(HintLog.meeting_id == running_meeting.id).one()
+    finally:
+        db.close()
+    assert log.model == "template"
+
+
 def test_check_quiet_members_targets_student(
     client, running_meeting, teacher_headers, seeded_ids, hint_mocks, monkeypatch
 ):

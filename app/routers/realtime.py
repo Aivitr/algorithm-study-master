@@ -64,6 +64,12 @@ from app.services.session_service import (
 router = APIRouter()
 
 
+def _template_suggestion(topic: str, target_type: str) -> str:
+    if target_type == "quiet":
+        return f"可以请这位同学围绕「{topic}」补充一个例子或提出一个问题。"
+    return f"课堂暂时安静，可以围绕「{topic}」提出一个具体问题，邀请学生回应。"
+
+
 def _meeting_is_running(meeting_id: int) -> bool:
     db = SessionLocal()
     try:
@@ -479,9 +485,18 @@ async def check_silence(
             f"\n证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
         )
 
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, discussion_context, meeting.knowledge_points, target_type="group"
-        )
+        hint_model = "llm"
+        try:
+            suggestion = llm.generate_topic_suggestion(
+                meeting.topic, discussion_context, meeting.knowledge_points, target_type="group"
+            )
+        except Exception as exc:
+            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
+            suggestion = _template_suggestion(meeting.topic, "group")
+            hint_model = "template"
+        if not (suggestion or "").strip():
+            suggestion = _template_suggestion(meeting.topic, "group")
+            hint_model = "template"
 
         # 广播给所有在线成员
         await manager.broadcast_to_meeting(
@@ -501,6 +516,7 @@ async def check_silence(
             candidate=candidate,
             text=suggestion,
             created_by=int(ctx.user.id),
+            model=hint_model,
         )
 
         return {
@@ -574,9 +590,18 @@ async def check_quiet_members(
             for item in candidates
         )
 
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, discussion_context, meeting.knowledge_points, target_type="quiet"
-        )
+        hint_model = "llm"
+        try:
+            suggestion = llm.generate_topic_suggestion(
+                meeting.topic, discussion_context, meeting.knowledge_points, target_type="quiet"
+            )
+        except Exception as exc:
+            print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
+            suggestion = _template_suggestion(meeting.topic, "quiet")
+            hint_model = "template"
+        if not (suggestion or "").strip():
+            suggestion = _template_suggestion(meeting.topic, "quiet")
+            hint_model = "template"
 
         # 只推送给被判定低参与的成员
         for item in candidates:
@@ -601,6 +626,7 @@ async def check_quiet_members(
                 candidate=item,
                 text=suggestion,
                 created_by=int(ctx.user.id),
+                model=hint_model,
             )
 
         return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
