@@ -67,8 +67,9 @@ def test_student_gca_view_has_role_scoped_ui_and_demo_fixture():
     demo = json.loads((ROOT / "static/mock/gca-student-view-demo.json").read_text(encoding="utf-8"))
 
     assert "openStudentGca" in html
-    assert "我的协作" in html
-    assert "课堂协作" in html
+    assert "我的表现" in html
+    assert "情绪与目标" in html
+    assert "协作回顾" in html
     assert "改进建议" in html
     assert "/api/gca-student-view/${this.meetingId}" in javascript
     assert "/static/mock/gca-student-view-demo.json" in javascript
