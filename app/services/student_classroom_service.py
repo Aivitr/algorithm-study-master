@@ -1,7 +1,7 @@
 """Read-only personal classroom overview; all records are scoped by user ID."""
 from collections import Counter
 
-from app.models import Transcript, EmotionLog
+from app.models import EmotionLog, Transcript
 
 
 def build_student_classroom_overview(db, meeting, student):

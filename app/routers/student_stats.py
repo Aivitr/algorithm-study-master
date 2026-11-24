@@ -16,15 +16,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.meeting_state import CREATED, ENDED, RUNNING
-from app.models import LearningReport, Meeting, Transcript
+from app.models import ActiveClassroomSession, LearningReport, Meeting, Transcript
 from app.services.class_stats_service import ClassStatsService
-
-router = APIRouter()
-
-
-from app.models import ActiveClassroomSession
 from app.services.session_service import SessionContext, require_session
 from app.services.student_classroom_service import build_student_classroom_overview
+
+router = APIRouter()
 
 
 @router.get('/api/student-classroom-overview/{meeting_id}')

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.emotions import normalize_emotion_label
-from app.models import EmotionLog, Transcript, Meeting
+from app.models import EmotionLog, Meeting, Transcript
 from app.services.session_service import SessionContext, require_session
 from app.services.user_lookup import resolve_user_by_identifier
 
