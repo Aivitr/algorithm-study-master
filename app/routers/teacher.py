@@ -261,7 +261,9 @@ async def get_class_groups(meeting_id: int, db: Session = Depends(get_db)):
                 }
             user_stats[user.id]["speech_count"] += 1
             user_stats[user.id]["total_relevance"] += t.relevance_score or 0
-            user_stats[user.id]["total_quality"] += t.quality_score if t.quality_score is not None else 50
+            user_stats[user.id]["total_quality"] += (
+                t.quality_score if t.quality_score is not None else 50
+            )
 
         # ??
         groups = []

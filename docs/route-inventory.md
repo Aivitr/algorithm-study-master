@@ -64,6 +64,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/research-runtime` | 只读本地 | ✅ |
 | GET | `/api/session/validate` | 只读本地 |  |
 | GET | `/api/snapshot/{meeting_id}` | 只读本地 | ✅ |
+| GET | `/api/student-classroom-overview/{meeting_id}` | 只读本地 |  |
 | GET | `/api/student-home-stats/{user_id}` | 只读本地 | ✅ |
 | GET | `/api/student-quiz-history/{user_id}` | 只读本地 | ✅ |
 | GET | `/api/teacher-classes/{teacher_id}` | 只读本地 | ✅ |
@@ -102,7 +103,7 @@ socket 兜底开启的情况下真跑一遍，看它是否尝试外连（见文�
 | GET | `/api/voiceprint/users` | 本地模型推理 | ✅ |
 | POST | `/api/voiceprint/verify` | 本地模型推理 |  |
 
-总计 77 条（其中 `/voiceprint_register` 是死路由，可调用路由 76 条）：{'WebSocket': 3, '写操作': 15, '写操作（有副作用）': 1, '只读本地': 32, '外部服务': 20, '本地模型推理': 6}
+总计 78 条（其中 `/voiceprint_register` 是死路由，可调用路由 77 条）：{'WebSocket': 3, '写操作': 15, '写操作（有副作用）': 1, '只读本地': 33, '外部服务': 20, '本地模型推理': 6}
 入基线 25 条
 
 ## 三、基线实际覆盖

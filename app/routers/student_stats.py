@@ -24,17 +24,30 @@ from app.services.student_classroom_service import build_student_classroom_overv
 router = APIRouter()
 
 
-@router.get('/api/student-classroom-overview/{meeting_id}')
-def student_classroom_overview(meeting_id: int, db: Session = Depends(get_db), ctx: SessionContext = Depends(require_session)):
-    if ctx.user.role != 'student':
-        raise HTTPException(403, '仅供学生查看本人数据')
+@router.get("/api/student-classroom-overview/{meeting_id}")
+def student_classroom_overview(
+    meeting_id: int, db: Session = Depends(get_db), ctx: SessionContext = Depends(require_session)
+):
+    if ctx.user.role != "student":
+        raise HTTPException(403, "仅供学生查看本人数据")
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if meeting is None:
-        raise HTTPException(404, '课堂不存在')
-    active = db.query(ActiveClassroomSession.id).filter(ActiveClassroomSession.meeting_id == meeting_id, ActiveClassroomSession.user_id == ctx.user.id).first()
-    spoken = db.query(Transcript.id).filter(Transcript.meeting_id == meeting_id, Transcript.user_id == ctx.user.id).first()
+        raise HTTPException(404, "课堂不存在")
+    active = (
+        db.query(ActiveClassroomSession.id)
+        .filter(
+            ActiveClassroomSession.meeting_id == meeting_id,
+            ActiveClassroomSession.user_id == ctx.user.id,
+        )
+        .first()
+    )
+    spoken = (
+        db.query(Transcript.id)
+        .filter(Transcript.meeting_id == meeting_id, Transcript.user_id == ctx.user.id)
+        .first()
+    )
     if not active and not spoken:
-        raise HTTPException(403, '尚未加入该课堂')
+        raise HTTPException(403, "尚未加入该课堂")
     return build_student_classroom_overview(db, meeting, ctx.user)
 
 
