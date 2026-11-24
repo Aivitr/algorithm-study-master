@@ -339,9 +339,19 @@ from app.routers.realtime import router as realtime_router
 app.include_router(realtime_router)
 
 
+from app.routers.hints import router as hints_router
+
+app.include_router(hints_router)
+
+
 from app.routers.agents import router as agents_router
 
 app.include_router(agents_router)
+
+
+from app.routers.observability import router as observability_router
+
+app.include_router(observability_router)
 
 
 # 空 router：这个模块里的两个处理器**没有**装饰器，所以不贡献任何路由。

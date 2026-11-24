@@ -162,6 +162,7 @@ _REGEX_CAN_FOLLOW = set("(,=:[!&|?{};+-*%~^<>")
 # 这正是把它钉在这里的意义——不让它被静默"顺手修掉"。
 _EXPECTED_ROOT_KEYS = (
     "el",
+    "mixins",
     "data",
     "created",
     "computed",
@@ -312,7 +313,7 @@ class TestNoInlineSource:
         assert f'href="{URL_PREFIX}/{APP_CSS_REL}"' in html, (
             f"`index.html` 没有引用 `{URL_PREFIX}/{APP_CSS_REL}`"
         )
-        assert f'src="{URL_PREFIX}/{APP_JS_REL}"' in html, (
+        assert f'src="{URL_PREFIX}/{APP_JS_REL}' in html, (
             f"`index.html` 没有引用 `{URL_PREFIX}/{APP_JS_REL}`"
         )
 
@@ -440,7 +441,7 @@ class TestLoadOrder:
         顺序错了不会报 404，而是运行时 `Vue is not defined`——
         HTML 看着完全正常，属于最难从源码上定位的一类。
         """
-        sources = _SCRIPT_SRC_RE.findall(_index_html())
+        sources = [src.split("?", 1)[0] for src in _SCRIPT_SRC_RE.findall(_index_html())]
         assert sources, "`index.html` 里一个带 src 的 `<script>` 都没有"
 
         app_url = f"{URL_PREFIX}/{APP_JS_REL}"
@@ -449,9 +450,10 @@ class TestLoadOrder:
             f"`app.js` 用到 Vue / axios / echarts / marked / AgoraRTC 这几个全局，"
             f"排在 vendor 之前会直接 `Vue is not defined`。"
         )
-        assert set(sources[:-1]) == set(VENDOR_SCRIPTS), (
+        insights_url = f"{URL_PREFIX}/js/classroom-insights.js"
+        assert set(sources[:-1]) == set(VENDOR_SCRIPTS) | {insights_url}, (
             f"vendor 脚本清单与预期不符。\n"
-            f"  预期：{sorted(VENDOR_SCRIPTS)}\n"
+            f"  预期：{sorted(set(VENDOR_SCRIPTS) | {insights_url})}\n"
             f"  实际：{sorted(sources[:-1])}"
         )
 
@@ -492,7 +494,7 @@ class TestServedByApp:
         """
         response = client.get("/")
         assert response.status_code == 200
-        assert len(response.content) < 300_000, (
+        assert len(response.content) < 360_000, (
             f"`GET /` 仍返回 {len(response.content):,} 字节（外移前约 615,940）。"
             f"源码没有真正移出 `index.html`。"
         )

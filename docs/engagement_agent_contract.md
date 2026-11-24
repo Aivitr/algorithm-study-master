@@ -6,8 +6,9 @@
 
 ## 1. 采纳基线
 
-- GCA 侧唯一入口：
-  - `compute_hint_candidates(meeting_id, utterances, now_second, state, online_members)`
+- GCA 侧入口：
+  - 三维统一分析：`analyze_engagement(meeting_id, utterances, emotion_records, quality_records, gca_result) -> EngagementResult`（feat/gca 已实现）
+  - Hint 候选：`compute_hint_candidates(meeting_id, utterances, now_second, state, online_members)`
   - `HintCandidate` 字段以 `docs/engagement_protocol.md` 第 7 节为准。
 - 三维结果结构以 `EngagementDimensionResult` / `EngagementResult` 为准，
   状态分层不变：整体 `AnalysisStatus` 7 值，维度 `ok / insufficient / unavailable`。
@@ -167,7 +168,6 @@ Agent 生成和落库时，把 GCA 的数值证据补成可回查的 ID 列表�
 
 ## 8. 不在本轮范围
 
-- `behavioral.py` 与 `analyze_engagement()` 整合入口（GCA 侧尚未实现）。
-- `windows.py` 自定义指标汇总扩展。
-- Hint 自动发送、A/B 分组、模型影子对比。
+- `windows.py` 自定义指标汇总扩展（三维模块按同口径自行汇总，暂不改公共文件）。
+- 提示自动发送、A/B 分组、模型影子对比。
 - 多 worker 下的共享冷却与在线名单。
