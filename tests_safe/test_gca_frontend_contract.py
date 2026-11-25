@@ -68,7 +68,7 @@ def test_student_gca_view_has_role_scoped_ui_and_demo_fixture():
 
     assert "openStudentGca" in html
     assert "我的表现" in html
-    assert "情绪与目标" in html
+    assert "情绪记录" in html
     assert "协作回顾" in html
     assert "改进建议" in html
     assert "/api/gca-student-view/${this.meetingId}" in javascript

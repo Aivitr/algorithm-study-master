@@ -3,6 +3,7 @@
 from collections import Counter
 
 from app.models import EmotionLog, Transcript
+from app.services.quality_scores import valid_quality_score
 
 
 def build_student_classroom_overview(db, meeting, student):
@@ -41,6 +42,8 @@ def build_student_classroom_overview(db, meeting, student):
         values = [getattr(row, field) for row in rows if getattr(row, field) is not None]
         return round(sum(values) / len(values), 1) if values else None
 
+    quality_values = [score for row in rows if (score := valid_quality_score(row)) is not None]
+
     return {
         "status": "success",
         "student": {"name": student.username, "student_id": student.student_id},
@@ -52,7 +55,9 @@ def build_student_classroom_overview(db, meeting, student):
         },
         "summary": {
             "speech_count": len(rows),
-            "average_quality": average("quality_score"),
+            "average_quality": (
+                round(sum(quality_values) / len(quality_values), 1) if quality_values else None
+            ),
             "average_relevance": average("relevance_score"),
         },
         "distribution": [

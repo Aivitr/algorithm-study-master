@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.emotions import normalize_emotion_label
 from app.models import EmotionLog, Meeting, Transcript
+from app.services.quality_scores import valid_quality_score
 from app.services.session_service import SessionContext, require_session
 from app.services.user_lookup import resolve_user_by_identifier
 
@@ -136,8 +137,8 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db), min
             username = t.user.username
             if username not in user_quality_scores:
                 user_quality_scores[username] = []
-            if getattr(t, "quality_score", None) is not None:
-                user_quality_scores[username].append(t.quality_score)
+            if (score := valid_quality_score(t)) is not None:
+                user_quality_scores[username].append(score)
 
         for username in users:
             speech_count = speech_stats.get(username, 0)

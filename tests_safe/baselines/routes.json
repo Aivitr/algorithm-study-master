@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "065b25c997246990",
-    "length": 335930,
+    "digest": "702d42d3bea47584",
+    "length": 326836,
     "status": 200
   },
   "GET /api/active-groups/1": {
@@ -287,7 +287,7 @@
   },
   "GET /api/realtime-stats/1": {
     "content_type": "application/json",
-    "digest": "9ef6c8632de8b5e4",
+    "digest": "d7e09cfab95ce4ba",
     "length": 613,
     "shape": {
       "emotion_timeline": {
