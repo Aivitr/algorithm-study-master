@@ -362,6 +362,21 @@ from app.routers.unrouted import router as unrouted_router
 app.include_router(unrouted_router)
 
 
+# === Hint 评估循环 ===
+# 每 30 秒为进行中的课堂生成待教师确认的提示；只写候选，不发送。
+from app.services import hint_scheduler
+
+
+@app.on_event("startup")
+async def _start_hint_scheduler() -> None:
+    hint_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def _stop_hint_scheduler() -> None:
+    hint_scheduler.stop()
+
+
 if __name__ == "__main__":
     import uvicorn
 

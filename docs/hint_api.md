@@ -3,11 +3,11 @@
 > 适用于课堂运行中的 Hint 触发、发送记录与课后投入曲线查询。
 > 所有接口要求 `Authorization: Bearer <session-token>`；除注明外仅本课堂教师可调用。
 
-## 1. 触发与发送
+## 1. 候选生成
 
 ### `POST /api/check-silence`
 
-教师轮询调用，检查是否需要发送“讨论停滞”提示。
+教师手动触发一次“讨论停滞”评估；**只生成待发送提示，不发送**。
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
@@ -16,45 +16,62 @@
 响应：
 
 ```json
-{"status": "success", "silent": true, "suggestion": "……", "trigger_reason": "全组已 130 秒没有新发言"}
+{"status": "success", "silent": true, "pending": [{"hint_id": 7, "hint_type": "discussion_stall", "text": "……"}]}
 ```
 
-无候选时返回 `{"status":"ok","silent":false}`。候选由 GCA 的
-`compute_hint_candidates` 产出，服务端按 `dedupe_key` 做 300 秒冷却；
-冷却期内重复调用不会再次发送。
+无候选时返回 `{"status":"success","silent":false,"pending":[]}`。
 
 ### `POST /api/check-quiet-members`
 
-教师轮询调用，检查低参与学生并定向发送提示。
+教师手动触发一次“低参与”评估；同样只生成候选。
 
 响应：
 
 ```json
-{"status": "success", "quiet_members": ["李同学"], "suggestion": "……"}
+{"status": "success", "quiet_members": ["李同学"], "pending": [{"hint_id": 8}]}
 ```
 
-无候选时返回 `{"status":"ok","quiet_members":[]}`。
-学生级冷却 120 秒；提示只发给目标学生，不会广播。
+> 服务端每 30 秒自动评估所有进行中的课堂（`app/services/hint_scheduler.py`），
+> 调用方不需要再定时轮询这两个接口。
 
 ### 共同规则
 
 - 课堂状态必须是 `running`；`created` / `ended` 不评估。
 - 只使用学生发言，教师发言由适配层排除。
 - 时间零点统一为 `meeting.started_at`（缺失时退回最早发言）。
+- 同一 `dedupe_key` 在冷却期内（学生 120 秒 / 小组 300 秒）只生成一次。
 - LLM 生成失败或返回空文本时使用固定模板，`HintLog.model` 记为 `template`。
-- 发送成功后写入 `hint_logs`；写库失败只记录日志，不影响发送。
 
-## 2. 发送记录
+## 2. 教师确认与发送
+
+### `POST /api/hint-logs/{hint_id}/send`
+
+教师确认一条候选并下发。只允许本课堂教师；同一课堂 10 分钟内最多 5 条。
+
+- 小组级：向课堂广播 `topic_suggestion`
+- 学生级：只发给目标学生
+- 成功后 `hint_logs.status=sent`，记录 `sent_at` 与操作人
+- 已处理（`sent` / `ignored`）或非候选 → 409
+- 超过频率上限 → 429
+
+### `POST /api/hint-logs/{hint_id}/ignore`
+
+教师忽略一条候选；`hint_logs.status=ignored`。
+
+## 3. 学生回应
 
 ### `POST /api/hint-logs/{hint_id}/response`
 
-学生回应收到的提示。个人提示只有目标学生能回应；小组提示要求是课堂参与者。
+学生回应已发送的提示。个人提示只有目标学生能回应；小组提示要求是课堂参与者。
 
 ```json
 {"response": "acknowledged"}
 ```
 
-允许值：`acknowledged` / `need_help` / `dismissed`。响应写入 `hint_logs.response`。
+允许值：`acknowledged` / `need_help` / `dismissed`。响应写入 `hint_logs.response`；
+候选未发送时返回 409。
+
+## 4. 发送记录
 
 ### `GET /api/hint-logs/{meeting_id}`
 
@@ -123,6 +140,6 @@
 ## 5. 已知边界
 
 - `HintTriggerState` 与在线成员表在进程内，生产为单 worker；重启会丢候选状态，
-  但发送冷却由 `hint_logs` 兜底。
-- 学生响应尚未采集，`hint_logs.response` 预留为空。
-- 前端仍按 30 秒 / 60 秒轮询旧接口；客户端节流与服务端冷却并存。
+  冷却由 `hint_logs.created_at` 兜底。
+- 评估循环由服务端每 30 秒驱动，只在 `running` 课堂工作；进程重启后下一轮自动恢复。
+- 学生回应只记录标签，暂不反过来影响后续提示的生成。

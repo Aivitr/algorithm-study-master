@@ -70,6 +70,8 @@ os.environ["DB_PORT"] = "1"  # 不可达端口，连接立即失败
 os.environ["DB_USER"] = "testsuite"
 os.environ["DB_PASSWORD"] = "testsuite"
 os.environ["DB_NAME"] = "testsuite"
+# 服务端 Hint 定时循环在测试里不启动：它会每 30 秒写库，与用例抢数据。
+os.environ["HINT_SCHEDULER_ENABLED"] = "0"
 
 
 # ------------------------------------------------------------ §3 socket 兜底
