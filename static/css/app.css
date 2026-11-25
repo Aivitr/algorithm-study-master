@@ -2453,3 +2453,68 @@
             .gca-chart { height: 280px; }
         }
 
+.personal-classroom-grid { display:grid; grid-template-columns:260px minmax(0,1fr); gap:24px; padding:24px; }
+.personal-profile { align-self:start; text-align:center; overflow-wrap:anywhere; }
+.personal-avatar { width:100px; height:100px; border-radius:50%; background:#e9eeff; color:#4263eb; display:grid; place-items:center; font-size:48px; margin:0 auto 18px; }
+.personal-stat-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.personal-stat-cards strong { font-size:28px; color:#4263eb; }
+.personal-speech { padding:16px 0; border-bottom:1px solid #e2e8f0; overflow-wrap:anywhere; }
+@media(max-width:760px) { .personal-classroom-grid {grid-template-columns:1fr;padding:12px;} .personal-stat-cards {grid-template-columns:1fr;} }
+.student-gca-modal .personal-classroom-grid {display:grid;grid-template-columns:280px minmax(0,1fr);gap:24px;padding:24px;align-items:start;}
+.student-gca-modal .personal-profile {text-align:center;background:linear-gradient(155deg,#eaf0ff,#fff 65%);padding:28px 22px;}
+.personal-profile > h3 {font-size:22px;font-weight:800;color:#243c63;margin:14px 0 8px;}
+.personal-profile > p {font-size:14px;color:#6c7e96;margin:8px 0;}
+.personal-profile hr {margin:24px 0;}
+.personal-profile .gca-panel-card {margin-top:24px;padding:18px;text-align:left;background:#f3f6fd;box-shadow:none;border-radius:18px;}
+.personal-profile .gca-panel-card h3 {font-size:15px;font-weight:700;}
+.personal-profile .gca-panel-card p,.personal-profile .personal-speech {font-size:12px;line-height:1.8;}
+.student-gca-modal .personal-avatar {width:110px;height:110px;display:grid;place-items:center;border:6px solid white;border-radius:30px;background:#dce6ff;color:#4263eb;font-size:52px;box-shadow:0 10px 25px #355da722;margin:0 auto 18px;}
+.personal-classroom-grid > section {min-width:0;display:flex;flex-direction:column;gap:18px;}
+.student-gca-modal .personal-stat-cards {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+.personal-stat-cards .gca-panel-card {margin:0;padding:24px;background:linear-gradient(135deg,#fff,#eef3ff);}
+.personal-stat-cards p {color:#718098;font-size:13px;margin-bottom:12px;}
+.personal-stat-cards strong {font-size:34px;color:#4263eb;}
+.personal-classroom-grid section h3 {font-size:18px;font-weight:750;color:#29415e;margin-bottom:12px;}
+.personal-all-button {display:inline-flex;align-items:center;gap:8px;background:#eaf0ff;color:#355dc2;border:1px solid #ccdafa;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;margin:4px 0 18px;cursor:pointer;}
+.personal-all-button:hover {background:#dbe6ff;}
+.personal-record {padding:20px;margin:0 0 14px;border:1px solid #e1e8f4;border-radius:16px;background:#fbfcff;}
+.personal-record small {display:inline-block;background:#edf2fc;color:#6280aa;padding:4px 10px;border-radius:7px;font-size:12px;}
+.personal-record > p {font-size:15px;line-height:1.8;margin-top:12px;overflow-wrap:anywhere;}
+.personal-record .gca-footnote {padding:12px;background:#edf5f5;border-radius:10px;color:#52777b;font-size:13px;}
+@media(max-width:760px) {.student-gca-modal .personal-classroom-grid{grid-template-columns:1fr;padding:14px}.student-gca-modal .personal-stat-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.personal-stat-cards .gca-panel-card{padding:12px}.personal-stat-cards strong{font-size:24px}}
+.student-review-grid {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:start;}
+.student-review-chart,.student-review-advice {min-width:0;}
+.student-review-chart .gca-panel-card {margin:0;}
+.student-review-chart h3,.student-review-heading {font-size:19px;font-weight:750;color:#2b4260;margin-bottom:16px;}
+.student-review-chart label {font-size:13px;color:#718198;display:flex;gap:8px;align-items:center;}
+.student-review-chart details {border-top:1px solid #e4eaf5;padding-top:16px;font-size:13px;line-height:1.9;color:#5f7188;}
+.student-review-chart summary {cursor:pointer;font-weight:700;}
+.student-review-advice-card {display:flex;gap:14px;padding:22px;margin:0 0 16px;background:linear-gradient(130deg,#fff,#f5f7ff);}
+.student-review-number {flex-shrink:0;display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:#e8eeff;color:#4263eb;font-weight:800;}
+.student-review-advice-card h3 {font-size:16px;font-weight:750;color:#304769;margin-bottom:8px;}
+.student-review-advice-card p {font-size:14px;line-height:1.85;color:#6b7d93;}
+@media(max-width:760px){.student-review-grid{grid-template-columns:1fr;}}
+.student-gca-modal .personal-emotion-title {display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border:1px solid #ccdafa;border-radius:14px;background:#f0f4ff;color:#3558a6;font-size:18px;font-weight:750;margin-bottom:12px;}
+.personal-emotion-title span {font-size:12px;font-weight:500;color:#788aa8;border-left:1px solid #ccdafa;padding-left:10px;}
+.gca-modal .gca-modal-header {padding:20px 26px;}
+.gca-modal .gca-modal-header h2 {font-size:24px;font-weight:800;line-height:1.4;}
+.gca-modal .gca-modal-header p {font-size:13px;opacity:.8;margin-top:5px;}
+.gca-modal .gca-summary-strip {padding:10px 24px;font-size:13px;gap:16px;}
+.gca-modal .gca-tabs button {padding:15px 22px;font-size:14px;}
+.gca-modal .gca-tabs button:focus-visible,.gca-modal button:focus-visible {outline:2px solid #4263eb;outline-offset:3px;}
+.gca-modal .gca-tabs button:focus:not(:focus-visible) {outline:none;}
+.student-gca-modal .student-gca-privacy-note {padding:10px 16px;font-size:12px;border-radius:12px;margin-bottom:16px;}
+.student-gca-modal .gca-panel-card {border-radius:18px;box-shadow:0 4px 18px #263d5810;}
+.student-gca-modal .gca-icon-btn {width:38px;height:38px;border-radius:11px;font-size:16px;}
+.student-gca-modal button:disabled {opacity:.5;cursor:wait;}
+.personal-stat-cards small {display:block;font-size:11px;color:#7b899d;margin-top:8px;line-height:1.5;}
+.personal-classroom-grid .gca-chart {height:260px;}
+.student-gca-modal .gca-radar-chart {height:340px;}
+.student-gca-modal #personalEmotionChart {height:330px;}
+.personal-filter-note {display:inline-block;padding:8px 12px;background:#edf2ff;color:#355dc2;border-radius:9px;font-size:13px;margin:0 0 14px;}
+.student-gca-modal .gca-footnote {font-size:12px;line-height:1.7;}
+.student-review-advice-card {padding:18px;}
+.student-detail-entry {display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:16px 18px;margin-bottom:16px;border:1px solid #ccdafa;border-radius:16px;background:#edf3ff;color:#3457aa;font-size:15px;font-weight:750;cursor:pointer;gap:14px;}
+.student-detail-entry small {display:block;margin-top:6px;color:#7486a5;font-size:12px;font-weight:400;}
+.student-detail-entry:hover {background:#e0eaff;border-color:#9bb4ef;}
+.student-detail-entry:focus-visible {outline:2px solid #4263eb;outline-offset:3px;}

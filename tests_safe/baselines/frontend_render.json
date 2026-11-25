@@ -1,56 +1,56 @@
 {
   "states": {
     "默认（落地页）": {
-      "hash": "c4550e6baadcd7b3",
-      "length": 5165
+      "hash": "76d7556cff1bc197",
+      "length": 5181
     },
     "登录页": {
-      "hash": "7c02c8680ecc4ca1",
-      "length": 2742
+      "hash": "a31404d462bed7d5",
+      "length": 2758
     },
     "注册页": {
-      "hash": "f098bd59cfbe3e47",
-      "length": 4249
+      "hash": "3c3d021e1a6d797e",
+      "length": 4265
     },
     "大厅（学生）": {
-      "hash": "e612b2e2558819bc",
-      "length": 5227
+      "hash": "b72076c8f419dbcf",
+      "length": 5243
     },
     "大厅（教师）": {
-      "hash": "3427854253189ab8",
-      "length": 6976
+      "hash": "1361672d0cbce672",
+      "length": 6992
     },
     "个人中心（学生）": {
-      "hash": "e1d072a63d00e71b",
-      "length": 10205
+      "hash": "6a9d3cceb99e2ce3",
+      "length": 10225
     },
     "课堂（学生）": {
-      "hash": "cea82cdf337e0468",
-      "length": 7781
+      "hash": "043fbf3cf7dc3d74",
+      "length": 7437
     },
     "课堂（教师）": {
-      "hash": "f0c9d2f63188488d",
-      "length": 8850
+      "hash": "615b44edbfae308b",
+      "length": 7862
     },
     "AI 辅导弹窗": {
-      "hash": "cbc062fc88427c9c",
-      "length": 7003
+      "hash": "589256e679ffbc05",
+      "length": 7030
     },
     "进入课堂弹窗": {
-      "hash": "0d773ab95e27c479",
-      "length": 10578
+      "hash": "058dbd36d8625174",
+      "length": 10594
     },
     "小组报告弹窗": {
-      "hash": "2a1ddf02a257c61b",
-      "length": 7760
+      "hash": "d4f196c64f16d3aa",
+      "length": 7776
     },
     "通用弹窗": {
-      "hash": "376910bb7486cd2e",
-      "length": 5561
+      "hash": "6850a539d3d24dcc",
+      "length": 5577
     },
     "通用弹窗（确认）": {
-      "hash": "46aac5cfdb5a67f6",
-      "length": 5608
+      "hash": "d40cc0c16857786a",
+      "length": 5624
     }
   },
   "clicks": {
@@ -155,6 +155,9 @@
   ],
   "collisions": [],
   "watch_keys": [
+    "activeTab",
+    "classroomTab",
+    "meetingId",
     "showKnowledgeGraph"
   ]
 }

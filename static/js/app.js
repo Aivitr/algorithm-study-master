@@ -95,6 +95,7 @@ const GCA_METRIC_DEFINITIONS = [
 
 new Vue({
     el: '#app',
+    mixins: [window.ClassroomInsightsMixin || {}],
     data: {
         // 通用弹窗
         globalModal: { show: false, type: 'alert', icon: 'info', title: '', message: '', _resolve: null },
@@ -159,7 +160,7 @@ new Vue({
         // 目标完成弹窗
         goalCompletePopup: { show: false, goals: [], allDone: false },
         // 话题建议弹窗
-        topicSuggestion: { show: false, text: '', reason: '' },
+        topicSuggestion: { show: false, text: '', reason: '', hintId: null },
         classroomHintTimer: null,
         lastClassroomHintAt: 0,
         lastClassroomHintText: '',
@@ -169,8 +170,6 @@ new Vue({
         lastTopicSuggestionText: '',
         topicSuggestionCooldownMs: 180000,
         // 沉默检测定时器
-        silenceCheckTimer: null,
-        quietCheckTimer: null,
         // 登录表单
         loginForm: { student_id: '', password: '' },
         // 注册表单
@@ -189,11 +188,13 @@ new Vue({
         aiLoading: false,
         // 课堂AI对话
         classroomAIMessages: [],
+        aiDrawerOpen: false,
         classroomAIInput: '',
         classroomAILoading: false,
         // 课堂状态
         joined: false, loading: false, isPaused: false, errorMsg: '', form: {username:'', class_code:'', topic:'', role:'student'},
         currentTopic: '', goals: [], msgs: [], currentRelevance: null, hint: null,
+        chatHistoryMeetingId: null,
         ws: null, wsHeartbeatTimer: null, recorder: null, audioCtx: null, analyser: null, dataArray: null, volumeLevel: 0, silenceStart: null, isSpeaking: false, speakingStartTime: null, statusText: 'Listening...', recordingStartTime: null,
         localMediaStream: null,
         mediaMode: 'none',           // camera / screen / none
@@ -268,7 +269,9 @@ new Vue({
         studentGcaLoading: false,
         studentGcaError: '',
         studentGcaData: null,
-        studentGcaActiveTab: 'personal',
+        studentGcaActiveTab: 'overview',
+        studentOverview: null, studentOverviewLoading: false, studentOverviewError: '',
+        personalBucket: null, personalShowAverage: false, personalAllExpanded: false,
         studentGcaLastUpdatedAt: '',
         studentGcaStale: false,
         studentGcaRequestController: null,
@@ -367,7 +370,7 @@ new Vue({
                 title: '实时课堂',
                 icon: 'fas fa-chalkboard-teacher',
                 gradient: 'linear-gradient(135deg, #3E7C86 0%, #4BA3B0 100%)',
-                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和学习状态。'
+                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和情绪趋势。'
             },
             vote: {
                 title: '投票讨论',
@@ -482,6 +485,31 @@ new Vue({
                 }
             });
             return members;
+        },
+        // 学生端统计：只看我自己的发言
+        mySpeechMsgs() {
+            const name = this.currentUser && this.currentUser.username;
+            if (!name) return [];
+            return (this.msgs || []).filter((m) =>
+                (m.type === 'new_speech' || m.type === 'new_speech_fast') && m.username === name
+            );
+        },
+        mySpeechCount() {
+            return this.mySpeechMsgs.length;
+        },
+        myAvgQuality() {
+            const scores = this.mySpeechMsgs
+                .map((m) => Number(m.quality_score))
+                .filter((v) => Number.isFinite(v) && v > 0);
+            if (!scores.length) return '—';
+            return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        },
+        mySpeechShare() {
+            const all = (this.msgs || []).filter((m) =>
+                m.type === 'new_speech' || m.type === 'new_speech_fast'
+            ).length;
+            if (!all) return '—';
+            return Math.round((this.mySpeechCount / all) * 100) + '%';
         },
         displayMsgs() {
             const list = Array.isArray(this.msgs) ? this.msgs : [];
@@ -629,6 +657,14 @@ new Vue({
     // 只有这里引用过。按项目约定不删除未完成模块。
     // 真正注册了哪几个，由 tests_safe/test_frontend_render.py 从运行时钉住。
     watch: {
+        // 兜底：处于课堂内且 meetingId 就绪就补一次历史发言（loadChatHistory 内部幂等）
+
+        pageState(state) {
+
+            if (state === 'classroom' && this.meetingId) this.loadChatHistory();
+
+        },
+
         // 声网Agora模式下，远端视频由SDK自动管理，无需手动绑定
         // 监听本地媒体流变化，确保视频元素绑定
         localMediaStream(stream) {
@@ -688,6 +724,13 @@ new Vue({
                 setTimeout(() => {
                     this.loadRealtimeStats();
                     this.loadEmotionDetails();
+                    if (!this.isTeacherRole) {
+                        if (this.currentUser) this.selectedMember = this.currentUser.username;
+                        this.$nextTick(() => {
+                            this.renderMySpeechChart();
+                            this.renderIndividualEmotionChart();
+                        });
+                    }
                 }, 100);
             });
         },
@@ -936,7 +979,12 @@ new Vue({
         async openStudentGca() {
             if (!this.currentUser || this.currentUser.role !== 'student' || !this.meetingId) return;
             this.studentGcaVisible = true;
-            this.studentGcaActiveTab = 'personal';
+            this.studentGcaActiveTab = 'overview';
+            this.studentOverview = null;
+            this.personalBucket = null;
+            this.personalAllExpanded = false;
+            this.personalShowAverage = false;
+            this.loadStudentOverview();
             await this.loadStudentGca();
         },
         closeStudentGca() {
@@ -977,10 +1025,60 @@ new Vue({
             }
         },
         refreshStudentGca() {
+            this.loadStudentOverview();
             return this.loadStudentGca();
+        },
+        personalNumber(value) { return value == null ? '暂无数据' : value; },
+        personalSpeeches() {
+            const rows = ((this.studentOverview || {}).speeches || []).filter(s => this.personalBucket === null || s.bucket === this.personalBucket).slice().reverse();
+            return this.personalBucket === null && !this.personalAllExpanded ? rows.slice(0, 1) : rows;
+        },
+        toggleAllPersonalSpeeches() {
+            this.personalAllExpanded = this.personalBucket !== null || !this.personalAllExpanded;
+            this.personalBucket = null;
+        },
+        async loadStudentOverview() {
+            if (this.studentOverviewLoading) return;
+            const meetingId = this.meetingId;
+            this.studentOverviewLoading = true;
+            this.studentOverviewError = '';
+            try {
+                const url = this.gcaDemoMode ? '/static/mock/student-classroom-demo.json' : `/api/student-classroom-overview/${meetingId}`;
+                const response = await axios.get(url);
+                if (!this.studentGcaVisible || this.meetingId !== meetingId) return;
+                if (response.data.status !== 'success') throw new Error('个人课堂数据返回异常');
+                this.studentOverview = response.data;
+            } catch (error) {
+                if (this.studentGcaVisible && this.meetingId === meetingId) this.studentOverviewError = error.response?.data?.detail || error.message;
+            } finally {
+                this.studentOverviewLoading = false;
+                this.$nextTick(() => this.renderPersonalClassroom());
+            }
+        },
+        renderPersonalClassroom() {
+            if (!this.studentGcaVisible || !this.studentOverview) return;
+            const overview = this.studentOverview;
+            const speechEl = document.getElementById('personalSpeechChart');
+            if (speechEl) {
+                const chart = echarts.getInstanceByDom(speechEl) || echarts.init(speechEl);
+                this.chartInstances.personalSpeechChart = chart;
+                chart.setOption({tooltip:{trigger:'axis'},xAxis:{type:'category',data:overview.distribution.map(x=>x.label)},yAxis:{type:'value',minInterval:1,name:'发言条数'},series:[{type:'bar',data:overview.distribution.map(x=>x.count),itemStyle:{color:'#4263eb'}}],graphic:overview.distribution.length?[]:[{type:'text',left:'center',top:'middle',style:{text:'暂无本人发言'}}]},true);
+                chart.off('click');
+                chart.on('click', event => { this.personalBucket = overview.distribution[event.dataIndex].bucket; this.personalAllExpanded = false; });
+            }
+            const emotionEl = document.getElementById('personalEmotionChart');
+            if (emotionEl) {
+                const chart = echarts.getInstanceByDom(emotionEl) || echarts.init(emotionEl);
+                this.chartInstances.personalEmotionChart = chart;
+                const labels=['angry','sad','confused','thinking','neutral','calm','surprised','happy','excited'];
+                const names={angry:'生气',sad:'低落',confused:'困惑',thinking:'思考',neutral:'中性',calm:'平静',surprised:'惊讶',happy:'愉快',excited:'兴奋'};
+                const points = overview.emotions.filter(x=>labels.includes(x.label));
+                chart.setOption({tooltip:{trigger:'item',formatter:p=>`课堂第 ${Math.floor(p.value[0])} 分 ${Math.round((p.value[0]%1)*60)} 秒<br/>识别标签：${names[p.value[1]] || p.value[1]}`},grid:{left:64,right:70,top:24,bottom:48},xAxis:{type:'value',name:'课堂分钟',axisLabel:{formatter:v=>Number(v.toFixed(1))}},yAxis:{type:'category',data:labels,axisLabel:{formatter:v=>names[v]||v}},series:[{type:'scatter',symbolSize:12,data:points.map(x=>[x.second/60,x.label]),itemStyle:{color:'#4263eb'}}],graphic:points.length?[]:[{type:'text',left:'center',top:'middle',style:{text:'暂无可展示的本人情绪记录，请确认摄像头已开启并稍后刷新',fontSize:13,fill:'#718198'}}]},true);
+            }
         },
         switchStudentGcaTab(tab) {
             this.studentGcaActiveTab = tab;
+            this.$nextTick(() => this.renderPersonalClassroom());
             this.$nextTick(() => setTimeout(() => this.renderStudentGcaActiveChart(), 60));
         },
         studentGcaCanShowMetrics() {
@@ -1040,7 +1138,7 @@ new Vue({
             this.chartInstances.studentGcaRadar = chart;
             const ownValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaMetric(metric.key) || 0));
             const averageValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaAverage(metric.key) || 0));
-            const showAverage = this.studentGcaHasClassAverage();
+            const showAverage = this.personalShowAverage && this.studentGcaHasClassAverage();
             const seriesData = [
                 { value: ownValues, name: '我的特征', areaStyle: { color: 'rgba(37,99,235,.18)' }, lineStyle: { color: '#2563eb' } },
             ];
@@ -1102,13 +1200,13 @@ new Vue({
             }, true);
         },
         resizeStudentGcaCharts() {
-            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+            ['studentGcaRadar', 'studentGcaTrend', 'personalSpeechChart', 'personalEmotionChart'].forEach(key => {
                 const chart = this.chartInstances[key];
                 if (chart && !chart.isDisposed()) chart.resize();
             });
         },
         disposeStudentGcaCharts() {
-            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+            ['studentGcaRadar', 'studentGcaTrend', 'personalSpeechChart', 'personalEmotionChart'].forEach(key => {
                 const chart = this.chartInstances[key];
                 if (chart && !chart.isDisposed()) chart.dispose();
                 delete this.chartInstances[key];
@@ -1150,14 +1248,14 @@ new Vue({
             }, duration);
             return true;
         },
-        showTopicSuggestionNotice(text, reason = '') {
+        showTopicSuggestionNotice(text, reason = '', hintId = null) {
             const clean = String(text || '').trim();
             if (!clean) return false;
             if (this.shouldThrottleClassroomNotice(clean, this.lastTopicSuggestionAt, this.lastTopicSuggestionText, this.topicSuggestionCooldownMs)) {
                 console.log('⏳ 话题建议冷却中，已静默:', clean);
                 return false;
             }
-            this.topicSuggestion = { show: true, text: clean, reason };
+            this.topicSuggestion = { show: true, text: clean, reason, hintId };
             this.lastTopicSuggestionAt = Date.now();
             this.lastTopicSuggestionText = clean;
             if (this.topicSuggestionTimer) clearTimeout(this.topicSuggestionTimer);
@@ -1166,6 +1264,17 @@ new Vue({
                 this.topicSuggestionTimer = null;
             }, 10000);
             return true;
+        },
+        async respondHint(value) {
+            const hintId = this.topicSuggestion && this.topicSuggestion.hintId;
+            this.topicSuggestion.show = false;
+            if (!hintId) return;
+            try {
+                await axios.post(`/api/hint-logs/${hintId}/response`, { response: value });
+                this.showClassroomHint('已记录你的反馈', 4000, { force: true });
+            } catch (error) {
+                console.warn('提示回应记录失败', error);
+            }
         },
         showConfirm(message, title = '确认操作', confirmText = '确定', cancelText = '取消') {
             return new Promise(resolve => {
@@ -2035,11 +2144,16 @@ new Vue({
                 this.showClassModal = false;
                 this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
                 this.startTimer();
-                this.startSilenceChecks();
                 this.loading = false;
                 // 清空表单
                 this.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
                 this.uploadedFile = null;
+                // 学生用课堂码进课堂时也要把已落库的发言补进「对话」，否则右栏是空的
+
+                // 补齐课堂数据：目标 / 知识图谱 / 统计图表 / 对话历史；缺了统计页会整块空白
+
+                this.loadClassroomData(this.meetingId);
+
                 this.$nextTick(async () => {
                     // 优先实时弹幕/ASR：先建立实时连接
                     // 对话栏仅显示本次进入课堂后的会话消息，不再加载往期课堂历史
@@ -3857,7 +3971,7 @@ new Vue({
                         }
                     }
                     if (d.goals) this.goals = d.goals;
-                    if (d.relevance !== undefined) this.currentRelevance = d.relevance;
+                    if (d.relevance !== undefined && this.currentUser && d.username === this.currentUser.username) this.currentRelevance = d.relevance;
                     if (d.hint && d.username === this.currentUser.username) {
                         this.showClassroomHint(d.hint, 7000, { cooldownMs: this.classroomHintCooldownMs });
                     }
@@ -4045,7 +4159,7 @@ new Vue({
                 // === 11. 话题建议推送 ===
                 else if (d.type === 'topic_suggestion') {
                     console.log('💬 话题建议:', d);
-                    this.showTopicSuggestionNotice(d.suggestion || '', d.reason || '');
+                    this.showTopicSuggestionNotice(d.suggestion || '', d.reason || '', d.hint_id || null);
                 }
             }
         },
@@ -4731,8 +4845,6 @@ new Vue({
             if (this.graphUpdateInterval) clearInterval(this.graphUpdateInterval);
             if (this.analyzingCleanupInterval) clearInterval(this.analyzingCleanupInterval);
 
-            // 停止沉默检测定时器
-            this.stopSilenceChecks();
 
             // 停止实时音频处理节点
             if (this.audioProcessor) {
@@ -4896,32 +5008,6 @@ new Vue({
             return `已完成${doneGoals.length}个目标,接下来关注: ${pendingGoals[0].desc}。建议结合已学知识进行递进式教学。`;
         },
         // 沉默检测和话题建议
-        startSilenceChecks() {
-            if (this.meetingStatus !== 'running') return;
-            // 每30秒检查一次全组沉默
-            this.silenceCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
-                try {
-                    const fd = new FormData();
-                    fd.append('meeting_id', this.meetingId);
-                    await axios.post('/api/check-silence', fd);
-                } catch(e) { /* 静默失败 */ }
-            }, 30000);
-
-            // 每60秒检查一次沉默成员
-            this.quietCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
-                try {
-                    const fd = new FormData();
-                    fd.append('meeting_id', this.meetingId);
-                    await axios.post('/api/check-quiet-members', fd);
-                } catch(e) { /* 静默失败 */ }
-            }, 60000);
-        },
-        stopSilenceChecks() {
-            if (this.silenceCheckTimer) { clearInterval(this.silenceCheckTimer); this.silenceCheckTimer = null; }
-            if (this.quietCheckTimer) { clearInterval(this.quietCheckTimer); this.quietCheckTimer = null; }
-        },
         async loadStudentHomeStats() {
             if (!this.currentUser || this.currentUser.role !== 'student') return;
             try {
@@ -5330,8 +5416,7 @@ new Vue({
                         const matchedKey = res.data.current_user_key || allKeys.find(key => ownCandidates.includes(String(key)));
                         if (matchedKey && this.allIndividualEmotions[matchedKey]) {
                             this.individualEmotions = { [matchedKey]: this.allIndividualEmotions[matchedKey] };
-                        } else if (allKeys.length === 1) {
-                            this.individualEmotions = { [allKeys[0]]: this.allIndividualEmotions[allKeys[0]] };
+                        
                         }
                     }
 
@@ -5701,6 +5786,10 @@ new Vue({
         },
         // 渲染情绪图表
         renderEmotionCharts() {
+            if (!this.isTeacherRole && this.currentUser && !this.selectedMember) {
+                this.selectedMember = this.currentUser.username;
+            }
+
             if (this.emotionMode === 'group') {
                 this.renderGroupEmotionChart();
             } else {
@@ -5739,7 +5828,8 @@ new Vue({
                         title: {
                             text: '群体情绪波动',
                             left: 'center',
-                            textStyle: { fontSize: 16, color: '#065f46', fontWeight: 'bold' }
+                            top: 2,
+                            textStyle: { fontSize: 13, color: '#065f46', fontWeight: 'bold' }
                         },
                         tooltip: {
                             trigger: 'item',
@@ -5752,7 +5842,7 @@ new Vue({
                                 return `<b>${params.seriesName}</b><br/>时间: ${time}<br/>情绪值: ${params.data[1]}<br/><span style="color:#fbbf24">💡 点击查看视频</span>`;
                             }
                         },
-                        grid: { left: 60, right: 30, top: 80, bottom: 90 },
+                        grid: { left: 46, right: 14, top: 54, bottom: 30 },
                         xAxis: {
                             type: 'time',
                             minInterval: 60 * 1000,
@@ -5768,17 +5858,17 @@ new Vue({
                         },
                         yAxis: {
                             type: 'value', min: 0, max: 100,
-                            name: '情绪值',
+
                             nameTextStyle: { color: '#065f46', fontSize: 12 },
                             axisLabel: { fontSize: 11, color: '#166534' },
                             axisLine: { lineStyle: { color: '#10b981' } },
                             splitLine: { lineStyle: { color: 'rgba(16,185,129,0.25)', type: 'dashed' } }
                         },
-                        legend: { top: 35, textStyle: { color: '#065f46', fontSize: 12 } },
-                        dataZoom: [
-                            { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-                            { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 25, borderColor: '#86efac', fillerColor: 'rgba(16,185,129,0.2)', handleStyle: { color: '#10b981' } }
-                        ],
+                        legend: { type: 'scroll', top: 20, left: 8, right: 8,
+                                  itemWidth: 12, itemHeight: 8, itemGap: 7,
+                                  pageIconSize: 9, pageTextStyle: { fontSize: 9 },
+                                  textStyle: { color: '#065f46', fontSize: 9.5 } },
+
                         animationDuration: 500,
                         animationEasing: 'cubicOut',
                         series: []
@@ -5828,10 +5918,11 @@ new Vue({
                         name: member,
                         type: 'line',
                         data: displayData.map(d => [d._ts, d.emotion_value]),
-                        smooth: false,
+                        smooth: true,
                         symbol: 'circle',
-                        symbolSize: 8,
-                        lineStyle: { width: 3, color: colors[idx % colors.length] },
+                        symbolSize: 4,
+                        showSymbol: false,
+                        lineStyle: { width: 1.6, color: colors[idx % colors.length], opacity: 0.9 },
                         itemStyle: { color: colors[idx % colors.length] },
                         large: true,
                         sampling: 'lttb'
@@ -5843,7 +5934,8 @@ new Vue({
                     title: {
                         text: '群体情绪波动',
                         left: 'center',
-                        textStyle: { fontSize: 16, color: '#065f46', fontWeight: 'bold' }
+                        top: 2,
+                        textStyle: { fontSize: 13, color: '#065f46', fontWeight: 'bold' }
                     },
                     series,
                     legend: { data: legendData }
@@ -5925,25 +6017,13 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '情绪值',
+
                             nameTextStyle: { color: '#065f46', fontSize: 12 },
                             axisLabel: { fontSize: 11, color: '#166534' },
                             axisLine: { lineStyle: { color: '#10b981' } },
                             splitLine: { lineStyle: { color: 'rgba(16,185,129,0.25)', type: 'dashed' } }
                         },
-                        dataZoom: [
-                            { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-                            {
-                                type: 'slider',
-                                xAxisIndex: 0,
-                                filterMode: 'none',
-                                height: 18,
-                                bottom: 25,
-                                borderColor: '#86efac',
-                                fillerColor: 'rgba(16,185,129,0.2)',
-                                handleStyle: { color: '#10b981' }
-                            }
-                        ],
+
                         animationDuration: 500,
                         animationEasing: 'cubicOut',
                         series: []
@@ -6020,6 +6100,68 @@ new Vue({
             }
         },
         // 渲染统计图表
+        // 学生端：按 2 分钟窗口统计「我的发言次数」
+        renderMySpeechChart() {
+            try {
+                if (this.isTeacherRole) return;
+                const el = document.getElementById('mySpeechChart');
+                if (!el || !el.offsetWidth) return;
+                const items = (this.mySpeechMsgs || []).slice().sort(
+                    (a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0)
+                );
+                const bucketMs = 2 * 60 * 1000;
+                const buckets = new Map();
+                items.forEach((m) => {
+                    const ts = Number(m.timestamp) || 0;
+                    if (!ts) return;
+                    const key = Math.floor(ts / bucketMs) * bucketMs;
+                    buckets.set(key, (buckets.get(key) || 0) + 1);
+                });
+                const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
+                const labels = keys.map((k) =>
+                    new Date(k).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                );
+                const values = keys.map((k) => buckets.get(k));
+                let chart = this.chartInstances.mySpeechChart;
+                if (!chart || chart.isDisposed()) {
+                    chart = echarts.init(el);
+                    this.chartInstances.mySpeechChart = chart;
+                }
+                chart.setOption({
+                    grid: { left: 34, right: 12, top: 18, bottom: 26 },
+                    tooltip: { trigger: 'axis' },
+                    xAxis: {
+                        type: 'category',
+                        data: labels.length ? labels : ['暂无'],
+                        axisLabel: { fontSize: 9, color: '#718087' },
+                        axisLine: { lineStyle: { color: '#cbd5da' } },
+                    },
+                    yAxis: {
+                        type: 'value',
+                        minInterval: 1,
+                        axisLabel: { fontSize: 9, color: '#718087' },
+                        splitLine: { lineStyle: { color: 'rgba(62,142,145,0.14)' } },
+                    },
+                    series: [{
+                        type: 'bar',
+                        data: values,
+                        barMaxWidth: 22,
+                        itemStyle: {
+                            borderRadius: [4, 4, 0, 0],
+                            color: {
+                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: '#4fb3a6' },
+                                    { offset: 1, color: '#2f6b63' },
+                                ],
+                            },
+                        },
+                    }],
+                }, true);
+            } catch (e) {
+                console.warn('我的发言次数图渲染失败:', e);
+            }
+        },
         renderStatsCharts() {
             if (this.classroomTab !== 'stats' || this.classroomPanelCollapsed) return;
             console.log('🎨 开始渲染统计图表...');
@@ -6125,7 +6267,7 @@ new Vue({
                 }, false);
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('avgLearningChart');
             if (avgLearningEl) {
                 if (!this.chartInstances.avgLearningChart || this.chartInstances.avgLearningChart.isDisposed()) {
@@ -6137,7 +6279,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
@@ -6165,7 +6307,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 42, right: 20, top: 42, bottom: 36 },
                         xAxis: {
@@ -6181,7 +6323,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 11, color: '#6b7280' },
                             axisLabel: { fontSize: 10, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -6488,7 +6630,7 @@ new Vue({
                 const signal = this.tdRequestController.signal;
                 // 并行请求统计和情绪数据
                 const [statsRes, emotionRes] = await Promise.all([
-                    axios.get(`/api/realtime-stats/${this.tdMeetingId}`, { timeout: 120000, signal }),
+                    axios.get(`/api/realtime-stats/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal }),
                     axios.get(`/api/emotion-details/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal })
                 ]);
 
@@ -6612,7 +6754,7 @@ new Vue({
                 this.setChartEmpty(this.tdChartInstances.barChart, '暂无发言数据');
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('tdAvgLearningChart');
             if (avgLearningEl) {
                 if (!this.tdChartInstances.avgLearningChart || this.tdChartInstances.avgLearningChart.isDisposed()) {
@@ -6624,7 +6766,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 14, fontWeight: 'normal' }
@@ -6652,7 +6794,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 48, right: 24, top: 52, bottom: 42 },
                         xAxis: {
@@ -6668,7 +6810,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 12, color: '#6b7280' },
                             axisLabel: { fontSize: 11, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -6823,10 +6965,7 @@ new Vue({
                         axisLine: { lineStyle: { color: '#10b981' } },
                         splitLine: { lineStyle: { color: 'rgba(16,185,129,0.25)', type: 'dashed' } }
                     },
-                    dataZoom: [
-                        { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-                        { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 25, borderColor: '#86efac', fillerColor: 'rgba(16,185,129,0.2)', handleStyle: { color: '#10b981' } }
-                    ],
+
                     animationDuration: 500,
                     animationEasing: 'cubicOut',
                     series: []
@@ -6949,10 +7088,7 @@ new Vue({
                         right: 20,
                         textStyle: { color: '#065f46', fontSize: 12 }
                     },
-                    dataZoom: [
-                        { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
-                        { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 25, borderColor: '#86efac', fillerColor: 'rgba(16,185,129,0.2)', handleStyle: { color: '#10b981' } }
-                    ],
+
                     animationDuration: 500,
                     animationEasing: 'cubicOut',
                     series: []
@@ -7293,7 +7429,6 @@ new Vue({
             this.pageState = 'classroom';
             this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
             this.startTimer();
-            this.startSilenceChecks();
             // 加载目标和图谱数据
             await this.loadClassroomData(cls.meeting_id);
             this.$nextTick(async () => {
@@ -7410,7 +7545,7 @@ new Vue({
         // 查看学生报告详情
         viewStudentReport(report) {
             // 在新窗口打开报告详情
-            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n专注度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
+            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n发言相关度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
         },
         // 下载学生报告PDF
         async downloadStudentPDF(report) {

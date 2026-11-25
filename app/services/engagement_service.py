@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from time import perf_counter
 from typing import Any, cast
 
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.emotions import normalize_emotion_label
 from app.models import EmotionLog, EngagementCurve, Meeting, Transcript
 from app.services.gca_service import analyze_meeting_metrics
+from app.services.observability_service import record_run
 from gca_engine.adapters.classroom import transcripts_to_utterances
 from gca_engine.engagement import (
     ENGAGEMENT_PROTOCOL_VERSION,
@@ -50,11 +52,7 @@ def _student_transcripts(meeting_id: int, db: Session) -> list[Transcript]:
     return [row for row in rows if getattr(row.user, "role", None) != "teacher"]
 
 
-def _build_inputs(
-    meeting: Meeting, transcripts: list[Transcript], db: Session
-) -> tuple[list[Utterance], list[SpeechQualityRecord], list[EmotionRecord]]:
-    origin = _meeting_origin(meeting, transcripts)
-
+def _transcript_records(transcripts: list[Transcript], origin: datetime) -> list[dict[str, Any]]:
     records = []
     for item in transcripts:
         occurred_at = item.created_at or item.timestamp
@@ -69,7 +67,28 @@ def _build_inputs(
                 "timestamp": seconds,
             }
         )
-    utterances = transcripts_to_utterances(records, str(meeting.id))
+    return records
+
+
+def build_utterances(meeting_id: int, db: Session) -> tuple[Meeting | None, list[Utterance]]:
+    """取课堂的学生发言（教师已排除），按 meeting.started_at 换算相对秒数。"""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if meeting is None:
+        return None, []
+    transcripts = _student_transcripts(meeting_id, db)
+    origin = _meeting_origin(meeting, transcripts)
+    return meeting, transcripts_to_utterances(
+        _transcript_records(transcripts, origin), str(meeting_id)
+    )
+
+
+def _build_inputs(
+    meeting: Meeting, transcripts: list[Transcript], db: Session
+) -> tuple[list[Utterance], list[SpeechQualityRecord], list[EmotionRecord]]:
+    origin = _meeting_origin(meeting, transcripts)
+    utterances = transcripts_to_utterances(
+        _transcript_records(transcripts, origin), str(meeting.id)
+    )
 
     quality = [
         SpeechQualityRecord(
@@ -206,6 +225,7 @@ def rebuild_engagement_curves(meeting_id: int, db: Session) -> dict[str, Any]:
     origin = _meeting_origin(meeting, transcripts)
     end = meeting.ended_at or datetime.now()
     duration = max(0.0, (end - origin).total_seconds())
+    started = perf_counter()
     rows = _curve_rows(meeting_id, result, duration)
 
     try:
@@ -214,15 +234,39 @@ def rebuild_engagement_curves(meeting_id: int, db: Session) -> dict[str, Any]:
         )
         db.add_all(rows)
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        record_run(
+            db,
+            meeting_id=meeting_id,
+            kind="engagement",
+            source="gca",
+            status="error",
+            model="gca",
+            version=ENGAGEMENT_PROTOCOL_VERSION,
+            latency_ms=int((perf_counter() - started) * 1000),
+            error=str(exc),
+        )
         raise
+
+    dimension_status = {name: dim.status for name, dim in result.dimensions.items()}
+    record_run(
+        db,
+        meeting_id=meeting_id,
+        kind="engagement",
+        source="gca",
+        status=result.status,
+        model="gca",
+        version=ENGAGEMENT_PROTOCOL_VERSION,
+        latency_ms=int((perf_counter() - started) * 1000),
+        result={"rows": len(rows), "dimension_status": dimension_status},
+    )
 
     return {
         "status": "success",
         "meeting_id": meeting_id,
         "analysis_status": result.status,
-        "dimension_status": {name: dim.status for name, dim in result.dimensions.items()},
+        "dimension_status": dimension_status,
         "rows": len(rows),
         "protocol_version": ENGAGEMENT_PROTOCOL_VERSION,
         "warnings": result.warnings,

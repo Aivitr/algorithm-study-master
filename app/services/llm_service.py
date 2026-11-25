@@ -1,5 +1,4 @@
 import json
-import os
 import threading
 import time
 from collections import OrderedDict
@@ -7,11 +6,12 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
+from app.core.config import settings
 from app.services.context_builder import normalize_context_lines, normalize_text
 
-# DeepSeek API Key
-API_KEY = os.getenv("LLM_API_KEY", "")
-BASE_URL = "https://api.deepseek.com"
+# 密钥与地址统一取自 config；直接 os.getenv 会在导入顺序早于 config 时拿到空值。
+API_KEY = settings.llm.api_key
+BASE_URL = settings.llm.base_url
 
 # 缓存配置
 CACHE_MAX_SIZE = 1000
@@ -1030,11 +1030,31 @@ JSON 结构：
             return {"main_viewpoint": "", "sub_goals": [], "guidance": ""}
 
     def generate_topic_suggestion(
-        self, topic: str, recent_context: str, current_goals: list, target_type: str = "quiet"
+        self,
+        topic: str,
+        recent_context: str,
+        current_goals: list,
+        target_type: str = "quiet",
+        hint_context: str = "",
     ) -> str:
         """为沉默成员或全组生成话题建议"""
+        text, _usage = self.generate_topic_suggestion_with_usage(
+            topic, recent_context, current_goals, target_type, hint_context
+        )
+        return text
+
+    def generate_topic_suggestion_with_usage(
+        self,
+        topic: str,
+        recent_context: str,
+        current_goals: list,
+        target_type: str = "quiet",
+        hint_context: str = "",
+    ) -> tuple[str, dict]:
+        """同 generate_topic_suggestion，额外返回 token 用量（失败时为空）。"""
         topic = self._normalize_text(topic, 120)
         recent_context = self._normalize_text(recent_context, 500)
+        hint_context = self._normalize_text(hint_context, 300)
 
         if target_type == "quiet":
             role_desc = "一位需要鼓励参与的同学"
@@ -1050,6 +1070,7 @@ JSON 结构：
 待完成目标：{goals_text}
 最近讨论：
 {recent_context}
+{"触发依据：" + hint_context if hint_context else ""}
 
 请为{role_desc}生成话题建议。{instruction}
 要求：直接给出建议内容，不超过80字，不要加前缀标签。"""
@@ -1064,12 +1085,24 @@ JSON 结构：
                 temperature=0.6,
                 max_tokens=150,
             )
-            return response.choices[0].message.content.strip()
+            text = response.choices[0].message.content.strip()
+            usage = getattr(response, "usage", None)
+            tokens = {}
+            if usage is not None:
+                prompt_tokens = getattr(usage, "prompt_tokens", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                if isinstance(prompt_tokens, int):
+                    tokens["prompt_tokens"] = prompt_tokens
+                if isinstance(completion_tokens, int):
+                    tokens["completion_tokens"] = completion_tokens
+            return text, tokens
         except Exception as e:
             print(f"生成话题建议失败: {e}")
             if target_type == "quiet":
-                return f"试试从你的角度聊聊对「{topic}」的看法吧，你的想法对小组很重要！"
-            return f"大家可以讨论一下：关于「{topic}」，还有哪些方面值得深入探讨？"
+                fallback = f"试试从你的角度聊聊对「{topic}」的看法吧，你的想法对小组很重要！"
+            else:
+                fallback = f"大家可以讨论一下：关于「{topic}」，还有哪些方面值得深入探讨？"
+            return fallback, {}
 
     def ai_tutor(self, question: str):
         """AI 导师接口：复用同一个 client，避免每次重建。"""

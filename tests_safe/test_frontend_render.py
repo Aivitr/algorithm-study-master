@@ -385,8 +385,15 @@ class TestRootInstanceShape:
 
     def test_root_instance_registers_only_the_last_duplicate_watch(self):
         actual = _probe_result()["watch_keys"]
-        assert actual == ["showKnowledgeGraph"], (
-            f"根实例实际注册的 watch 变成了 {actual}，不再是只有 showKnowledgeGraph。\n"
+        assert actual == [
+            "activeTab",
+            "classroomTab",
+            "meetingId",
+            "showKnowledgeGraph",
+        ], (
+            f"根实例实际注册的 watch 变成了 {actual}，不再是预期的三个。\n"
+            "  - `activeTab` / `classroomTab` 来自 classroom-insights mixin；"
+            "`showKnowledgeGraph` 来自 app.js 末尾那个 watch 键。\n"
             "  - 若你是**有意**修好了 app.js 里重复 `watch` 键的老问题，"
             "请同时更新 test_frontend_extraction.py 的 _EXPECTED_ROOT_KEYS 与这条断言；\n"
             "  - 若不是有意的，说明选项对象里又出现了同层重复键，后面的把前面的盖掉了。"

@@ -339,9 +339,19 @@ from app.routers.realtime import router as realtime_router
 app.include_router(realtime_router)
 
 
+from app.routers.hints import router as hints_router
+
+app.include_router(hints_router)
+
+
 from app.routers.agents import router as agents_router
 
 app.include_router(agents_router)
+
+
+from app.routers.observability import router as observability_router
+
+app.include_router(observability_router)
 
 
 # 空 router：这个模块里的两个处理器**没有**装饰器，所以不贡献任何路由。
@@ -350,6 +360,21 @@ app.include_router(agents_router)
 from app.routers.unrouted import router as unrouted_router
 
 app.include_router(unrouted_router)
+
+
+# === Hint 评估循环 ===
+# 每 30 秒为进行中的课堂生成待教师确认的提示；只写候选，不发送。
+from app.services import hint_scheduler
+
+
+@app.on_event("startup")
+async def _start_hint_scheduler() -> None:
+    hint_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def _stop_hint_scheduler() -> None:
+    hint_scheduler.stop()
 
 
 if __name__ == "__main__":

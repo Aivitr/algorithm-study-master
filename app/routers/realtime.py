@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import RUNNING, meeting_status_error
-from app.models import Meeting, Transcript
+from app.models import Meeting, User
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
 from app.realtime.speech import _create_realtime_transcript_entry
@@ -48,6 +48,7 @@ from app.realtime.state import (
     REALTIME_ASR_VOICEPRINT_DISABLED,
 )
 from app.realtime.stream import process_user_stream_generator
+from app.services.hint_candidate_service import generate_pending_hints
 from app.services.llm_service import llm
 from app.services.session_service import (
     SessionContext,
@@ -432,53 +433,25 @@ async def check_silence(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查课堂是否沉默超过2分钟，如果是则生成话题建议"""
+    """检查讨论停滞并生成待教师确认的提示；不直接发送。"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        if not manager.is_group_silent(meeting_id, silence_seconds=120):
-            return {"status": "ok", "silent": False}
+        if meeting.status != RUNNING:
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
 
-        if manager.silence_notified.get(meeting_id):
-            return {"status": "ok", "silent": True, "already_notified": True}
-
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
-            return {"status": "error", "message": "课堂不存在"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
-
-        # 获取最近讨论上下文
-        recents = (
-            db.query(Transcript)
-            .filter(Transcript.meeting_id == meeting_id)
-            .order_by(Transcript.id.desc())
-            .limit(5)
-            .all()
-        )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
-
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="group"
-        )
-
-        # 广播给所有在线成员
-        await manager.broadcast_to_meeting(
-            meeting_id,
-            {
-                "type": "topic_suggestion",
-                "target": "all",
-                "suggestion": suggestion,
-                "reason": "group_silence",
-            },
-        )
-        manager.silence_notified[meeting_id] = True
-
-        return {"status": "success", "silent": True, "suggestion": suggestion}
+        pending = generate_pending_hints(db, meeting_id, kinds={"discussion_stall"})
+        return {
+            "status": "success",
+            "silent": bool(pending),
+            "pending": pending,
+        }
     except Exception as e:
         print(f"[ERROR] check-silence: {e}")
         return {"status": "error", "message": str(e)}
@@ -490,49 +463,33 @@ async def check_quiet_members(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查发言少的成员并推送个性化话题建议"""
+    """检查低参与成员并生成待教师确认的提示；不直接发送。"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-        state_error = meeting_status_error(meeting.status, {RUNNING})
-        if state_error:
-            return {"status": "error", "message": state_error}
+        if meeting.status != RUNNING:
+            return {
+                "status": "error",
+                "message": meeting_status_error(meeting.status, {RUNNING}),
+            }
 
-        quiet_members = manager.get_quiet_members(meeting_id, threshold=2)
-        if not quiet_members:
-            return {"status": "ok", "quiet_members": []}
-
-        # 获取讨论上下文
-        recents = (
-            db.query(Transcript)
-            .filter(Transcript.meeting_id == meeting_id)
-            .order_by(Transcript.id.desc())
-            .limit(5)
-            .all()
-        )
-        ctx = "\n".join([f"{t.user.username}: {t.content}" for t in reversed(recents)])
-
-        suggestion = llm.generate_topic_suggestion(
-            meeting.topic, ctx, meeting.knowledge_points, target_type="quiet"
-        )
-
-        # 只推送给沉默的成员
-        for member in quiet_members:
-            await manager.send_to_user(
-                meeting_id,
-                member,
-                {
-                    "type": "topic_suggestion",
-                    "target": "personal",
-                    "suggestion": suggestion,
-                    "reason": "low_participation",
-                },
-            )
-
-        return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
+        pending = generate_pending_hints(db, meeting_id, kinds={"low_participation"})
+        target_ids = [int(item["target_user_id"]) for item in pending if item.get("target_user_id")]
+        users = db.query(User).filter(User.id.in_(target_ids)).all() if target_ids else []
+        name_by_id = {str(user.id): user.username for user in users}
+        quiet_members = [
+            name_by_id[item["target_user_id"]]
+            for item in pending
+            if item.get("target_user_id") in name_by_id
+        ]
+        return {
+            "status": "success",
+            "quiet_members": quiet_members,
+            "pending": pending,
+        }
     except Exception as e:
         print(f"[ERROR] check-quiet-members: {e}")
         return {"status": "error", "message": str(e)}

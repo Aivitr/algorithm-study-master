@@ -109,6 +109,8 @@ window.Vue = new Proxy(window.Vue, {
   },
 });
 window.eval(read('static/vendor/axios-1.20.0.min.js'));
+// app.js 以 mixin 方式挂载课堂洞察；必须先于 app.js 执行。
+window.eval(read('static/js/classroom-insights.js'));
 window.eval(read('static/js/app.js'));
 
 if (!vm) { process.stderr.write('app.js 没有构造出 Vue 实例\n'); process.exit(3); }
