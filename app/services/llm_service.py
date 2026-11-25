@@ -1,5 +1,4 @@
 import json
-import os
 import threading
 import time
 from collections import OrderedDict
@@ -7,11 +6,12 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
+from app.core.config import settings
 from app.services.context_builder import normalize_context_lines, normalize_text
 
-# DeepSeek API Key
-API_KEY = os.getenv("LLM_API_KEY", "")
-BASE_URL = "https://api.deepseek.com"
+# 密钥与地址统一取自 config；直接 os.getenv 会在导入顺序早于 config 时拿到空值。
+API_KEY = settings.llm.api_key
+BASE_URL = settings.llm.base_url
 
 # 缓存配置
 CACHE_MAX_SIZE = 1000

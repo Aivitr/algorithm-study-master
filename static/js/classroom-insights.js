@@ -48,6 +48,12 @@
                 agentIgnoring: {},
                 agentActionHistory: [],
                 agentActionHistoryLoading: false,
+                hintInbox: [],
+                hintHistory: [],
+                hintInboxLoading: false,
+                hintInboxError: '',
+                hintBusy: {},
+                hintPollTimer: null,
                 agentLastRunAt: '',
                 evidenceOpen: {},
                 quizHistory: null,
@@ -793,6 +799,91 @@
                     ? String(value)
                     : date.toLocaleString('zh-CN', { hour12: false });
             },
+            /** 教师：待发送提示与最近发送记录。 */
+            async loadHintInbox() {
+                if (!this.isTeacherRole || !this.meetingId || this.hintInboxLoading) return;
+                const meetingId = this.meetingId;
+                this.hintInboxLoading = true;
+                this.hintInboxError = '';
+                try {
+                    const response = await axios.get(`/api/hint-logs/${meetingId}`, {
+                        params: { limit: 50 },
+                    });
+                    if (this.meetingId !== meetingId) return;
+                    const logs = response.data.logs || [];
+                    this.hintInbox = logs.filter(item => item.status === 'candidate');
+                    this.hintHistory = logs.filter(
+                        item => item.status === 'sent' || item.status === 'ignored'
+                    );
+                } catch (error) {
+                    this.hintInboxError =
+                        error.response?.data?.detail || error.message || '提示列表加载失败';
+                } finally {
+                    this.hintInboxLoading = false;
+                }
+            },
+            startHintInboxPolling() {
+                this.stopHintInboxPolling();
+                this.hintPollTimer = setInterval(() => this.loadHintInbox(), 30000);
+            },
+            stopHintInboxPolling() {
+                if (this.hintPollTimer) {
+                    clearInterval(this.hintPollTimer);
+                    this.hintPollTimer = null;
+                }
+            },
+            async sendHint(item) {
+                if (!item || this.hintBusy[item.id]) return;
+                this.$set(this.hintBusy, item.id, true);
+                try {
+                    await axios.post(`/api/hint-logs/${item.id}/send`);
+                    await this.loadHintInbox();
+                } catch (error) {
+                    await this.showAlert(
+                        error.response?.data?.detail || error.message || '发送失败',
+                        'error',
+                        '发送失败'
+                    );
+                } finally {
+                    this.$set(this.hintBusy, item.id, false);
+                }
+            },
+            async ignoreHint(item) {
+                if (!item || this.hintBusy[item.id]) return;
+                this.$set(this.hintBusy, item.id, true);
+                try {
+                    await axios.post(`/api/hint-logs/${item.id}/ignore`);
+                    await this.loadHintInbox();
+                } catch (error) {
+                    await this.showAlert(
+                        error.response?.data?.detail || error.message || '忽略失败',
+                        'error',
+                        '忽略失败'
+                    );
+                } finally {
+                    this.$set(this.hintBusy, item.id, false);
+                }
+            },
+            hintTargetLabel(item) {
+                return item.target_type === 'student'
+                    ? (item.target_name || '学生')
+                    : '全组';
+            },
+            hintTypeLabel(item) {
+                const map = {
+                    low_participation: '低参与',
+                    discussion_stall: '讨论停滞',
+                };
+                return map[item.hint_type] || '建议';
+            },
+            hintResponseLabel(value) {
+                const map = {
+                    acknowledged: '已收到',
+                    need_help: '需要帮助',
+                    dismissed: '已忽略',
+                };
+                return map[value] || '等待回应';
+            },
             _describeEvidence(ref) {
                 const value = String(ref || '');
                 if (value.startsWith('T#')) {
@@ -1023,10 +1114,15 @@
                 }
             },
             classroomTab(newValue) {
-                if (newValue !== 'ai') return;
+                if (newValue !== 'ai') {
+                    this.stopHintInboxPolling();
+                    return;
+                }
                 this.restoreStudentState();
                 if (this.isTeacherRole) {
                     this.loadAgentActionHistory();
+                    this.loadHintInbox();
+                    this.startHintInboxPolling();
                 }
             },
             meetingId() {
@@ -1034,7 +1130,13 @@
                 this.agentResult = null;
                 this.followUpHistory = [];
                 this.agentActionHistory = [];
+                this.hintInbox = [];
+                this.hintHistory = [];
+                this.stopHintInboxPolling();
             },
+        },
+        beforeDestroy() {
+            this.stopHintInboxPolling();
         },
     };
 })();

@@ -222,6 +222,8 @@
     color: var(--primary-dark);
     font-size: 9px;
     font-weight: 700;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .insight-finding {

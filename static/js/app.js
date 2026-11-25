@@ -170,8 +170,6 @@ new Vue({
         lastTopicSuggestionText: '',
         topicSuggestionCooldownMs: 180000,
         // 沉默检测定时器
-        silenceCheckTimer: null,
-        quietCheckTimer: null,
         // 登录表单
         loginForm: { student_id: '', password: '' },
         // 注册表单
@@ -2146,7 +2144,6 @@ new Vue({
                 this.showClassModal = false;
                 this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
                 this.startTimer();
-                this.startSilenceChecks();
                 this.loading = false;
                 // 清空表单
                 this.classForm = { class_code: '', topic: '', materialUrl: '', templateId: '' };
@@ -4848,8 +4845,6 @@ new Vue({
             if (this.graphUpdateInterval) clearInterval(this.graphUpdateInterval);
             if (this.analyzingCleanupInterval) clearInterval(this.analyzingCleanupInterval);
 
-            // 停止沉默检测定时器
-            this.stopSilenceChecks();
 
             // 停止实时音频处理节点
             if (this.audioProcessor) {
@@ -5013,32 +5008,6 @@ new Vue({
             return `已完成${doneGoals.length}个目标,接下来关注: ${pendingGoals[0].desc}。建议结合已学知识进行递进式教学。`;
         },
         // 沉默检测和话题建议
-        startSilenceChecks() {
-            if (this.meetingStatus !== 'running') return;
-            // 每30秒检查一次全组沉默
-            this.silenceCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
-                try {
-                    const fd = new FormData();
-                    fd.append('meeting_id', this.meetingId);
-                    await axios.post('/api/check-silence', fd);
-                } catch(e) { /* 静默失败 */ }
-            }, 30000);
-
-            // 每60秒检查一次沉默成员
-            this.quietCheckTimer = setInterval(async () => {
-                if (!this.meetingId || !this.joined || this.meetingStatus !== 'running') return;
-                try {
-                    const fd = new FormData();
-                    fd.append('meeting_id', this.meetingId);
-                    await axios.post('/api/check-quiet-members', fd);
-                } catch(e) { /* 静默失败 */ }
-            }, 60000);
-        },
-        stopSilenceChecks() {
-            if (this.silenceCheckTimer) { clearInterval(this.silenceCheckTimer); this.silenceCheckTimer = null; }
-            if (this.quietCheckTimer) { clearInterval(this.quietCheckTimer); this.quietCheckTimer = null; }
-        },
         async loadStudentHomeStats() {
             if (!this.currentUser || this.currentUser.role !== 'student') return;
             try {
@@ -7460,7 +7429,6 @@ new Vue({
             this.pageState = 'classroom';
             this.classStartTime = this.meetingStartedAt ? new Date(this.meetingStartedAt).getTime() : Date.now();
             this.startTimer();
-            this.startSilenceChecks();
             // 加载目标和图谱数据
             await this.loadClassroomData(cls.meeting_id);
             this.$nextTick(async () => {

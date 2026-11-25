@@ -14,3 +14,13 @@ def test_analyze_buttons_do_not_pass_click_event_as_question():
 def test_analysis_handler_only_accepts_string_override():
     javascript = (ROOT / "static/js/classroom-insights.js").read_text(encoding="utf-8")
     assert "typeof overrideQuestion === 'string'" in javascript
+
+
+def test_teacher_hint_inbox_is_wired():
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "static/js/classroom-insights.js").read_text(encoding="utf-8")
+
+    assert "待发送提示" in html
+    assert "/api/hint-logs/${meetingId}" in javascript
+    assert "/api/hint-logs/${item.id}/send" in javascript
+    assert "/api/hint-logs/${item.id}/ignore" in javascript

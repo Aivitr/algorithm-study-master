@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.meeting_state import CREATED
 from app.models import Meeting
 from app.services.classroom_agent_service import classroom_agent_service
+from app.services.hint_candidate_service import store_agent_hints
 from app.services.session_service import SessionContext, require_session
 
 router = APIRouter()
@@ -50,6 +51,12 @@ async def analyze_classroom_group(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    store_agent_hints(
+        db,
+        payload.meeting_id,
+        result.hint_recommendations,
+        created_by=int(ctx.user.id),
+    )
     return {"ok": True, "analysis": result.model_dump()}
 
 

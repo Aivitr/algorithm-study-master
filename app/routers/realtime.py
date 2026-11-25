@@ -27,8 +27,6 @@
 """
 
 import asyncio
-import json
-import time
 
 from fastapi import APIRouter, Depends, Form, WebSocket
 from fastapi.responses import StreamingResponse
@@ -36,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
 from app.core.meeting_state import RUNNING, meeting_status_error
-from app.models import Meeting, Transcript, User
+from app.models import Meeting, User
 from app.realtime.asr_manager import asr_manager
 from app.realtime.registry import manager, signal_manager
 from app.realtime.speech import _create_realtime_transcript_entry
@@ -50,13 +48,8 @@ from app.realtime.state import (
     REALTIME_ASR_VOICEPRINT_DISABLED,
 )
 from app.realtime.stream import process_user_stream_generator
-from app.services.hint_candidate_service import (
-    evaluate_hint_candidates,
-    filter_recent_sends,
-    record_sent_hint,
-)
+from app.services.hint_candidate_service import generate_pending_hints
 from app.services.llm_service import llm
-from app.services.observability_service import record_run
 from app.services.session_service import (
     SessionContext,
     require_session,
@@ -64,44 +57,6 @@ from app.services.session_service import (
 )
 
 router = APIRouter()
-
-
-def _template_suggestion(topic: str, target_type: str) -> str:
-    if target_type == "quiet":
-        return f"可以请这位同学围绕「{topic}」补充一个例子或提出一个问题。"
-    return f"课堂暂时安静，可以围绕「{topic}」提出一个具体问题，邀请学生回应。"
-
-
-def _generate_suggestion(
-    meeting: Meeting,
-    discussion_context: str,
-    target_type: str,
-    hint_context: str,
-) -> tuple[str, str, dict, int, str | None]:
-    """生成提示文案并返回 (文案, 来源, token 用量, 耗时毫秒, 错误)。"""
-    started = time.perf_counter()
-    usage: dict = {}
-    error = None
-    hint_model = "llm"
-    try:
-        suggestion, usage = llm.generate_topic_suggestion_with_usage(
-            meeting.topic,
-            discussion_context,
-            meeting.knowledge_points,
-            target_type=target_type,
-            hint_context=hint_context,
-        )
-    except Exception as exc:
-        print(f"[WARN] 生成话题建议失败，使用模板: {exc}")
-        suggestion = _template_suggestion(meeting.topic, target_type)
-        hint_model = "template"
-        error = str(exc)
-    if not (suggestion or "").strip():
-        suggestion = _template_suggestion(meeting.topic, target_type)
-        hint_model = "template"
-        error = error or "empty response"
-    latency_ms = int((time.perf_counter() - started) * 1000)
-    return suggestion, hint_model, usage, latency_ms, error
 
 
 def _meeting_is_running(meeting_id: int) -> bool:
@@ -478,95 +433,24 @@ async def check_silence(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查课堂是否讨论停滞，如果是则生成话题建议"""
+    """检查讨论停滞并生成待教师确认的提示；不直接发送。"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-
-        evaluation = evaluate_hint_candidates(meeting_id, db)
-        if evaluation["status"] == "not_found":
-            return {"status": "error", "message": "课堂不存在"}
-        if evaluation["status"] != "success":
+        if meeting.status != RUNNING:
             return {
                 "status": "error",
                 "message": meeting_status_error(meeting.status, {RUNNING}),
             }
 
-        candidates = [
-            item for item in evaluation["candidates"] if item["hint_type"] == "discussion_stall"
-        ]
-        candidates = filter_recent_sends(db, meeting_id, candidates)
-        if not candidates:
-            return {"status": "ok", "silent": False}
-        candidate = candidates[0]
-
-        # 获取最近讨论上下文
-        recents = (
-            db.query(Transcript)
-            .filter(Transcript.meeting_id == meeting_id)
-            .order_by(Transcript.id.desc())
-            .limit(5)
-            .all()
-        )
-        discussion_context = "\n".join(
-            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
-        )
-        hint_context = (
-            f"触发原因：{candidate['trigger_reason']}\n"
-            f"证据：{json.dumps(candidate['evidence'], ensure_ascii=False)}"
-        )
-
-        suggestion, hint_model, usage, latency_ms, llm_error = _generate_suggestion(
-            meeting, discussion_context, "group", hint_context
-        )
-        evidence_ids = [f"T#{t.id}" for t in recents] + [f"M:{meeting_id}"]
-
-        hint_id = record_sent_hint(
-            db,
-            meeting_id=meeting_id,
-            candidate=candidate,
-            text=suggestion,
-            created_by=int(ctx.user.id),
-            model=hint_model,
-            evidence_ids=evidence_ids,
-        )
-
-        # 广播给所有在线成员
-        await manager.broadcast_to_meeting(
-            meeting_id,
-            {
-                "type": "topic_suggestion",
-                "target": "all",
-                "hint_id": hint_id,
-                "suggestion": suggestion,
-                "reason": "group_silence",
-                "trigger_reason": candidate["trigger_reason"],
-                "evidence": candidate["evidence"],
-            },
-        )
-        record_run(
-            db,
-            meeting_id=meeting_id,
-            kind="hint_llm",
-            source=hint_model,
-            status="success" if hint_model == "llm" else "fallback",
-            model="deepseek-chat" if hint_model == "llm" else "template",
-            version="topic_suggestion_v1",
-            latency_ms=latency_ms,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
-            result={"hint_type": "discussion_stall"},
-            error=llm_error,
-        )
-
+        pending = generate_pending_hints(db, meeting_id, kinds={"discussion_stall"})
         return {
             "status": "success",
-            "silent": True,
-            "suggestion": suggestion,
-            "trigger_reason": candidate["trigger_reason"],
+            "silent": bool(pending),
+            "pending": pending,
         }
     except Exception as e:
         print(f"[ERROR] check-silence: {e}")
@@ -579,112 +463,33 @@ async def check_quiet_members(
     db: Session = Depends(get_db),
     ctx: SessionContext = Depends(require_session),
 ):
-    """检查发言少的成员并推送个性化话题建议"""
+    """检查低参与成员并生成待教师确认的提示；不直接发送。"""
     try:
         meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
         if not meeting:
             return {"status": "error", "message": "课堂不存在"}
         if ctx.user.role != "teacher" or int(meeting.teacher_id) != int(ctx.user.id):
             return {"status": "error", "message": "只有本课堂教师可以触发检查"}
-
-        evaluation = evaluate_hint_candidates(meeting_id, db)
-        if evaluation["status"] == "not_found":
-            return {"status": "error", "message": "课堂不存在"}
-        if evaluation["status"] != "success":
+        if meeting.status != RUNNING:
             return {
                 "status": "error",
                 "message": meeting_status_error(meeting.status, {RUNNING}),
             }
 
-        candidates = [
-            item for item in evaluation["candidates"] if item["hint_type"] == "low_participation"
-        ]
-        candidates = filter_recent_sends(db, meeting_id, candidates)
-        if not candidates:
-            return {"status": "ok", "quiet_members": []}
-
-        target_ids = [
-            int(item["target_user_id"]) for item in candidates if item.get("target_user_id")
-        ]
+        pending = generate_pending_hints(db, meeting_id, kinds={"low_participation"})
+        target_ids = [int(item["target_user_id"]) for item in pending if item.get("target_user_id")]
         users = db.query(User).filter(User.id.in_(target_ids)).all() if target_ids else []
         name_by_id = {str(user.id): user.username for user in users}
         quiet_members = [
             name_by_id[item["target_user_id"]]
-            for item in candidates
+            for item in pending
             if item.get("target_user_id") in name_by_id
         ]
-        if not quiet_members:
-            return {"status": "ok", "quiet_members": []}
-
-        # 获取讨论上下文
-        recents = (
-            db.query(Transcript)
-            .filter(Transcript.meeting_id == meeting_id)
-            .order_by(Transcript.id.desc())
-            .limit(5)
-            .all()
-        )
-        discussion_context = "\n".join(
-            [f"{t.user.username}: {t.content}" for t in reversed(recents)]
-        )
-        hint_context = "\n".join(
-            f"{item['target_user_id']}: {item['trigger_reason']} "
-            f"{json.dumps(item['evidence'], ensure_ascii=False)}"
-            for item in candidates
-        )
-
-        suggestion, hint_model, usage, latency_ms, llm_error = _generate_suggestion(
-            meeting, discussion_context, "quiet", hint_context
-        )
-        evidence_ids = [f"T#{t.id}" for t in recents] + [f"M:{meeting_id}"]
-
-        # 只推送给被判定低参与的成员
-        for item in candidates:
-            member = name_by_id.get(item.get("target_user_id"))
-            if not member:
-                continue
-            hint_id = record_sent_hint(
-                db,
-                meeting_id=meeting_id,
-                candidate=item,
-                text=suggestion,
-                created_by=int(ctx.user.id),
-                model=hint_model,
-                evidence_ids=evidence_ids,
-            )
-            await manager.send_to_user(
-                meeting_id,
-                member,
-                {
-                    "type": "topic_suggestion",
-                    "target": "personal",
-                    "hint_id": hint_id,
-                    "suggestion": suggestion,
-                    "reason": "low_participation",
-                    "trigger_reason": item["trigger_reason"],
-                    "evidence": item["evidence"],
-                },
-            )
-
-        record_run(
-            db,
-            meeting_id=meeting_id,
-            kind="hint_llm",
-            source=hint_model,
-            status="success" if hint_model == "llm" else "fallback",
-            model="deepseek-chat" if hint_model == "llm" else "template",
-            version="topic_suggestion_v1",
-            latency_ms=latency_ms,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
-            result={
-                "hint_type": "low_participation",
-                "candidate_count": len(candidates),
-            },
-            error=llm_error,
-        )
-
-        return {"status": "success", "quiet_members": quiet_members, "suggestion": suggestion}
+        return {
+            "status": "success",
+            "quiet_members": quiet_members,
+            "pending": pending,
+        }
     except Exception as e:
         print(f"[ERROR] check-quiet-members: {e}")
         return {"status": "error", "message": str(e)}

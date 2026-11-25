@@ -13,7 +13,7 @@
     <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
     <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/app.css?v=student-entry-20261124" rel="stylesheet">
-    <link href="/static/css/classroom-insights.css?v=20261122f" rel="stylesheet">
+    <link href="/static/css/classroom-insights.css?v=hint-inbox-20261125" rel="stylesheet">
 </head>
 <body class="text-gray-800 h-screen flex flex-col font-sans">
 
@@ -3451,6 +3451,58 @@
                                 <i class="fas" :class="agentLoading ? 'fa-spinner fa-spin' : 'fa-play'"></i>
                                 {{ agentLoading ? '分析中' : '分析群体' }}
                             </button>
+                        </div>
+
+                        <!-- 待发送提示：服务端每 30 秒生成候选，教师确认后才下发 -->
+                        <div v-if="isTeacherRole" class="insight-card p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="insight-card-title">
+                                    <i class="fas fa-paper-plane" style="color: var(--primary);"></i>待发送提示
+                                    <span v-if="hintInbox.length" class="insight-tag-soft ml-1">{{ hintInbox.length }}</span>
+                                </h4>
+                                <button type="button" class="insight-icon-btn" title="刷新提示"
+                                        :disabled="hintInboxLoading" @click="loadHintInbox()">
+                                    <i class="fas" :class="hintInboxLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                                </button>
+                            </div>
+                            <div v-if="hintInboxError" class="insight-alert error">
+                                <i class="fas fa-circle-exclamation mr-1"></i>{{ hintInboxError }}
+                            </div>
+                            <div v-else-if="!hintInbox.length" class="insight-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p>暂无待发送提示；系统每 30 秒检查一次，教师确认后才会发给学生</p>
+                            </div>
+                            <div v-else class="space-y-2">
+                                <div v-for="item in hintInbox" :key="'hint-' + item.id" class="insight-action-card">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ item.text }}</p>
+                                            <p class="text-[9px] text-gray-400 mt-0.5">
+                                                {{ hintTargetLabel(item) }} · {{ item.trigger_reason }}
+                                            </p>
+                                        </div>
+                                        <span class="insight-status-chip">{{ hintTypeLabel(item) }}</span>
+                                    </div>
+                                    <div class="flex gap-1 mt-2">
+                                        <button type="button" class="insight-secondary-btn flex-1"
+                                                :disabled="hintBusy[item.id]" @click="ignoreHint(item)">
+                                            <i class="fas fa-xmark"></i>忽略
+                                        </button>
+                                        <button type="button" class="insight-primary-btn flex-1"
+                                                :disabled="hintBusy[item.id]" @click="sendHint(item)">
+                                            <i class="fas fa-paper-plane"></i>发送
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="hintHistory.length" class="mt-3 space-y-1">
+                                <p class="text-[9px] text-gray-400">最近已发送</p>
+                                <div v-for="item in hintHistory.slice(0, 5)" :key="'hint-h-' + item.id"
+                                     class="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                                    <span class="min-w-0 truncate">{{ item.text }}</span>
+                                    <span class="shrink-0">{{ item.status === 'ignored' ? '已忽略' : hintResponseLabel(item.response) }}</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div v-if="agentLoading" class="insight-loading">
