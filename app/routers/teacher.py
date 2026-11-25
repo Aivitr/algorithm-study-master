@@ -28,6 +28,7 @@ from app.core.database import get_db
 from app.core.meeting_state import CREATED
 from app.models import Exercise, LearningReport, Meeting, Transcript, User
 from app.services.class_stats_service import ClassStatsService
+from app.services.quality_scores import valid_quality_score
 from app.services.session_service import SessionContext, require_session
 
 router = APIRouter(dependencies=[Depends(require_session)])
@@ -261,7 +262,8 @@ async def get_class_groups(meeting_id: int, db: Session = Depends(get_db)):
                 }
             user_stats[user.id]["speech_count"] += 1
             user_stats[user.id]["total_relevance"] += t.relevance_score or 0
-            user_stats[user.id]["total_quality"] += t.quality_score or 50
+            score = valid_quality_score(t)
+            user_stats[user.id]["total_quality"] += score if score is not None else 50
 
         # ??
         groups = []

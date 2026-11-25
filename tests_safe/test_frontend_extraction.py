@@ -310,7 +310,7 @@ class TestNoInlineSource:
 
     def test_index_html_points_at_the_extracted_files(self):
         html = _index_html()
-        assert f'href="{URL_PREFIX}/{APP_CSS_REL}"' in html, (
+        assert f'href="{URL_PREFIX}/{APP_CSS_REL}' in html, (
             f"`index.html` 没有引用 `{URL_PREFIX}/{APP_CSS_REL}`"
         )
         assert f'src="{URL_PREFIX}/{APP_JS_REL}' in html, (

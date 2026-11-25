@@ -21,15 +21,24 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.emotions import normalize_emotion_label
-from app.models import EmotionLog, Transcript
-from app.services.session_service import require_session
+from app.models import EmotionLog, Meeting, Transcript
+from app.services.quality_scores import valid_quality_score
+from app.services.session_service import SessionContext, require_session
 from app.services.user_lookup import resolve_user_by_identifier
 
 router = APIRouter(dependencies=[Depends(require_session)])
 
 
+def _statistics_window(db: Session, meeting_id: int, minutes: int):
+    minutes = minutes if minutes in {0, 5, 15, 30} else 15
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    end = meeting.ended_at if meeting and meeting.ended_at else datetime.now()
+    start = end - timedelta(minutes=minutes) if minutes else None
+    return start, end
+
+
 @router.get("/api/realtime-stats/{meeting_id}")
-async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
+async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db), minutes: int = 0):
     """获取实时统计数据"""
     try:
         import time
@@ -40,14 +49,23 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         # 使用joinedload优化查询
         from sqlalchemy.orm import joinedload
 
-        # [OK] 查询转录
-        transcripts = (
+        cutoff_time, window_end = _statistics_window(db, meeting_id, minutes)
+        transcript_query = (
             db.query(Transcript)
             .options(joinedload(Transcript.user))
-            .filter(Transcript.meeting_id == meeting_id)
-            .order_by(Transcript.timestamp.desc())
-            .all()
+            .filter(Transcript.meeting_id == meeting_id, Transcript.timestamp <= window_end)
         )
+        emotion_query = (
+            db.query(EmotionLog)
+            .options(joinedload(EmotionLog.user))
+            .filter(EmotionLog.meeting_id == meeting_id, EmotionLog.created_at <= window_end)
+        )
+        if cutoff_time is not None:
+            transcript_query = transcript_query.filter(Transcript.timestamp >= cutoff_time)
+            emotion_query = emotion_query.filter(EmotionLog.created_at >= cutoff_time)
+
+        # [OK] 查询转录
+        transcripts = transcript_query.order_by(Transcript.timestamp.desc()).all()
 
         # 反转顺序
         transcripts.reverse()
@@ -55,13 +73,7 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
         print(f"  [OK] 查询到 {len(transcripts)} 条发言: {time.time() - start_time:.2f}秒")
 
         # [OK] 查询情绪
-        emotions = (
-            db.query(EmotionLog)
-            .options(joinedload(EmotionLog.user))
-            .filter(EmotionLog.meeting_id == meeting_id)
-            .order_by(EmotionLog.created_at.desc())
-            .all()
-        )
+        emotions = emotion_query.order_by(EmotionLog.created_at.desc()).all()
 
         emotions.reverse()
 
@@ -118,7 +130,6 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
 
         # 4. 成员综合评分
         member_scores = []
-        total_speeches = sum(speech_stats.values()) if speech_stats else 1
 
         # 收集每个用户的quality_score
         user_quality_scores = {}
@@ -126,37 +137,31 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
             username = t.user.username
             if username not in user_quality_scores:
                 user_quality_scores[username] = []
-            if hasattr(t, "quality_score") and t.quality_score:
-                user_quality_scores[username].append(t.quality_score)
+            if (score := valid_quality_score(t)) is not None:
+                user_quality_scores[username].append(score)
 
         for username in users:
             speech_count = speech_stats.get(username, 0)
 
-            # LLM评分50分满分
+            # 发言质量：LLM 评分均值，无评分时按 50 计
             quality_scores = user_quality_scores.get(username, [])
             avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 50
-            llm_score = avg_quality * 0.5  # 0-50分
 
-            # 参与度25分满分
-            speech_ratio = speech_count / total_speeches
-            if 0.15 <= speech_ratio <= 0.35:
-                participation_score = 25
-            elif speech_ratio < 0.15:
-                participation_score = max(10, 25 * (speech_ratio / 0.15))
-            else:
-                participation_score = max(15, 25 - (speech_ratio - 0.35) * 50)
-
-            # 互动性15分满分
+            # 互动次数与平均情绪：后续响应仍会输出
             interaction_count = sum(interaction_matrix.get(username, {}).values())
-            interaction_score = min(15, interaction_count * 2.5)
-
-            # 情绪状态10分满分- 积极情绪加分
             avg_emotion = sum(user_emotions.get(username, [50])) / len(
                 user_emotions.get(username, [50])
             )
-            emotion_score = avg_emotion * 0.1  # 0-10分
 
-            total_score = int(llm_score + participation_score + interaction_score + emotion_score)
+            relevance_values = [
+                t.relevance_score for t in transcripts if t.user.username == username
+            ]
+            avg_relevance = (
+                sum(value or 0 for value in relevance_values) / len(relevance_values)
+                if relevance_values
+                else 0
+            )
+            total_score = int(avg_quality * 0.6 + avg_relevance * 0.4)
             total_score = max(0, min(100, total_score))  # 限制在0-100
 
             # 获取最新反馈
@@ -205,7 +210,11 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db)):
 # 情绪详情 API
 @router.get("/api/emotion-details/{meeting_id}")
 async def get_emotion_details(
-    meeting_id: int, username: str = None, minutes: int = 15, db: Session = Depends(get_db)
+    meeting_id: int,
+    username: str = None,
+    minutes: int = 15,
+    db: Session = Depends(get_db),
+    ctx: SessionContext = Depends(require_session),
 ):
     """获取情绪详细数据"""
     try:
@@ -219,7 +228,7 @@ async def get_emotion_details(
         allowed_windows = {0, 5, 15, 30}
         if minutes not in allowed_windows:
             minutes = 15
-        cutoff_time = datetime.now() - timedelta(minutes=minutes) if minutes > 0 else None
+        cutoff_time, window_end = _statistics_window(db, meeting_id, minutes)
 
         # 使用joinedload避免N+1查询问题
         from sqlalchemy.orm import joinedload
@@ -228,7 +237,7 @@ async def get_emotion_details(
         emotion_query = (
             db.query(EmotionLog)
             .options(joinedload(EmotionLog.user))
-            .filter(EmotionLog.meeting_id == meeting_id)
+            .filter(EmotionLog.meeting_id == meeting_id, EmotionLog.created_at <= window_end)
         )
         if cutoff_time is not None:
             emotion_query = emotion_query.filter(EmotionLog.created_at >= cutoff_time)
@@ -240,7 +249,7 @@ async def get_emotion_details(
         transcript_query = (
             db.query(Transcript)
             .options(joinedload(Transcript.user))
-            .filter(Transcript.meeting_id == meeting_id)
+            .filter(Transcript.meeting_id == meeting_id, Transcript.timestamp <= window_end)
         )
         if cutoff_time is not None:
             transcript_query = transcript_query.filter(Transcript.timestamp >= cutoff_time)
@@ -388,6 +397,13 @@ async def get_emotion_details(
 
         # 如果指定了username，个体情绪只返回该用户自己的数据（隐私保护）
         # 但群体情绪图表需要所有人的数据，所以返回两份
+        if ctx.user.role != "teacher":
+            own_keys = {str(ctx.user.username), str(ctx.user.student_id)}
+            individual_emotions = {
+                key: value for key, value in individual_emotions.items() if key in own_keys
+            }
+            video_segments = [item for item in video_segments if item["username"] in own_keys]
+            username = ctx.user.username
         filtered_individual = individual_emotions
         current_user_key = None
         if username:
@@ -408,7 +424,11 @@ async def get_emotion_details(
 
             # 兼容旧数据：如果查询参数没对上，但该课堂只有一个人的情绪曲线，
             # 不返回空图，直接给学生端展示这条曲线。
-            if not filtered_individual and len(individual_emotions) == 1:
+            if (
+                ctx.user.role == "teacher"
+                and not filtered_individual
+                and len(individual_emotions) == 1
+            ):
                 current_user_key = next(iter(individual_emotions.keys()))
                 filtered_individual[current_user_key] = individual_emotions[current_user_key]
 

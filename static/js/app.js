@@ -271,7 +271,9 @@ new Vue({
         studentGcaLoading: false,
         studentGcaError: '',
         studentGcaData: null,
-        studentGcaActiveTab: 'personal',
+        studentGcaActiveTab: 'overview',
+        studentOverview: null, studentOverviewLoading: false, studentOverviewError: '',
+        personalBucket: null, personalShowAverage: false, personalAllExpanded: false,
         studentGcaLastUpdatedAt: '',
         studentGcaStale: false,
         studentGcaRequestController: null,
@@ -370,7 +372,7 @@ new Vue({
                 title: '实时课堂',
                 icon: 'fas fa-chalkboard-teacher',
                 gradient: 'linear-gradient(135deg, #3E7C86 0%, #4BA3B0 100%)',
-                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和学习状态。'
+                detail: '支持多人音视频实时互动，AI自动评分与质量反馈，让每次发言都获得专业指导。教师可实时查看学生参与度和情绪趋势。'
             },
             vote: {
                 title: '投票讨论',
@@ -979,7 +981,12 @@ new Vue({
         async openStudentGca() {
             if (!this.currentUser || this.currentUser.role !== 'student' || !this.meetingId) return;
             this.studentGcaVisible = true;
-            this.studentGcaActiveTab = 'personal';
+            this.studentGcaActiveTab = 'overview';
+            this.studentOverview = null;
+            this.personalBucket = null;
+            this.personalAllExpanded = false;
+            this.personalShowAverage = false;
+            this.loadStudentOverview();
             await this.loadStudentGca();
         },
         closeStudentGca() {
@@ -1020,10 +1027,60 @@ new Vue({
             }
         },
         refreshStudentGca() {
+            this.loadStudentOverview();
             return this.loadStudentGca();
+        },
+        personalNumber(value) { return value == null ? '暂无数据' : value; },
+        personalSpeeches() {
+            const rows = ((this.studentOverview || {}).speeches || []).filter(s => this.personalBucket === null || s.bucket === this.personalBucket).slice().reverse();
+            return this.personalBucket === null && !this.personalAllExpanded ? rows.slice(0, 1) : rows;
+        },
+        toggleAllPersonalSpeeches() {
+            this.personalAllExpanded = this.personalBucket !== null || !this.personalAllExpanded;
+            this.personalBucket = null;
+        },
+        async loadStudentOverview() {
+            if (this.studentOverviewLoading) return;
+            const meetingId = this.meetingId;
+            this.studentOverviewLoading = true;
+            this.studentOverviewError = '';
+            try {
+                const url = this.gcaDemoMode ? '/static/mock/student-classroom-demo.json' : `/api/student-classroom-overview/${meetingId}`;
+                const response = await axios.get(url);
+                if (!this.studentGcaVisible || this.meetingId !== meetingId) return;
+                if (response.data.status !== 'success') throw new Error('个人课堂数据返回异常');
+                this.studentOverview = response.data;
+            } catch (error) {
+                if (this.studentGcaVisible && this.meetingId === meetingId) this.studentOverviewError = error.response?.data?.detail || error.message;
+            } finally {
+                this.studentOverviewLoading = false;
+                this.$nextTick(() => this.renderPersonalClassroom());
+            }
+        },
+        renderPersonalClassroom() {
+            if (!this.studentGcaVisible || !this.studentOverview) return;
+            const overview = this.studentOverview;
+            const speechEl = document.getElementById('personalSpeechChart');
+            if (speechEl) {
+                const chart = echarts.getInstanceByDom(speechEl) || echarts.init(speechEl);
+                this.chartInstances.personalSpeechChart = chart;
+                chart.setOption({tooltip:{trigger:'axis'},xAxis:{type:'category',data:overview.distribution.map(x=>x.label)},yAxis:{type:'value',minInterval:1,name:'发言条数'},series:[{type:'bar',data:overview.distribution.map(x=>x.count),itemStyle:{color:'#4263eb'}}],graphic:overview.distribution.length?[]:[{type:'text',left:'center',top:'middle',style:{text:'暂无本人发言'}}]},true);
+                chart.off('click');
+                chart.on('click', event => { this.personalBucket = overview.distribution[event.dataIndex].bucket; this.personalAllExpanded = false; });
+            }
+            const emotionEl = document.getElementById('personalEmotionChart');
+            if (emotionEl) {
+                const chart = echarts.getInstanceByDom(emotionEl) || echarts.init(emotionEl);
+                this.chartInstances.personalEmotionChart = chart;
+                const labels=['angry','sad','confused','thinking','neutral','calm','surprised','happy','excited'];
+                const names={angry:'生气',sad:'低落',confused:'困惑',thinking:'思考',neutral:'中性',calm:'平静',surprised:'惊讶',happy:'愉快',excited:'兴奋'};
+                const points = overview.emotions.filter(x=>labels.includes(x.label));
+                chart.setOption({tooltip:{trigger:'item',formatter:p=>`课堂第 ${Math.floor(p.value[0])} 分 ${Math.round((p.value[0]%1)*60)} 秒<br/>识别标签：${names[p.value[1]] || p.value[1]}`},grid:{left:64,right:70,top:24,bottom:48},xAxis:{type:'value',name:'课堂分钟',axisLabel:{formatter:v=>Number(v.toFixed(1))}},yAxis:{type:'category',data:labels,axisLabel:{formatter:v=>names[v]||v}},series:[{type:'scatter',symbolSize:12,data:points.map(x=>[x.second/60,x.label]),itemStyle:{color:'#4263eb'}}],graphic:points.length?[]:[{type:'text',left:'center',top:'middle',style:{text:'暂无可展示的本人情绪记录，请确认摄像头已开启并稍后刷新',fontSize:13,fill:'#718198'}}]},true);
+            }
         },
         switchStudentGcaTab(tab) {
             this.studentGcaActiveTab = tab;
+            this.$nextTick(() => this.renderPersonalClassroom());
             this.$nextTick(() => setTimeout(() => this.renderStudentGcaActiveChart(), 60));
         },
         studentGcaCanShowMetrics() {
@@ -1083,7 +1140,7 @@ new Vue({
             this.chartInstances.studentGcaRadar = chart;
             const ownValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaMetric(metric.key) || 0));
             const averageValues = this.gcaMetricDefinitions.map(metric => Number(this.studentGcaAverage(metric.key) || 0));
-            const showAverage = this.studentGcaHasClassAverage();
+            const showAverage = this.personalShowAverage && this.studentGcaHasClassAverage();
             const seriesData = [
                 { value: ownValues, name: '我的特征', areaStyle: { color: 'rgba(37,99,235,.18)' }, lineStyle: { color: '#2563eb' } },
             ];
@@ -1145,13 +1202,13 @@ new Vue({
             }, true);
         },
         resizeStudentGcaCharts() {
-            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+            ['studentGcaRadar', 'studentGcaTrend', 'personalSpeechChart', 'personalEmotionChart'].forEach(key => {
                 const chart = this.chartInstances[key];
                 if (chart && !chart.isDisposed()) chart.resize();
             });
         },
         disposeStudentGcaCharts() {
-            ['studentGcaRadar', 'studentGcaTrend'].forEach(key => {
+            ['studentGcaRadar', 'studentGcaTrend', 'personalSpeechChart', 'personalEmotionChart'].forEach(key => {
                 const chart = this.chartInstances[key];
                 if (chart && !chart.isDisposed()) chart.dispose();
                 delete this.chartInstances[key];
@@ -3917,7 +3974,7 @@ new Vue({
                         }
                     }
                     if (d.goals) this.goals = d.goals;
-                    if (d.relevance !== undefined) this.currentRelevance = d.relevance;
+                    if (d.relevance !== undefined && this.currentUser && d.username === this.currentUser.username) this.currentRelevance = d.relevance;
                     if (d.hint && d.username === this.currentUser.username) {
                         this.showClassroomHint(d.hint, 7000, { cooldownMs: this.classroomHintCooldownMs });
                     }
@@ -5390,8 +5447,7 @@ new Vue({
                         const matchedKey = res.data.current_user_key || allKeys.find(key => ownCandidates.includes(String(key)));
                         if (matchedKey && this.allIndividualEmotions[matchedKey]) {
                             this.individualEmotions = { [matchedKey]: this.allIndividualEmotions[matchedKey] };
-                        } else if (allKeys.length === 1) {
-                            this.individualEmotions = { [allKeys[0]]: this.allIndividualEmotions[allKeys[0]] };
+                        
                         }
                     }
 
@@ -6242,7 +6298,7 @@ new Vue({
                 }, false);
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('avgLearningChart');
             if (avgLearningEl) {
                 if (!this.chartInstances.avgLearningChart || this.chartInstances.avgLearningChart.isDisposed()) {
@@ -6254,7 +6310,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 13, fontWeight: 'normal' }
@@ -6282,7 +6338,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 42, right: 20, top: 42, bottom: 36 },
                         xAxis: {
@@ -6298,7 +6354,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 11, color: '#6b7280' },
                             axisLabel: { fontSize: 10, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -6605,7 +6661,7 @@ new Vue({
                 const signal = this.tdRequestController.signal;
                 // 并行请求统计和情绪数据
                 const [statsRes, emotionRes] = await Promise.all([
-                    axios.get(`/api/realtime-stats/${this.tdMeetingId}`, { timeout: 120000, signal }),
+                    axios.get(`/api/realtime-stats/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal }),
                     axios.get(`/api/emotion-details/${this.tdMeetingId}?minutes=${this.tdTimeWindow}`, { timeout: 120000, signal })
                 ]);
 
@@ -6729,7 +6785,7 @@ new Vue({
                 this.setChartEmpty(this.tdChartInstances.barChart, '暂无发言数据');
             }
 
-            // 小组成员平均学习状态曲线
+            // 小组成员平均情绪值曲线
             const avgLearningEl = document.getElementById('tdAvgLearningChart');
             if (avgLearningEl) {
                 if (!this.tdChartInstances.avgLearningChart || this.tdChartInstances.avgLearningChart.isDisposed()) {
@@ -6741,7 +6797,7 @@ new Vue({
                 if (!timeline.length) {
                     avgLearningChart.setOption({
                         title: {
-                            text: '暂无学习状态数据',
+                            text: '暂无情绪趋势数据',
                             left: 'center',
                             top: 'middle',
                             textStyle: { color: '#9ca3af', fontSize: 14, fontWeight: 'normal' }
@@ -6769,7 +6825,7 @@ new Vue({
                         },
                         tooltip: {
                             trigger: 'axis',
-                            formatter: params => `${params[0].axisValue}<br/>平均学习状态: ${params[0].data}`
+                            formatter: params => `${params[0].axisValue}<br/>平均情绪值: ${params[0].data}`
                         },
                         grid: { left: 48, right: 24, top: 52, bottom: 42 },
                         xAxis: {
@@ -6785,7 +6841,7 @@ new Vue({
                             type: 'value',
                             min: 0,
                             max: 100,
-                            name: '平均学习评分',
+                            name: '平均情绪值',
                             nameTextStyle: { fontSize: 12, color: '#6b7280' },
                             axisLabel: { fontSize: 11, color: '#6b7280' },
                             splitLine: { lineStyle: { color: '#e5e7eb' } }
@@ -7521,7 +7577,7 @@ new Vue({
         // 查看学生报告详情
         viewStudentReport(report) {
             // 在新窗口打开报告详情
-            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n专注度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
+            this.showAlert(`查看 ${report.student_name} 的报告:\n发言次数: ${report.speech_count}\n发言相关度: ${report.avg_relevance}%\n评价: ${report.summary || '无'}`, 'info', '学生报告');
         },
         // 下载学生报告PDF
         async downloadStudentPDF(report) {

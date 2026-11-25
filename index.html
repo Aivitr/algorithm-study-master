@@ -12,7 +12,7 @@
     <script src="/static/vendor/agora/AgoraRTC_N-4.22.0.js"></script>
     <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
     <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="/static/css/app.css" rel="stylesheet">
+    <link href="/static/css/app.css?v=student-entry-20261124" rel="stylesheet">
     <link href="/static/css/classroom-insights.css?v=20261122f" rel="stylesheet">
 </head>
 <body class="text-gray-800 h-screen flex flex-col font-sans">
@@ -570,7 +570,7 @@
                                     </div>
                                     <div class="bg-white p-4 rounded-xl text-center shadow-sm">
                                         <div class="text-3xl font-black" style="color: var(--secondary);">{{ report.data.avg_relevance }}%</div>
-                                        <div class="text-xs text-gray-600 mt-1">🎯 专注度</div>
+                                        <div class="text-xs text-gray-600 mt-1">🎯 发言相关度</div>
                                     </div>
                                     <div class="bg-white p-4 rounded-xl text-center shadow-sm">
                                         <div class="text-3xl font-black" style="color: var(--primary);">{{ report.exercise_count != null ? report.exercise_count : '-' }}</div>
@@ -885,7 +885,7 @@
                                             <div class="text-2xl font-black" :class="report.avg_relevance >= 70 ? 'text-green-500' : report.avg_relevance >= 50 ? 'text-yellow-500' : 'text-red-500'">
                                                 {{ report.avg_relevance }}%
                                             </div>
-                                            <div class="text-xs text-gray-500">专注度</div>
+                                            <div class="text-xs text-gray-500">发言相关度</div>
                                         </div>
                                     </div>
                                     <div class="mb-3">
@@ -1010,7 +1010,7 @@
                                     <div class="flex justify-between items-center">
                                         <div>
                                             <h3 class="text-lg font-bold text-gray-800">课堂整体评价</h3>
-                                            <p class="text-sm text-gray-500">基于发言质量、参与度、互动等维度综合评分</p>
+                                            <p class="text-sm text-gray-500">发言表现评分：平均质量60%＋平均相关度40%</p>
                                         </div>
                                         <div class="text-right">
                                             <div class="text-5xl font-black" :class="selectedClass.score >= 80 ? 'text-green-500' : selectedClass.score >= 60 ? 'text-yellow-500' : 'text-red-500'">
@@ -1159,8 +1159,8 @@
                                                 </div>
                                                 <!-- 分项得分 -->
                                                 <div class="flex justify-between text-[10px] text-gray-400 mt-2">
-                                                    <span>质量:{{ member.avg_quality || 50 }}</span>
-                                                    <span>情绪:{{ member.avg_emotion || 50 }}</span>
+                                                    <span>质量:{{ member.avg_quality == null ? 50 : member.avg_quality }}</span>
+                                                    <span>情绪:{{ member.avg_emotion == null ? 50 : member.avg_emotion }}</span>
                                                     <span>交互:{{ member.interaction_count || 0 }}次</span>
                                                 </div>
                                             </div>
@@ -1190,10 +1190,10 @@
                                         </div>
                                     </div>
 
-                                    <!-- 小组成员平均学习状态曲线 -->
+                                    <!-- 小组成员平均情绪值曲线 -->
                                     <div class="bg-white rounded-2xl shadow-lg p-5 mb-6">
                                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>学习状态
+                                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>情绪趋势
                                         </h4>
                                         <div id="tdAvgLearningChart" class="w-full h-72"></div>
                                     </div>
@@ -1724,7 +1724,7 @@
                                         </div>
                                         <div class="bg-white bg-opacity-60 p-3 rounded-lg text-center">
                                             <div class="text-3xl font-black mb-1" style="color: var(--secondary);">{{ report.data.avg_relevance }}%</div>
-                                            <div class="text-xs text-gray-600 font-medium">📊 专注度</div>
+                                            <div class="text-xs text-gray-600 font-medium">📊 发言相关度</div>
                                         </div>
                                         <div class="bg-white bg-opacity-60 p-3 rounded-lg text-center">
                                             <div class="text-3xl font-black mb-1" style="color: var(--primary);">{{ report.exercise_count != null ? report.exercise_count : '-' }}</div>
@@ -2283,12 +2283,12 @@
                 </div>
             </div>
             
-            <!-- 专注度指标 -->
+            <!-- 发言相关度指标 -->
             <div class="mt-6 pt-6 border-t-2 border-gray-100">
                 <div class="flex justify-between text-xs font-bold text-gray-500 mb-3">
                     <span class="flex items-center">
                         <i class="fas fa-chart-line mr-2"></i>
-                        专注度
+                        发言相关度
                     </span>
                     <span class="text-lg font-extrabold"
                           :class="currentRelevance === null ? 'text-gray-400' : currentRelevance < 60 ? 'text-red-500' : currentRelevance < 80 ? 'text-yellow-500' : 'text-green-500'">
@@ -2301,7 +2301,7 @@
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-400 text-center">
-                    <span v-if="currentRelevance === null">暂无专注度数据</span>
+                    <span v-if="currentRelevance === null">暂无发言相关度数据</span>
                     <span v-else-if="currentRelevance >= 80">😎 状态绝佳!</span>
                     <span v-else-if="currentRelevance >= 60">🙂 保持专注</span>
                     <span v-else>😔 需要加油</span>
@@ -2418,14 +2418,6 @@
                 <span>协作<br>分析</span>
                 <em v-if="gcaWarningCount() > 0" class="gca-fab-badge">{{ gcaWarningCount() }}</em>
             </button>
-            <button v-else-if="currentUser && currentUser.role === 'student'"
-                    @click="openStudentGca"
-                    class="gca-fab student-gca-fab"
-                    :class="{ 'has-stale-data': studentGcaStale }"
-                    title="查看我的协作学习分析">
-                <i :class="studentGcaLoading ? 'fas fa-spinner fa-spin' : 'fas fa-user-friends'"></i>
-                <span>我的<br>协作</span>
-            </button>
             <!-- 教师：结束课堂按钮 -->
             <button v-if="currentUser && currentUser.role === 'teacher'"
                     @click="endClass"
@@ -2528,9 +2520,6 @@
                         <button @click="switchGcaTab('overview')" :class="{ active: gcaActiveTab === 'overview' }">
                             <i class="fas fa-chart-line"></i>整体情况
                         </button>
-                        <button @click="switchGcaTab('students')" :class="{ active: gcaActiveTab === 'students' }">
-                            <i class="fas fa-th"></i>学生对比
-                        </button>
                         <button @click="switchGcaTab('individual')" :class="{ active: gcaActiveTab === 'individual' }">
                             <i class="fas fa-user-circle"></i>个人详情
                         </button>
@@ -2615,35 +2604,6 @@
                             </section>
                         </div>
 
-                        <!-- 学生对比 -->
-                        <div v-else-if="gcaActiveTab === 'students'" class="gca-content">
-                            <section class="gca-panel-card">
-                                <div class="gca-card-title">
-                                    <div><i class="fas fa-th"></i><span>学生 × 六项协作指标</span></div>
-                                    <small>颜色仅帮助识别差异，不代表优秀或不及格</small>
-                                </div>
-                                <div class="gca-table-wrap">
-                                    <table class="gca-heat-table">
-                                        <thead><tr>
-                                            <th>学生</th><th>有效发言</th>
-                                            <th v-for="metric in gcaMetricDefinitions" :key="'head-' + metric.key" :title="metric.description">{{ metric.label }}</th>
-                                        </tr></thead>
-                                        <tbody>
-                                            <tr v-for="student in gcaDashboardData.students" :key="student.id" @click="selectGcaStudent(student.id); switchGcaTab('individual')">
-                                                <th>{{ student.name }}<small v-if="student.student_id">{{ student.student_id }}</small></th>
-                                                <td>{{ student.utterance_count }}</td>
-                                                <td v-for="metric in gcaMetricDefinitions" :key="student.id + '-' + metric.key"
-                                                    :style="gcaHeatStyle(student.metrics[metric.key])">
-                                                    {{ gcaMetricValue(student.metrics[metric.key]) }}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <p class="gca-footnote"><i class="fas fa-info-circle"></i>点击任意学生可查看个人详情；本看板不生成综合分和名次。</p>
-                            </section>
-                        </div>
-
                         <!-- 个人详情 -->
                         <div v-else-if="gcaActiveTab === 'individual'" class="gca-content">
                             <div class="gca-student-picker">
@@ -2709,151 +2669,62 @@
             </div>
         </transition>
 
-        <!-- 学生端：本人协作分析（不包含其他学生个人数据） -->
+        <!-- 学生个人课堂回顾 -->
         <transition name="fade">
-            <div v-if="studentGcaVisible"
-                 class="gca-modal-overlay"
-                 @click.self="closeStudentGca">
-                <section class="gca-modal student-gca-modal" role="dialog" aria-modal="true" aria-label="我的协作分析">
-                    <header class="gca-modal-header student-gca-header">
-                        <div class="gca-modal-title-wrap">
-                            <div class="gca-modal-icon"><i class="fas fa-user-friends"></i></div>
-                            <div>
-                                <h2>我的协作 <span v-if="gcaDemoMode" class="gca-demo-badge">演示数据</span></h2>
-                                <p>只展示我的协作特征与匿名课堂数据</p>
-                            </div>
-                        </div>
-                        <div class="gca-modal-actions">
-                            <span v-if="studentGcaStale" class="gca-stale-note"><i class="fas fa-circle"></i>有新发言</span>
-                            <span class="gca-updated-at">更新于 {{ studentGcaFormattedUpdatedAt() }}</span>
-                            <button @click="refreshStudentGca" :disabled="studentGcaLoading" class="gca-icon-btn" title="刷新分析">
-                                <i :class="studentGcaLoading ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'"></i>
-                            </button>
-                            <button @click="closeStudentGca" class="gca-icon-btn" title="关闭"><i class="fas fa-times"></i></button>
-                        </div>
-                    </header>
-
-                    <div v-if="studentGcaData" class="gca-summary-strip">
-                        <span v-if="gcaDemoMode" class="gca-demo-summary">
-                            <i class="fas fa-flask"></i>当前展示虚构数据，不会写入数据库
-                        </span>
-                        <span class="gca-status-pill" :class="'status-' + studentGcaData.status">
-                            <i class="fas fa-circle"></i>{{ studentGcaStatusText() }}
-                        </span>
-                        <span><i class="fas fa-comment"></i>我有 {{ studentGcaData.summary.own_utterance_count }} 条有效发言</span>
-                        <span><i class="fas fa-users"></i>课堂共 {{ studentGcaData.summary.total_utterance_count }} 条有效发言</span>
-                        <span><i class="fas fa-clock"></i>{{ gcaDurationText(studentGcaData.summary.duration_seconds) }}</span>
+          <div v-if="studentGcaVisible" class="gca-modal-overlay" @click.self="closeStudentGca">
+            <section class="gca-modal student-gca-modal" role="dialog" aria-modal="true" aria-label="我的课堂">
+              <header class="gca-modal-header student-gca-header">
+                <div><h2>我的课堂 <span v-if="gcaDemoMode" class="gca-demo-badge">演示数据</span></h2><p>回顾本节参与，找到下一步行动</p></div>
+                <div class="gca-modal-actions"><button @click="refreshStudentGca" :disabled="studentOverviewLoading || studentGcaLoading" class="gca-icon-btn" title="刷新本人课堂数据"><i class="fas fa-sync-alt"></i></button><button @click="closeStudentGca" class="gca-icon-btn" title="关闭"><i class="fas fa-times"></i></button></div>
+              </header>
+              <nav class="gca-tabs student-gca-tabs">
+                <button v-for="tab in [{key:'overview',label:'我的表现'},{key:'emotion',label:'情绪记录'},{key:'personal',label:'协作回顾'}]" :key="tab.key" @click="switchStudentGcaTab(tab.key)" :class="{active:studentGcaActiveTab === tab.key}">{{ tab.label }}</button>
+              </nav>
+              <main class="gca-modal-body">
+                <p v-if="gcaDemoMode" class="student-gca-privacy-note">当前展示虚构演示数据，不会写入数据库。</p>
+                <p v-if="studentOverviewError" class="student-gca-privacy-note" role="alert">{{ studentOverviewError }} <button class="personal-all-button" @click="refreshStudentGca">重新加载</button></p>
+                <div v-if="studentOverviewLoading" class="gca-state-view">正在加载我的课堂数据……</div>
+                <div v-else-if="studentGcaActiveTab === 'overview' && studentOverview" class="personal-classroom-grid">
+                  <aside class="gca-panel-card personal-profile">
+                    <div class="personal-avatar" aria-label="默认头像"><i class="fas fa-user-graduate"></i></div>
+                    <h3>{{ studentOverview.student.name }}</h3><p>{{ studentOverview.student.student_id || '暂无学号' }}</p>
+                    <hr><h3>{{ studentOverview.meeting.topic }}</h3><p>课堂码：{{ studentOverview.meeting.class_code }}</p><p>{{ {created:'待开始',running:'进行中',ended:'已结束'}[studentOverview.meeting.status] }}</p>
+                  <article class="gca-panel-card"><h3>课堂共同目标 · {{ studentOverview.meeting.goals.filter(g=>g.status==='done').length }}/{{ studentOverview.meeting.goals.length }}</h3><p>共同进度由课堂分析更新，不代表个人掌握程度。</p><p v-if="!studentOverview.meeting.goals.length">暂无课堂目标</p><div v-for="(goal,i) in studentOverview.meeting.goals" :key="i" class="personal-speech">{{ goal.status === 'done' ? '✓' : '○' }} {{ goal.desc }}</div></article>
+                  </aside>
+                  <section>
+                    <div class="personal-stat-cards">
+                      <article class="gca-panel-card"><p>我的发言</p><strong>{{ studentOverview.summary.speech_count }} 条</strong></article>
+                      <article class="gca-panel-card"><p>平均发言质量</p><strong>{{ personalNumber(studentOverview.summary.average_quality) }}</strong><small>AI评估 · 0–100</small></article>
+                      <article class="gca-panel-card"><p>平均发言相关度</p><strong>{{ personalNumber(studentOverview.summary.average_relevance) }}</strong><small>与课堂主题的相关程度 · 0–100</small></article>
                     </div>
-
-                    <nav class="gca-tabs student-gca-tabs">
-                        <button @click="switchStudentGcaTab('personal')" :class="{ active: studentGcaActiveTab === 'personal' }">
-                            <i class="fas fa-user-circle"></i>我的协作
-                        </button>
-                        <button @click="switchStudentGcaTab('classroom')" :class="{ active: studentGcaActiveTab === 'classroom' }">
-                            <i class="fas fa-chart-line"></i>课堂协作
-                        </button>
-                        <button @click="switchStudentGcaTab('advice')" :class="{ active: studentGcaActiveTab === 'advice' }">
-                            <i class="fas fa-compass"></i>改进建议
-                            <span v-if="studentGcaData && studentGcaData.suggestions" class="student-gca-tab-count">{{ studentGcaData.suggestions.length }}</span>
-                        </button>
-                    </nav>
-
-                    <main class="gca-modal-body">
-                        <div v-if="studentGcaLoading" class="gca-state-view">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <h3>正在计算我的协作特征</h3>
-                            <p>只会读取你的个人指标与匿名课堂汇总。</p>
-                        </div>
-                        <div v-else-if="studentGcaError" class="gca-state-view is-error">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <h3>我的协作数据加载失败</h3>
-                            <p>{{ studentGcaError }}</p>
-                            <button @click="refreshStudentGca" class="gca-primary-btn">重新加载</button>
-                        </div>
-                        <div v-else-if="!studentGcaData" class="gca-state-view">
-                            <i class="fas fa-chart-area"></i><h3>等待分析</h3>
-                        </div>
-                        <div v-else-if="!studentGcaCanShowMetrics()" class="gca-state-view">
-                            <i class="fas fa-comment-medical"></i>
-                            <h3>{{ studentGcaStatusText() }}</h3>
-                            <p>{{ studentGcaData.error || '参与讨论并积累有效发言后，就能看到个人协作特征。' }}</p>
-                            <div v-if="studentGcaData.suggestions && studentGcaData.suggestions.length" class="gca-empty-signal">
-                                {{ studentGcaData.suggestions[0].suggestion }}
-                            </div>
-                        </div>
-
-                        <div v-else-if="studentGcaActiveTab === 'personal'" class="gca-content">
-                            <section class="student-gca-privacy-note">
-                                <i class="fas fa-shield-alt"></i>
-                                <span v-if="studentGcaHasClassAverage()">课堂均值已经匿名汇总；这里不会显示任何其他同学的姓名、个人指标或排名。</span>
-                                <span v-else>{{ studentGcaData.privacy_note || '课堂人数较少，匿名课堂均值暂不展示。' }}</span>
-                            </section>
-                            <section class="gca-individual-grid">
-                                <article class="gca-panel-card">
-                                    <div class="gca-card-title">
-                                        <div><i class="fas fa-bullseye"></i><span>我的特征与匿名课堂均值</span></div>
-                                    </div>
-                                    <div id="studentGcaRadar" class="gca-chart gca-radar-chart"></div>
-                                </article>
-                                <article class="gca-panel-card">
-                                    <div class="gca-card-title">
-                                        <div><i class="fas fa-list-ul"></i><span>六项协作特征</span></div>
-                                        <small>描述当前课堂行为，不是成绩</small>
-                                    </div>
-                                    <div class="gca-person-metrics student-gca-metrics">
-                                        <div v-for="metric in gcaMetricDefinitions" :key="'student-person-' + metric.key">
-                                            <span><b>{{ metric.label }}</b><small>{{ metric.description }}</small></span>
-                                            <strong>{{ gcaMetricValue(studentGcaMetric(metric.key)) }}</strong>
-                                            <em>匿名均值 {{ gcaMetricValue(studentGcaAverage(metric.key)) }}</em>
-                                        </div>
-                                    </div>
-                                    <div class="gca-interpretation-note">
-                                        <i class="fas fa-info-circle"></i>
-                                        <p>数值只用于帮助你观察参与方式，不能替代教师评价，也不应作为能力诊断。</p>
-                                    </div>
-                                </article>
-                            </section>
-                        </div>
-
-                        <div v-else-if="studentGcaActiveTab === 'classroom'" class="gca-content">
-                            <section v-if="studentGcaHasClassAverage() && studentGcaData.timeline" class="gca-panel-card student-gca-trend-card">
-                                <div class="gca-card-title">
-                                    <div><i class="fas fa-wave-square"></i><span>匿名课堂协作趋势</span></div>
-                                    <small>仅显示全班汇总，不展示任何个人数据</small>
-                                </div>
-                                <div id="studentGcaTrend" class="gca-chart student-gca-trend"></div>
-                            </section>
-                            <div v-else class="gca-state-view">
-                                <i class="fas fa-user-shield"></i>
-                                <h3>匿名趋势暂不展示</h3>
-                                <p>{{ studentGcaData.privacy_note || '课堂人数较少，匿名课堂均值与趋势暂不展示。' }}</p>
-                            </div>
-                            <section class="student-gca-privacy-note">
-                                <i class="fas fa-lightbulb"></i>
-                                <span>趋势表示整个课堂讨论如何变化，不能据此推断某位同学的表现。</span>
-                            </section>
-                        </div>
-
-                        <div v-else-if="studentGcaActiveTab === 'advice'" class="gca-content">
-                            <section class="student-gca-suggestion-list">
-                                <article v-for="suggestion in studentGcaData.suggestions" :key="suggestion.type"
-                                         class="student-gca-suggestion" :class="studentGcaSuggestionClass(suggestion.level)">
-                                    <div class="student-gca-suggestion-icon"><i :class="studentGcaSuggestionIcon(suggestion.level)"></i></div>
-                                    <div>
-                                        <h3>{{ suggestion.title }}</h3>
-                                        <p>{{ suggestion.description }}</p>
-                                        <div class="student-gca-next-step"><b>下一步可以这样做</b><span>{{ suggestion.suggestion }}</span></div>
-                                    </div>
-                                </article>
-                            </section>
-                            <section v-if="studentGcaData.warnings && studentGcaData.warnings.length" class="gca-engine-warnings">
-                                <h3><i class="fas fa-database"></i>数据说明</h3>
-                                <p v-for="(warning, index) in studentGcaData.warnings" :key="'student-warning-' + index">{{ warning }}</p>
-                            </section>
-                        </div>
-                    </main>
-                </section>
-            </div>
+                    <p class="gca-footnote">质量和相关度为AI评估，可能包含待评估暂存值，不作为成绩；发言条数受语音断句影响。</p>
+                    <article class="gca-panel-card"><h3>我的发言分布 · 每5分钟</h3><p>点击柱子查看该时段自己的发言。</p><div id="personalSpeechChart" class="gca-chart"></div></article>
+                    <article class="gca-panel-card"><h3>{{ personalBucket === null ? (personalAllExpanded ? '本节课全部发言' : '最近一次发言') : '选定时段我的发言' }}</h3><button class="personal-all-button" @click="toggleAllPersonalSpeeches" :aria-expanded="personalAllExpanded"><i :class="personalAllExpanded ? 'fas fa-chevron-up' : 'fas fa-list'"></i> {{ personalAllExpanded && personalBucket === null ? '收起发言记录' : '查看全部发言' }}</button><p v-if="!personalSpeeches().length">{{ personalBucket === null ? '暂无本人发言，参与讨论后刷新查看。' : '该时段没有记录，点击“查看全部发言”可重置筛选。' }}</p><p v-if="personalBucket !== null" class="personal-filter-note">当前筛选：课堂第 {{ personalBucket * 5 }}～{{ (personalBucket + 1) * 5 }} 分钟 · {{ personalSpeeches().length }} 条</p><div v-for="speech in personalSpeeches()" :key="speech.id" class="personal-speech personal-record"><small>课堂第 {{ Math.floor(speech.second / 60) }} 分钟</small><p>{{ speech.text }}</p><p class="gca-footnote">AI点评：{{ speech.feedback || '暂无点评' }}</p></div></article>
+                  </section>
+                </div>
+                <div v-else-if="studentGcaActiveTab === 'emotion' && studentOverview" class="gca-content">
+                  <article class="gca-panel-card"><h3 class="personal-emotion-title"><i class="far fa-smile"></i> 我的情绪记录 <span>本节课</span></h3><p>每个点是一条识别记录；纵向位置仅区分标签，不表示好坏或持续时长。</p><div id="personalEmotionChart" class="gca-chart"></div></article>
+                </div>
+                <div v-else-if="studentGcaActiveTab === 'personal'" class="gca-content">
+                  <p v-if="studentGcaLoading">正在加载协作分析……</p><p v-if="studentGcaError">{{ studentGcaError }}</p>
+                  <template v-if="studentGcaData">
+                    <div class="student-review-grid">
+                    <section class="student-review-chart">
+                    <article v-if="studentGcaCanShowMetrics()" class="gca-panel-card"><h3>我的协作特征</h3><label><input type="checkbox" v-model="personalShowAverage" @change="renderStudentGcaRadar"> 显示匿名课堂参照</label><div id="studentGcaRadar" class="gca-chart gca-radar-chart"></div><details><summary>六项具体指标与解释</summary><p v-for="metric in gcaMetricDefinitions" :key="metric.key">{{ metric.label }}：{{ gcaMetricValue(studentGcaMetric(metric.key)) }} — {{ metric.description }}</p></details></article>
+                    <p v-else>{{ studentGcaStatusText() }}</p>
+                    </section>
+                    <section class="student-review-advice">
+                      <h3 class="student-review-heading"><i class="fas fa-compass"></i> 下一步可以尝试</h3>
+                      <article v-for="(advice,index) in studentGcaData.suggestions" :key="advice.type" class="gca-panel-card student-review-advice-card"><span class="student-review-number">{{ index + 1 }}</span><div><h3>{{ advice.title }}</h3><p>{{ advice.suggestion }}</p></div></article>
+                      <p v-if="!studentGcaData.suggestions || !studentGcaData.suggestions.length" class="gca-footnote">暂无新的协作建议。</p>
+                    </section>
+                    </div>
+                    <p v-for="(warning,i) in studentGcaData.warnings" :key="i" class="gca-footnote">{{ warning }}</p>
+                  </template>
+                </div>
+              </main>
+            </section>
+          </div>
         </transition>
 
         <!-- 知识图谱弹窗 -->
@@ -3081,6 +2952,10 @@
             
             <!-- 实时统计模块 -->
             <div v-show="classroomTab === 'stats'" class="classroom-stats-panel flex-1 min-h-0 overflow-y-auto p-4 bg-white">
+                <button v-if="currentUser && currentUser.role === 'student'" type="button" class="student-detail-entry" @click="openStudentGca">
+                    <span><i class="fas fa-user-graduate"></i> 查看完整课堂数据<small>我的表现、情绪记录与协作回顾</small></span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </button>
                 <div class="flex justify-end items-center mb-4">
                     <button @click="loadRealtimeStats" class="text-xs font-bold" style="color: var(--primary);">
                         <i class="fas fa-sync-alt mr-1"></i>刷新
@@ -3098,10 +2973,10 @@
                         <div id="pieChart" class="w-full h-56"></div>
                     </div>
                     
-                    <!-- 小组成员平均学习状态曲线 -->
+                    <!-- 小组成员平均情绪值曲线 -->
                     <div class="bg-white rounded-xl shadow-lg p-4" v-if="isTeacherRole">
                         <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>学习状态
+                            <i class="fas fa-chart-line text-teal-600 mr-2"></i>情绪趋势
                         </h4>
                         <div id="avgLearningChart" class="w-full h-56"></div>
                     </div>
@@ -3206,8 +3081,8 @@
                                 </div>
                                 <!-- 分项得分 -->
                                 <div class="flex justify-between text-[10px] text-gray-400 mt-2">
-                                    <span>质量:{{ member.avg_quality || 50 }}</span>
-                                    <span>情绪:{{ member.avg_emotion || 50 }}</span>
+                                    <span>质量:{{ member.avg_quality == null ? 50 : member.avg_quality }}</span>
+                                    <span>情绪:{{ member.avg_emotion == null ? 50 : member.avg_emotion }}</span>
                                 </div>
                             </div>
                         </div>
@@ -3738,57 +3613,6 @@
 
                     <!-- ================= 学生：我的学习画像 ================= -->
                     <template v-else>
-                        <div class="insight-hero insight-hero-student">
-                            <div class="insight-hero-main">
-                                <div class="flex items-center gap-2">
-                                    <span class="insight-avatar insight-avatar-lg">{{ shortName(currentUser.username) }}</span>
-                                    <div>
-                                        <p class="insight-hero-kicker">我的学习画像</p>
-                                        <h3 class="insight-hero-title">{{ currentUser.username }}</h3>
-                                    </div>
-                                </div>
-                                <div class="insight-kpi-row">
-                                    <div class="insight-kpi">
-                                        <span class="k">我的发言</span>
-                                        <span class="v"><span>{{ myStats.count }}</span></span>
-                                    </div>
-                                    <div class="insight-kpi">
-                                        <span class="k">平均质量</span>
-                                        <span class="v"><span>{{ myStats.avgQuality }}</span></span>
-                                    </div>
-                                    <div class="insight-kpi">
-                                        <span class="k">主要情绪</span>
-                                        <span class="v" style="font-size: 12px;">{{ myStats.topEmotion }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="insight-ring" :style="{ '--pct': myShareNum + '%' }">
-                                <div class="insight-ring-inner">
-                                    <span class="num">{{ myStats.share }}</span>
-                                    <span class="lab">发言占比</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="insight-card p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <h4 class="insight-card-title">
-                                    <i class="fas fa-chart-simple" style="color: var(--primary);"></i>我的发言走势
-                                </h4>
-                                <button type="button" class="insight-icon-btn" title="刷新"
-                                        @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
-                                    <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
-                                </button>
-                            </div>
-                            <div v-if="myStats.series.length" class="insight-mini-bars">
-                                <span v-for="(bar, i) in myStats.series" :key="'bar-' + i"
-                                      class="insight-mini-bar" :style="{ height: bar + '%' }"
-                                      :title="'质量 ' + bar"></span>
-                            </div>
-                            <p v-else class="text-[9px] text-gray-400">还没有可展示的发言质量数据</p>
-                            <p class="text-[9px] text-gray-400 mt-1">最近 {{ myStats.series.length }} 条发言的质量分，越高代表内容越贴合课堂目标</p>
-                        </div>
-
                         <div class="insight-card p-4">
                             <div class="flex items-center justify-between mb-2">
                                 <h4 class="insight-card-title">
@@ -4310,6 +4134,6 @@
 </script>
 
 <script src="/static/js/classroom-insights.js?v=20261122f"></script>
-<script src="/static/js/app.js?v=20261122f"></script>
+<script src="/static/js/app.js?v=student-entry-20261124"></script>
 </body>
 </html>
