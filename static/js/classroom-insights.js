@@ -602,8 +602,10 @@
                     this.showAlert('当前没有未发言成员', 'info', '提示');
                     return;
                 }
-                const script = `${names[0]}，刚才这轮你一直在听，能就「光照减弱后暗反应会怎样」补一句你的判断吗？说一个理由就行。`;
-                this.agentQuestion = script;
+                const topic = String(this.currentTopic || '').trim() || '当前讨论';
+                const who = names.join('、');
+                const call = names.length > 1 ? '你们' : '你';
+                const script = `${who}，刚才这轮${call}一直在听，能就「${topic}」${names.length > 1 ? '各' : ''}补一句自己的判断吗？说一个理由就行。`;
                 this.copyText(script, '点名话术');
             },
             /** 复制文本到剪贴板（http 页面下退化为 execCommand）。 */

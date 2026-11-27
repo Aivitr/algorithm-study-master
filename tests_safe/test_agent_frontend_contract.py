@@ -24,3 +24,11 @@ def test_teacher_hint_inbox_is_wired():
     assert "/api/hint-logs/${meetingId}" in javascript
     assert "/api/hint-logs/${item.id}/send" in javascript
     assert "/api/hint-logs/${item.id}/ignore" in javascript
+
+
+def test_silent_script_does_not_overwrite_agent_question():
+    javascript = (ROOT / "static/js/classroom-insights.js").read_text(encoding="utf-8")
+    start = javascript.index("makeSilentScript()")
+    body = javascript[start : javascript.index("copyText(script", start)]
+    assert "agentQuestion" not in body
+    assert "currentTopic" in body
