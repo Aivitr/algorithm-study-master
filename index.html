@@ -13,7 +13,7 @@
     <link href="/static/vendor/tailwind-2.2.19.min.css" rel="stylesheet">
     <link href="/static/vendor/fontawesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/app.css?v=student-entry-20261124" rel="stylesheet">
-    <link href="/static/css/classroom-insights.css?v=hint-inbox-20261125" rel="stylesheet">
+    <link href="/static/css/classroom-insights.css?v=analysis-20261127" rel="stylesheet">
 </head>
 <body class="text-gray-800 h-screen flex flex-col font-sans">
 
@@ -3594,8 +3594,9 @@
                                     <div class="flex items-start gap-2">
                                         <span class="insight-avatar">{{ shortName(action.target) }}</span>
                                         <div class="min-w-0 flex-1">
-                                            <p class="text-[11px] font-bold" style="color: var(--primary-dark);">{{ action.action }}</p>
-                                            <p class="text-[9px] text-gray-400 mt-0.5">
+                                            <p class="insight-action-title text-[11px] font-bold" style="color: var(--primary-dark);"
+                                               :title="action.action">{{ action.action }}</p>
+                                            <p class="text-[9px] text-gray-400 mt-0.5 truncate" :title="action.target || '小组'">
                                                 <i class="fas fa-user mr-1"></i>{{ action.target || '小组' }}
                                             </p>
                                         </div>
@@ -3632,6 +3633,15 @@
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div v-if="agentAnalysis.data_gaps && agentAnalysis.data_gaps.length" class="insight-card p-4">
+                                <h4 class="insight-card-title mb-2">
+                                    <i class="fas fa-circle-info" style="color: #94a3b8;"></i>数据说明
+                                </h4>
+                                <ul class="insight-data-gaps">
+                                    <li v-for="(gap, i) in agentAnalysis.data_gaps" :key="'gap-' + i">{{ gap }}</li>
+                                </ul>
                             </div>
 
                             <div v-if="isTeacherRole && agentActionHistory.length" class="insight-card p-4 space-y-2">

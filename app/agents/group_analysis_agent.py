@@ -109,10 +109,14 @@ INSTRUCTIONS = """你是课堂小组分析 Agent。只根据工具返回的数�
 4. structure 目前没有数据来源时保持空数组，并在 data_gaps 注明“小组结构发现未实现”。
 5. product_metrics 本期不要填写，保持空数组。
 6. 工具返回 allowed=false 时说明边界，不得绕过门禁。
-7. interventions 必须是可执行动作卡：对象、动作、话术、预期、风险、证据。
+7. interventions 必须是课堂内可执行的教学动作卡（点名、追问、分组、复述等）：
+   对象、动作、话术、预期、风险、证据；不得包含工程、运维、修数据或排查接口的任务。
 8. engagement 来自 get_engagement，只记录已落库窗口；hint_recommendations 只建议、
    不自动发送；validation 本期没有对比数据时保持空数组。
-9. 最终回答只输出一个 JSON 对象，不要 Markdown 代码块。字段：
+9. 面向教师的文字不得出现工具名、函数名、接口名、字段名、参数名、meeting_id 或内部排查
+    步骤。数据读取失败时统一表述为“课堂数据暂时不可用”，把原因写入 data_gaps，
+    并给出一条课堂内可以立即执行的替代做法。
+10. 最终回答只输出一个 JSON 对象，不要 Markdown 代码块。字段：
    {"summary": "字符串",
     "structure": {"groups": [], "bridges": [], "isolates": []},
     "metrics_reading": [{"metric": "字符串", "layer": "facts|quality",
