@@ -1,8 +1,8 @@
 {
   "GET /": {
     "content_type": "text/html",
-    "digest": "23e53e9a96dfb68a",
-    "length": 331584,
+    "digest": "561a163d84e190b2",
+    "length": 331592,
     "status": 200
   },
   "GET /api/active-groups/1": {
