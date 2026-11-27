@@ -1,5 +1,6 @@
 """Classroom Group Analysis Agent 的课堂级工具。"""
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,13 +10,25 @@ from sqlalchemy.orm import Session
 from app.agents.state import require_tool_state
 from app.services.classroom_agent_service import classroom_agent_service
 
+logger = logging.getLogger(__name__)
+
+
+def tool_failure_message(ctx: RunContextWrapper[Any], error: Exception) -> str:
+    """工具异常回传给模型，同时把堆栈写进服务端日志。"""
+    logger.exception("agent tool failed: %s", error)
+    return f"工具执行失败：{type(error).__name__}: {error}"
+
+
+def _tool(func):
+    return function_tool(func, failure_error_function=tool_failure_message)
+
 
 @dataclass
 class ClassroomToolContext:
     db: Session
 
 
-@function_tool
+@_tool
 def get_classroom_transcripts(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -27,7 +40,7 @@ def get_classroom_transcripts(
     return classroom_agent_service.get_transcripts(ctx.context.db, meeting_id, limit)
 
 
-@function_tool
+@_tool
 def get_classroom_statistics(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -38,7 +51,7 @@ def get_classroom_statistics(
     return classroom_agent_service.get_statistics(ctx.context.db, meeting_id)
 
 
-@function_tool
+@_tool
 def get_classroom_knowledge(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -49,7 +62,7 @@ def get_classroom_knowledge(
     return classroom_agent_service.get_knowledge(ctx.context.db, meeting_id)
 
 
-@function_tool
+@_tool
 def get_class_metrics(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -60,7 +73,7 @@ def get_class_metrics(
     return classroom_agent_service.get_metrics(ctx.context.db, meeting_id)
 
 
-@function_tool
+@_tool
 def get_engagement(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,
@@ -73,7 +86,7 @@ def get_engagement(
     return classroom_agent_service.get_engagement(ctx.context.db, meeting_id, dimension, user_id)
 
 
-@function_tool
+@_tool
 def get_hint_history(
     ctx: RunContextWrapper[ClassroomToolContext],
     meeting_id: int,

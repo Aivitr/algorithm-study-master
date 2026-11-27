@@ -187,3 +187,14 @@ def test_statistics_carry_emotion_evidence_ids(seeded_ids):
 
     assert result["emotion_evidence_ids"]
     assert all(ref.startswith("E#") for ref in result["emotion_evidence_ids"])
+
+
+def test_tool_failure_message_includes_error_and_logs(caplog):
+    from app.agents.tools import tool_failure_message
+
+    with caplog.at_level("ERROR"):
+        message = tool_failure_message(None, ValueError("db down"))
+
+    assert "ValueError" in message
+    assert "db down" in message
+    assert any("db down" in record.getMessage() for record in caplog.records)

@@ -789,3 +789,23 @@
 
 /* 对话页滚动兜底 */
 .classroom-rightpanel { min-height: 0; }
+
+/* 干预动作标题最多两行，避免长段落撑满卡片 */
+.insight-action-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 数据缺口说明 */
+.insight-data-gaps {
+    margin: 0;
+    padding: 8px 10px 8px 26px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.8;
+    list-style: disc;
+}
