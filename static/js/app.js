@@ -1610,7 +1610,15 @@ new Vue({
             } catch(e) { this.showAlert('注册失败: ' + (e.response?.data?.message || e.message), 'error', '错误'); this.loading = false; }
         },
         // 退出登录
+        resetAITutorState() {
+            this.aiMessages = [];
+            this.aiInput = '';
+            this.aiLoading = false;
+            this.aiDrawerOpen = false;
+            this.showAITutor = false;
+        },
         logout() {
+            this.resetAITutorState();
             if (this.pageState === 'classroom') this._cleanupClassroom();
             this.stopSessionHeartbeat();
             this.revokeServerSession();
@@ -1905,6 +1913,7 @@ new Vue({
                 this._cleanupClassroom();
             }
             this.currentUser = null;
+            this.resetAITutorState();
             this.loginForm = { student_id: '', password: '' };
             this.registerForm = { student_id: '', username: '', password: '', confirmPassword: '', role: 'student' };
             this.closeClassModal();
