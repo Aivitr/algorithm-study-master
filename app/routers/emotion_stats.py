@@ -38,7 +38,12 @@ def _statistics_window(db: Session, meeting_id: int, minutes: int):
 
 
 @router.get("/api/realtime-stats/{meeting_id}")
-async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db), minutes: int = 0):
+async def get_realtime_stats(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    minutes: int = 0,
+    ctx: SessionContext = Depends(require_session),
+):
     """获取实时统计数据"""
     try:
         import time
@@ -189,6 +194,21 @@ async def get_realtime_stats(meeting_id: int, db: Session = Depends(get_db), min
 
         # ??
         member_scores.sort(key=lambda x: x["score"], reverse=True)
+
+        # 学生只能拿到自己的那一份；班级排行与同学评语仅教师可见
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        is_owner_teacher = (
+            ctx.user.role == "teacher"
+            and meeting is not None
+            and int(meeting.teacher_id) == int(ctx.user.id)
+        )
+        if not is_owner_teacher:
+            own = str(ctx.user.username)
+            pie_data = [row for row in pie_data if row["name"] == own]
+            nodes = [node for node in nodes if node["name"] == own]
+            edges = []
+            emotion_timeline = {own: emotion_timeline.get(own, [])}
+            member_scores = [row for row in member_scores if row["name"] == own]
 
         print(f"  [OK] ??: {time.time() - start_time:.2f}??")
 
