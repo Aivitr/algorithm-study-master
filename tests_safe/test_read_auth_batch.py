@@ -47,3 +47,19 @@ def test_student_can_read_own_quiz_history(client, seeded_ids, student_headers):
     )
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+
+def test_realtime_stats_hides_classmates_from_students(
+    client, seeded_ids, student_headers, teacher_headers
+):
+    path = f"/api/realtime-stats/{seeded_ids['meeting_id']}"
+
+    own = client.get(path, headers=student_headers).json()
+    assert own["status"] == "success"
+    assert {row["name"] for row in own["pie_data"]} == {"李同学"}
+    assert {row["name"] for row in own["member_scores"]} == {"李同学"}
+    assert set(own["emotion_timeline"]) == {"李同学"}
+    assert own["interaction"]["edges"] == []
+
+    full = client.get(path, headers=teacher_headers).json()
+    assert {"李同学", "王同学"} <= {row["name"] for row in full["member_scores"]}
