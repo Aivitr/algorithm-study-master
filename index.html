@@ -3810,9 +3810,9 @@
                         <div>
                             <h3 class="insight-card-title">
                                 <i class="fas fa-link" style="color: var(--primary);"></i>
-                                证据与动作
+                                {{ isTeacherRole ? '证据与动作' : '证据' }}
                             </h3>
-                            <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '引用原文 · 教师确认后记录' : '引用原文 · 干预动作由教师确认' }}</p>
+                            <p class="text-[10px] text-gray-400 mt-1">{{ isTeacherRole ? '引用原文 · 教师确认后记录' : '引用原文 · 用于核对这份反馈的依据' }}</p>
                         </div>
                         <button type="button" class="insight-secondary-btn" @click="loadAgentTranscriptEvidence(true)" :disabled="agentEvidenceLoading">
                             <i class="fas" :class="agentEvidenceLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
@@ -3833,9 +3833,9 @@
                                     <span class="text-[9px] font-normal text-gray-400 ml-1">原句见对话页</span>
                                 </h4>
                                 <div class="flex items-center gap-2">
-                                    <span class="insight-status-chip">已确认 {{ agentConfirmedCount }}</span>
-                                    <span class="insight-status-chip">待确认 {{ agentPendingCount }}</span>
-                                    <span class="insight-status-chip">{{ agentEvidenceRefs.length }} 条</span>
+                                    <span v-if="isTeacherRole" class="insight-status-chip">已确认 {{ agentConfirmedCount }}</span>
+                                    <span v-if="isTeacherRole" class="insight-status-chip">待确认 {{ agentPendingCount }}</span>
+                                    <span class="insight-status-chip">{{ agentEvidenceRefs.length }} 条证据</span>
                                 </div>
                             </div>
                             <div v-if="agentEvidenceRefs.length" class="space-y-2">

@@ -32,3 +32,12 @@ def test_silent_script_does_not_overwrite_agent_question():
     body = javascript[start : javascript.index("copyText(script", start)]
     assert "agentQuestion" not in body
     assert "currentTopic" in body
+
+
+def test_ai_tutor_chat_is_reset_on_logout_and_session_invalidation():
+    javascript = (ROOT / "static/js/app.js").read_text(encoding="utf-8")
+    assert "resetAITutorState()" in javascript
+    assert javascript.count("this.resetAITutorState();") >= 2
+    start = javascript.index("resetAITutorState() {")
+    body = javascript[start : javascript.index("},", start)]
+    assert "this.aiMessages = [];" in body
